@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Link2, X } from 'lucide-react';
+import { Link2, Loader2, X } from 'lucide-react';
 import desktopExecutivesBg from './assets/images/bg_executives_desktop_1794778300480.jpg';
 import { AuthDrawer } from './components/AuthDrawer';
 import { DualCatalogShowcase } from './components/DualCatalogShowcase';
@@ -10,11 +10,25 @@ import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamp
 
 export default function App() {
   const [url, setUrl] = useState('');
+  const [catalogImages, setCatalogImages] = useState<CatalogImageItem[]>(
+    CATALOG_SAMPLE_IMAGES,
+  );
+  const [catalogVersion, setCatalogVersion] = useState(0);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
   const [activeBgImage, setActiveBgImage] = useState<CatalogImageItem | null>(null);
   const [hasAnimatedFirstBg, setHasAnimatedFirstBg] = useState(false);
   const [shouldAnimateBgEntry, setShouldAnimateBgEntry] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const extractAbortRef = useRef<AbortController | null>(null);
   const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    return () => {
+      extractAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isAuthOpen) return;
@@ -41,11 +55,54 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isAuthOpen]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = url.trim();
-    if (!trimmed) return;
-    setUrl(trimmed);
+    if (!trimmed || isExtracting) return;
+
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    setUrl(normalized);
+    setExtractError(null);
+    setIsExtracting(true);
+
+    extractAbortRef.current?.abort();
+    const controller = new AbortController();
+    extractAbortRef.current = controller;
+
+    try {
+      const response = await fetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: normalized }),
+        signal: controller.signal,
+      });
+
+      const data = (await response.json().catch(() => ({}))) as {
+        images?: CatalogImageItem[];
+        error?: string;
+      };
+
+      if (!response.ok || !Array.isArray(data.images) || data.images.length === 0) {
+        setExtractError(
+          data.error ||
+            'No pudimos encontrar imágenes válidas en esa dirección web.',
+        );
+        return;
+      }
+
+      setCatalogImages(data.images);
+      setCatalogVersion((prev) => prev + 1);
+      inputRef.current?.blur();
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setExtractError(
+        'No se pudo conectar con la página. Verifica la URL e intenta de nuevo.',
+      );
+    } finally {
+      if (extractAbortRef.current === controller) {
+        setIsExtracting(false);
+      }
+    }
   };
 
   const handleSelectBackground = (item: CatalogImageItem) => {
@@ -254,10 +311,14 @@ export default function App() {
               aria-hidden="true"
             />
             <input
-              type="url"
+              ref={inputRef}
+              type="text"
               inputMode="url"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                if (extractError) setExtractError(null);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   e.currentTarget.blur();
@@ -269,17 +330,35 @@ export default function App() {
               spellCheck={false}
               className="flex-1 min-w-0 bg-transparent text-[15px] font-normal text-slate-900 placeholder:text-slate-500 lg:placeholder:text-slate-400 focus:outline-none"
             />
-            {url.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setUrl('')}
-                aria-label="Limpiar URL"
-                className="flex items-center justify-center w-7 h-7 -mr-1.5 rounded-full text-slate-500 lg:text-slate-400 hover:text-slate-800 hover:bg-white/60 lg:hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:focus-visible:ring-slate-400 shrink-0"
-              >
-                <X className="w-3.5 h-3.5" aria-hidden="true" />
-              </button>
+            {isExtracting ? (
+              <Loader2
+                className="w-4 h-4 text-blue-600 lg:text-slate-700 animate-spin shrink-0"
+                aria-label="Extrayendo imágenes"
+              />
+            ) : (
+              url.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUrl('');
+                    setExtractError(null);
+                  }}
+                  aria-label="Limpiar URL"
+                  className="flex items-center justify-center w-7 h-7 -mr-1.5 rounded-full text-slate-500 lg:text-slate-400 hover:text-slate-800 hover:bg-white/60 lg:hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:focus-visible:ring-slate-400 shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              )
             )}
           </div>
+          {extractError && (
+            <p
+              role="alert"
+              className="mt-2 px-4 text-xs font-medium text-rose-600 lg:text-rose-200 lg:drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] text-center"
+            >
+              {extractError}
+            </p>
+          )}
         </form>
 
         {/* Desktop top-right guest sketch (dark executives backdrop contrast) */}
@@ -294,14 +373,18 @@ export default function App() {
 
       {/* Desktop-only dual showcase boxes with cross-gap animations */}
       <DualCatalogShowcase
-        images={CATALOG_SAMPLE_IMAGES}
+        key={`desktop-catalog-${catalogVersion}`}
+        images={catalogImages}
         activeBackgroundId={activeBgImage?.id ?? null}
         onSelectBackground={handleSelectBackground}
         suspendShortcuts={isAuthOpen}
       />
 
       {/* Mobile-only swipeable side-by-side white boxes with right-edge peek */}
-      <MobileCatalogCarousel images={CATALOG_SAMPLE_IMAGES} />
+      <MobileCatalogCarousel
+        key={`mobile-catalog-${catalogVersion}`}
+        images={catalogImages}
+      />
 
       {/* Responsive white dot-grid registration panel */}
       <AuthDrawer open={isAuthOpen} onClose={() => setIsAuthOpen(false)} />

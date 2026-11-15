@@ -595,9 +595,17 @@ export function DualCatalogShowcase({
     rects.left.height > 0 ? (rects.left.height - TILE_GAP * (grid.rows - 1)) / grid.rows : 0;
 
   const rowHeight =
-    rects.right.height > 0
-      ? (rects.right.height - URL_ROW_GAP * (images.length - 1)) / images.length
+    rects.right.height > 0 && images.length > 0
+      ? Math.min(
+          40,
+          (rects.right.height - URL_ROW_GAP * (images.length - 1)) / images.length,
+        )
       : 20;
+
+  const expandedGrid = useMemo(
+    () => computeGridDimensions(images.length, 1.65),
+    [images.length],
+  );
 
   const isFillShrinkActive = phase === 'FILL_IMAGES' || phase === 'REFILL_IMAGES';
   const isCompleted = phase === 'COMPLETED';
@@ -937,7 +945,13 @@ export function DualCatalogShowcase({
               className="flex-1 min-h-0 pt-5"
             >
               {expandedMode === 'images' ? (
-                <div className="w-full h-full grid grid-cols-5 grid-rows-3 gap-4">
+                <div
+                  className="w-full h-full grid gap-4"
+                  style={{
+                    gridTemplateColumns: `repeat(${expandedGrid.cols}, minmax(0, 1fr))`,
+                    gridTemplateRows: `repeat(${expandedGrid.rows}, minmax(0, 1fr))`,
+                  }}
+                >
                   {images.map((item) => (
                     <button
                       key={`expanded-img-${item.id}`}

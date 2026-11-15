@@ -7,16 +7,55 @@ import {
   useTransform,
   type PanInfo,
 } from 'motion/react';
-import { Eye, Image as ImageIcon, X } from 'lucide-react';
+import {
+  Copy,
+  Eye,
+  Image as ImageIcon,
+  Link2,
+  Smartphone,
+  X,
+  Zap,
+} from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
 
 interface MobileCatalogCarouselProps {
   images: CatalogImageItem[];
 }
 
+const SEARCH_LINK_BENEFITS = [
+  {
+    id: 'speed',
+    title: 'Rapidez',
+    description: 'Extrae y organiza imágenes en segundos, ligera y sin esperas.',
+    icon: Zap,
+    toneClass: 'bg-amber-50 text-amber-600',
+  },
+  {
+    id: 'clean-urls',
+    title: 'URLs limpias',
+    description: 'Convierte rutas largas en enlaces cortos, claros y ordenados.',
+    icon: Link2,
+    toneClass: 'bg-blue-50 text-blue-600',
+  },
+  {
+    id: 'easy-anywhere',
+    title: 'Fácil en teléfono o PC',
+    description: 'Úsala cómodo desde el celular o el computador sin complicaciones.',
+    icon: Smartphone,
+    toneClass: 'bg-emerald-50 text-emerald-600',
+  },
+  {
+    id: 'ready-to-share',
+    title: 'Listas para compartir',
+    description: 'Revisa cada foto y ten tus enlaces listos al instante en un toque.',
+    icon: Copy,
+    toneClass: 'bg-rose-50 text-rose-600',
+  },
+] as const;
+
 export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [activeCard, setActiveCard] = useState<0 | 1>(0);
+  const [activeCard, setActiveCard] = useState<0 | 1 | 2>(0);
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
   const shouldReduceMotion = useReducedMotion();
@@ -26,8 +65,12 @@ export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
     if (!el) return;
     const maxScroll = el.scrollWidth - el.clientWidth;
     if (maxScroll <= 0) return;
-    setActiveCard(el.scrollLeft > maxScroll * 0.45 ? 1 : 0);
+    const index = Math.min(2, Math.max(0, Math.round((el.scrollLeft / maxScroll) * 2)));
+    setActiveCard(index as 0 | 1 | 2);
   };
+
+  const mobileCols = images.length <= 1 ? 1 : images.length <= 4 ? 2 : 3;
+  const mobileRows = Math.max(1, Math.ceil(images.length / mobileCols));
 
   return (
     <>
@@ -36,10 +79,10 @@ export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
           ref={scrollRef}
           onScroll={handleScroll}
           className="-mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] overflow-x-auto snap-x snap-mandatory scroll-pl-4 sm:scroll-pl-5 px-4 sm:px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          aria-label="Vista móvil de imágenes y URLs"
+          aria-label="Vista móvil de imágenes, URLs y beneficios"
         >
           <div className="flex items-start gap-3.5 w-max pr-4 sm:pr-5">
-            {/* Card 1: Instant fluid 15-image thumbnail gallery (~30% more compact) */}
+            {/* Card 1: Instant fluid thumbnail gallery */}
             <div className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col">
               <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
                 Aquí verás tus imágenes
@@ -49,7 +92,13 @@ export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
                 aria-label="Aquí verás tus imágenes"
                 className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] p-2"
               >
-                <div className="w-full h-full grid grid-cols-3 grid-rows-5 gap-1">
+                <div
+                  className="w-full h-full grid gap-1"
+                  style={{
+                    gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
+                    gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
+                  }}
+                >
                   {images.map((item) => {
                     const hasError = Boolean(failedIds[item.id]);
 
@@ -85,7 +134,7 @@ export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
               </section>
             </div>
 
-            {/* Card 2: Clean static URLs list (~30% more compact; touching URLs does nothing) */}
+            {/* Card 2: Clean static URLs list (touching URLs does nothing) */}
             <div className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col">
               <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
                 Acá verás tu URL
@@ -95,11 +144,11 @@ export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
                 aria-label="Acá verás tu URL"
                 className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] px-2.5 py-1.5"
               >
-                <div className="w-full h-full flex flex-col justify-between divide-y divide-slate-100/85 select-none">
+                <div className="w-full h-full flex flex-col divide-y divide-slate-100/85 select-none overflow-hidden">
                   {images.map((item) => (
                     <div
                       key={`mobile-url-${item.id}`}
-                      className="flex-1 flex items-center gap-1.5 px-0.5 min-w-0"
+                      className="flex-1 max-h-7 flex items-center gap-1.5 px-0.5 min-w-0"
                     >
                       <Eye
                         className="w-2.5 h-2.5 text-blue-500/70 shrink-0"
@@ -113,24 +162,60 @@ export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
                 </div>
               </section>
             </div>
+
+            {/* Column 3: 4 stacked mini-cards sharing the exact same width and total height */}
+            <div className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col">
+              <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                ¿Por qué usarías Search Link?
+              </h2>
+
+              <section
+                aria-label="Por qué usarías Search Link"
+                className="h-[min(41dvh,300px)] min-h-[245px] w-full flex flex-col justify-between gap-2"
+              >
+                {SEARCH_LINK_BENEFITS.map((benefit) => {
+                  const Icon = benefit.icon;
+                  return (
+                    <article
+                      key={benefit.id}
+                      className="flex-1 min-h-0 w-full rounded-[14px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_8px_22px_-10px_rgba(15,23,42,0.11),0_2px_8px_-3px_rgba(37,99,235,0.05)] px-2.5 py-1.5 flex items-center gap-2.5"
+                    >
+                      <div
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${benefit.toneClass}`}
+                        aria-hidden="true"
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-[11px] font-semibold text-slate-950 leading-tight truncate">
+                          {benefit.title}
+                        </h3>
+                        <p className="mt-0.5 text-[9.5px] leading-[1.2] text-slate-500 line-clamp-2">
+                          {benefit.description}
+                        </p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </section>
+            </div>
           </div>
         </div>
 
-        {/* Passive scroll progress cue (no buttons added) */}
+        {/* Passive 3-step scroll progress cue (no buttons added) */}
         <div
           aria-hidden="true"
           className="flex items-center justify-center gap-1.5 mt-1"
         >
-          <span
-            className={`h-1.5 rounded-full transition-all duration-200 ${
-              activeCard === 0 ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300'
-            }`}
-          />
-          <span
-            className={`h-1.5 rounded-full transition-all duration-200 ${
-              activeCard === 1 ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300'
-            }`}
-          />
+          {[0, 1, 2].map((step) => (
+            <span
+              key={step}
+              className={`h-1.5 rounded-full transition-all duration-200 ${
+                activeCard === step ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300'
+              }`}
+            />
+          ))}
         </div>
       </div>
 
