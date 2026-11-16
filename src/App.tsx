@@ -42,6 +42,7 @@ export default function App() {
   const [shouldAnimateBgEntry, setShouldAnimateBgEntry] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
+  const [isFileUploadFlow, setIsFileUploadFlow] = useState(false);
   const [showCompressionBox, setShowCompressionBox] = useState(false);
   const [compressionStatuses, setCompressionStatuses] = useState<
     Record<string, ImageCompressionStatus>
@@ -115,6 +116,7 @@ export default function App() {
     const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     cancelOngoingCompression();
     setBatchNotice(null);
+    setIsFileUploadFlow(false);
     setShowCompressionBox(false);
     setCompressionStatuses({});
     setShowUploadBox(false);
@@ -195,6 +197,7 @@ export default function App() {
     cancelOngoingCompression();
     setIsExtracting(false);
     setExtractError(null);
+    setIsFileUploadFlow(true);
     setShowCompressionBox(false);
     setShowUploadBox(false);
     setUploadStatuses({});
@@ -783,6 +786,14 @@ export default function App() {
         activeBackgroundId={activeBgImage?.id ?? null}
         onSelectBackground={handleSelectBackground}
         suspendShortcuts={isAuthOpen}
+        isFileUploadFlow={isFileUploadFlow}
+        showCompressionBox={showCompressionBox}
+        compressionStatuses={compressionStatuses}
+        showUploadBox={showUploadBox}
+        uploadStatuses={uploadStatuses}
+        showReceiveBox={showReceiveBox}
+        receiveStatuses={receiveStatuses}
+        compressionResults={compressionResults}
       />
 
       {/* Mobile-only swipeable boxes with 2s compression + 1s upload + 1s receive transition + unboxed metadata below */}

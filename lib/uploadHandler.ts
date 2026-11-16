@@ -1,4 +1,9 @@
-import { buildSafeObjectKey, isR2Configured, uploadImageToR2 } from './r2Storage.ts';
+import {
+  buildSafeObjectKey,
+  getMissingR2EnvNames,
+  isR2Configured,
+  uploadImageToR2,
+} from './r2Storage.ts';
 
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
@@ -134,8 +139,9 @@ export async function processAndStoreUploadedImage(
   requestOrigin?: string,
 ): Promise<ImageUploadResponse> {
   if (!isR2Configured()) {
+    const missing = getMissingR2EnvNames();
     throw new Error(
-      'Faltan variables de Cloudflare R2 en el servidor (recuerda hacer Redeploy en Vercel después de guardarlas).',
+      `Faltan variables en Vercel (${missing.join(', ')}). Activa Production + Preview y haz Redeploy sin usar caché.`,
     );
   }
 

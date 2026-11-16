@@ -47,6 +47,15 @@ export function isR2Configured(): boolean {
   return Boolean(endpoint && accessKeyId && secretAccessKey && bucketName);
 }
 
+export function getMissingR2EnvNames(): string[] {
+  const { endpoint, accessKeyId, secretAccessKey } = getR2Env();
+  const missing: string[] = [];
+  if (!endpoint) missing.push('R2_ENDPOINT');
+  if (!accessKeyId) missing.push('R2_ACCESS_KEY_ID');
+  if (!secretAccessKey) missing.push('R2_SECRET_ACCESS_KEY');
+  return missing;
+}
+
 export function getR2BucketName(): string {
   return getR2Env().bucketName;
 }

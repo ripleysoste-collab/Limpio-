@@ -2,12 +2,27 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Check, Copy, Eye, Image as ImageIcon, X } from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
+import { DesktopUploadSequence } from './DesktopUploadSequence';
+import type {
+  CompressedImageMeta,
+  ImageCompressionStatus,
+  ImageReceiveStatus,
+  ImageUploadStatus,
+} from './MobileCatalogCarousel';
 
 interface DualCatalogShowcaseProps {
   images: CatalogImageItem[];
   activeBackgroundId: string | null;
   onSelectBackground: (item: CatalogImageItem) => void;
   suspendShortcuts?: boolean;
+  isFileUploadFlow?: boolean;
+  showCompressionBox?: boolean;
+  compressionStatuses?: Record<string, ImageCompressionStatus>;
+  showUploadBox?: boolean;
+  uploadStatuses?: Record<string, ImageUploadStatus>;
+  showReceiveBox?: boolean;
+  receiveStatuses?: Record<string, ImageReceiveStatus>;
+  compressionResults?: Record<string, CompressedImageMeta>;
 }
 
 interface BoxRect {
@@ -130,6 +145,14 @@ export function DualCatalogShowcase({
   activeBackgroundId,
   onSelectBackground,
   suspendShortcuts = false,
+  isFileUploadFlow = false,
+  showCompressionBox = false,
+  compressionStatuses = {},
+  showUploadBox = false,
+  uploadStatuses = {},
+  showReceiveBox = false,
+  receiveStatuses = {},
+  compressionResults = {},
 }: DualCatalogShowcaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const leftCardRef = useRef<HTMLElement>(null);
@@ -143,12 +166,15 @@ export function DualCatalogShowcase({
     right: { x: 0, y: 0, width: 0, height: 0 },
   });
 
-  const [phase, setPhase] = useState<AnimationPhase>('FILL_IMAGES');
+  const [uploadSequenceCompleted, setUploadSequenceCompleted] = useState(false);
+  const [phase, setPhase] = useState<AnimationPhase>(
+    isFileUploadFlow ? 'COMPLETED' : 'FILL_IMAGES',
+  );
   const [visibleImages, setVisibleImages] = useState<boolean[]>(() =>
-    images.map(() => Boolean(shouldReduceMotion)),
+    images.map(() => Boolean(shouldReduceMotion || isFileUploadFlow)),
   );
   const [visibleUrls, setVisibleUrls] = useState<boolean[]>(() =>
-    images.map(() => Boolean(shouldReduceMotion)),
+    images.map(() => Boolean(shouldReduceMotion || isFileUploadFlow)),
   );
   const [flights, setFlights] = useState<ActiveFlight[]>([]);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
@@ -236,13 +262,24 @@ export function DualCatalogShowcase({
   );
 
   const orderedUrlItems = useMemo(
-    () => rightMiddleExitOrder.map((imgIndex) => images[imgIndex] ?? images[0]),
-    [rightMiddleExitOrder, images],
+    () =>
+      isFileUploadFlow
+        ? images
+        : rightMiddleExitOrder.map((imgIndex) => images[imgIndex] ?? images[0]),
+    [isFileUploadFlow, rightMiddleExitOrder, images],
   );
 
   const hasMeasured = rects.left.width > 0 && rects.right.width > 0;
 
   useEffect(() => {
+    if (isFileUploadFlow) {
+      setVisibleImages(images.map(() => true));
+      setVisibleUrls(images.map(() => true));
+      setFlights([]);
+      setPhase('COMPLETED');
+      return;
+    }
+
     if (shouldReduceMotion) {
       setVisibleImages(images.map(() => true));
       setVisibleUrls(images.map(() => true));
@@ -332,7 +369,7 @@ export function DualCatalogShowcase({
     return () => {
       timers.forEach((id) => window.clearTimeout(id));
     };
-  }, [phase, images, shouldReduceMotion, hasMeasured, rightMiddleExitOrder]);
+  }, [phase, images, shouldReduceMotion, hasMeasured, rightMiddleExitOrder, isFileUploadFlow]);
 
   const computeExpandGeometry = useCallback((mode: ExpandedMode): ExpandGeometry | null => {
     const leftCard = leftCardRef.current;
@@ -563,8 +600,10 @@ export function DualCatalogShowcase({
   ]);
 
   const handleCopyUrl = async (item: CatalogImageItem) => {
+    const received = compressionResults[item.id];
+    const urlToCopy = received?.url ?? item.sourcePageUrl ?? item.cleanUrl;
     try {
-      await navigator.clipboard.writeText(item.cleanUrl);
+      await navigator.clipboard.writeText(urlToCopy);
       setCopiedId(item.id);
       window.setTimeout(() => {
         setCopiedId((prev) => (prev === item.id ? null : prev));
@@ -663,6 +702,30 @@ export function DualCatalogShowcase({
     }
     return { duration: 0 };
   }, [expandStage]);
+
+  const handleUploadSequenceComplete = useCallback(() => {
+    setUploadSequenceCompleted(true);
+    setVisibleImages(images.map(() => true));
+    setVisibleUrls(images.map(() => true));
+    setFlights([]);
+    setPhase('COMPLETED');
+  }, [images]);
+
+  if (isFileUploadFlow && !uploadSequenceCompleted) {
+    return (
+      <DesktopUploadSequence
+        images={images}
+        showCompressionBox={showCompressionBox}
+        compressionStatuses={compressionStatuses}
+        showUploadBox={showUploadBox}
+        uploadStatuses={uploadStatuses}
+        showReceiveBox={showReceiveBox}
+        receiveStatuses={receiveStatuses}
+        compressionResults={compressionResults}
+        onComplete={handleUploadSequenceComplete}
+      />
+    );
+  }
 
   return (
     <>
@@ -774,10 +837,15 @@ export function DualCatalogShowcase({
               {rects.right.width > 0 &&
                 images.map((_, rowIdx) => {
                   if (!visibleUrls[rowIdx]) return null;
-                  const mappedImgIndex = rightMiddleExitOrder[rowIdx] ?? rowIdx;
+                  const mappedImgIndex = isFileUploadFlow
+                    ? rowIdx
+                    : (rightMiddleExitOrder[rowIdx] ?? rowIdx);
                   const item = images[mappedImgIndex];
+                  const received = compressionResults[item.id];
+                  const displayUrl = received?.cleanUrl ?? item.cleanUrl;
                   const topY = rowIdx * (rowHeight + URL_ROW_GAP);
                   const isActive = activeBackgroundId === item.id;
+                  const isCopied = copiedId === item.id;
 
                   return (
                     <div
@@ -788,7 +856,7 @@ export function DualCatalogShowcase({
                         width: rects.right.width,
                         height: rowHeight,
                       }}
-                      className="absolute flex items-center"
+                      className="group/row absolute flex items-center gap-1"
                     >
                       <button
                         type="button"
@@ -797,7 +865,7 @@ export function DualCatalogShowcase({
                           onSelectBackground(item);
                         }}
                         aria-pressed={isActive}
-                        className={`group w-full h-full flex items-center gap-2 px-2.5 rounded-lg text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
+                        className={`group flex-1 min-w-0 h-full flex items-center gap-2 px-2.5 rounded-lg text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
                           isActive ? 'bg-slate-100' : 'hover:bg-slate-50'
                         }`}
                         title={`Ver ${item.alt} en el fondo`}
@@ -806,7 +874,9 @@ export function DualCatalogShowcase({
                           className={`w-3.5 h-3.5 shrink-0 transition-colors ${
                             isActive
                               ? 'text-slate-950'
-                              : 'text-slate-400 group-hover:text-slate-900'
+                              : received
+                                ? 'text-emerald-600'
+                                : 'text-slate-400 group-hover:text-slate-900'
                           }`}
                           aria-hidden="true"
                         />
@@ -817,9 +887,34 @@ export function DualCatalogShowcase({
                               : 'text-slate-700 group-hover:text-slate-950'
                           }`}
                         >
-                          {item.cleanUrl}
+                          {displayUrl}
                         </span>
                       </button>
+
+                      {received && received.savedPercent > 0 && (
+                        <span className="text-[10px] font-semibold text-emerald-600 tabular-nums shrink-0 px-1">
+                          -{received.savedPercent}%
+                        </span>
+                      )}
+
+                      {isFileUploadFlow && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleCopyUrl(item);
+                          }}
+                          aria-label={`Copiar URL de ${item.alt}`}
+                          title="Copiar URL"
+                          className="w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                        >
+                          {isCopied ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
+                          ) : (
+                            <Copy className="w-3 h-3" aria-hidden="true" />
+                          )}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -985,6 +1080,9 @@ export function DualCatalogShowcase({
                   {orderedUrlItems.map((item) => {
                     const isActive = activeBackgroundId === item.id;
                     const isCopied = copiedId === item.id;
+                    const received = compressionResults[item.id];
+                    const displayUrl = received?.cleanUrl ?? item.cleanUrl;
+                    const targetHref = received?.url ?? item.sourcePageUrl ?? item.url;
 
                     return (
                       <div
@@ -1006,14 +1104,16 @@ export function DualCatalogShowcase({
                               className={`w-4 h-4 transition-colors ${
                                 isActive
                                   ? 'text-slate-950'
-                                  : 'text-slate-400 group-hover:text-slate-900'
+                                  : received
+                                    ? 'text-emerald-600'
+                                    : 'text-slate-400 group-hover:text-slate-900'
                               }`}
                               aria-hidden="true"
                             />
                           </button>
 
                           <a
-                            href={item.sourcePageUrl ?? item.url}
+                            href={targetHref}
                             target="_blank"
                             rel="noopener noreferrer"
                             className={`flex-1 min-w-0 font-mono text-sm truncate tabular-nums hover:underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded py-0.5 ${
@@ -1023,7 +1123,7 @@ export function DualCatalogShowcase({
                             }`}
                             title={`Abrir imagen original: ${item.alt}`}
                           >
-                            {item.cleanUrl}
+                            {displayUrl}
                           </a>
                         </div>
 
