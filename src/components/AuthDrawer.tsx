@@ -56,6 +56,8 @@ export function AuthDrawer({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [oauthFallbackUrl, setOauthFallbackUrl] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
 
@@ -193,19 +195,180 @@ export function AuthDrawer({
     }
   };
 
+  useEffect(() => {
+    const applyOAuthPayload = async (hash: string, search: string) => {
+      if (!supabase) return;
+      const hashParams = new URLSearchParams(hash.replace(/^#/, ''));
+      const queryParams = new URLSearchParams(search.replace(/^\?/, ''));
+
+      const oauthError =
+        hashParams.get('error_description') ||
+        queryParams.get('error_description') ||
+        hashParams.get('error') ||
+        queryParams.get('error');
+
+      if (oauthError) {
+        setGoogleLoading(false);
+        setAuthError(translateSupabaseAuthError(oauthError));
+        return;
+      }
+
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const authCode = queryParams.get('code');
+
+      try {
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) {
+            setAuthError(translateSupabaseAuthError(error.message));
+          } else {
+            setAuthSuccess('Sesión iniciada con Google correctamente.');
+            setOauthFallbackUrl(null);
+          }
+        } else if (authCode) {
+          const { error } = await supabase.auth.exchangeCodeForSession(authCode);
+          if (error) {
+            setAuthError(translateSupabaseAuthError(error.message));
+          } else {
+            setAuthSuccess('Sesión iniciada con Google correctamente.');
+            setOauthFallbackUrl(null);
+          }
+        }
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as
+        | { type?: string; hash?: string; search?: string }
+        | undefined;
+      if (data?.type === 'SEARCHLINK_OAUTH_RESULT') {
+        void applyOAuthPayload(data.hash || '', data.search || '');
+      }
+    };
+
+    window.addEventListener('message', handleWindowMessage);
+
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        channel = new BroadcastChannel('searchlink-oauth');
+        channel.onmessage = (event: MessageEvent) => {
+          const data = event.data as
+            | { type?: string; hash?: string; search?: string }
+            | undefined;
+          if (data?.type === 'SEARCHLINK_OAUTH_RESULT') {
+            void applyOAuthPayload(data.hash || '', data.search || '');
+          }
+        };
+      } catch {
+        channel = null;
+      }
+    }
+
+    return () => {
+      window.removeEventListener('message', handleWindowMessage);
+      channel?.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      setGoogleLoading(false);
+      setOauthFallbackUrl(null);
+    }
+  }, [user]);
+
   const handleGoogleSignIn = async () => {
-    if (!supabase) return;
+    if (!supabase) {
+      setAuthError('Supabase no está configurado en el entorno.');
+      return;
+    }
+
     setAuthError(null);
     setAuthSuccess(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) {
+    setOauthFallbackUrl(null);
+    setGoogleLoading(true);
+
+    const isInsideIframe = (() => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    })();
+
+    try {
+      if (!isInsideIframe) {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin,
+          },
+        });
+        if (error) {
+          setGoogleLoading(false);
+          setAuthError(translateSupabaseAuthError(error.message));
+        }
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error || !data?.url) {
+        setGoogleLoading(false);
+        setAuthError(
+          error
+            ? translateSupabaseAuthError(error.message)
+            : 'No se pudo generar el enlace de acceso con Google.',
+        );
+        return;
+      }
+
+      const width = 520;
+      const height = 650;
+      const left = Math.max(0, Math.round(window.screenX + (window.outerWidth - width) / 2));
+      const top = Math.max(0, Math.round(window.screenY + (window.outerHeight - height) / 2));
+
+      const popup = window.open(
+        data.url,
+        'searchlink_google_oauth',
+        `width=${width},height=${height},left=${left},top=${top},menubar=no,toolbar=no,status=no`,
+      );
+
+      if (!popup) {
+        setGoogleLoading(false);
+        setOauthFallbackUrl(data.url);
+        setAuthError(
+          'Tu navegador bloqueó la ventana emergente. Pulsa el enlace de abajo para abrir Google.',
+        );
+        return;
+      }
+
+      const closeWatcher = window.setInterval(() => {
+        if (popup.closed) {
+          window.clearInterval(closeWatcher);
+          setGoogleLoading(false);
+        }
+      }, 500);
+    } catch (err) {
+      setGoogleLoading(false);
       setAuthError(
-        'Activa el proveedor Google en Authentication → Providers de tu Supabase o usa correo y contraseña.',
+        err instanceof Error
+          ? translateSupabaseAuthError(err.message)
+          : 'No se pudo iniciar sesión con Google.',
       );
     }
   };
@@ -838,11 +1001,29 @@ export function AuthDrawer({
                   <button
                     type="button"
                     onClick={() => void handleGoogleSignIn()}
-                    className="w-full h-12 rounded-full bg-white border border-slate-200/95 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-slate-50/80 px-5 flex items-center justify-center gap-3 text-[15px] font-medium text-slate-800 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    disabled={googleLoading}
+                    className="w-full h-12 rounded-full bg-white border border-slate-200/95 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-slate-50/80 px-5 flex items-center justify-center gap-3 text-[15px] font-medium text-slate-800 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:opacity-65"
                   >
-                    <GoogleLogoIcon />
-                    <span>Google</span>
+                    {googleLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-600" />
+                    ) : (
+                      <GoogleLogoIcon />
+                    )}
+                    <span>
+                      {googleLoading ? 'Conectando con Google…' : 'Google'}
+                    </span>
                   </button>
+
+                  {oauthFallbackUrl && (
+                    <a
+                      href={oauthFallbackUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2.5 w-full h-10 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 flex items-center justify-center transition-colors"
+                    >
+                      Abrir acceso con Google en una pestaña nueva
+                    </a>
+                  )}
 
                   {/* Clean hairline divider */}
                   <div className="relative my-5 lg:my-6 flex items-center">

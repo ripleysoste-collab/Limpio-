@@ -2,6 +2,10 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 let cachedServerClient: SupabaseClient | null = null;
 
+const DEFAULT_SUPABASE_URL = 'https://nhofuamltqglrgfjucof.supabase.co';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY =
+  'sb_publishable_wKhXyZ7s3CtT4NcU8Nx8EQ_T9TZsxFI';
+
 function cleanEnv(value: string | undefined): string {
   return (value || '').trim().replace(/^["']|["']$/g, '').trim();
 }
@@ -9,11 +13,13 @@ function cleanEnv(value: string | undefined): string {
 export function getSupabaseServerConfig(): { url: string; key: string } {
   const url =
     cleanEnv(process.env.SUPABASE_URL) ||
-    cleanEnv(process.env.VITE_SUPABASE_URL);
+    cleanEnv(process.env.VITE_SUPABASE_URL) ||
+    DEFAULT_SUPABASE_URL;
   const key =
     cleanEnv(process.env.SUPABASE_PUBLISHABLE_KEY) ||
     cleanEnv(process.env.SUPABASE_ANON_KEY) ||
-    cleanEnv(process.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+    cleanEnv(process.env.VITE_SUPABASE_PUBLISHABLE_KEY) ||
+    DEFAULT_SUPABASE_PUBLISHABLE_KEY;
 
   return { url, key };
 }

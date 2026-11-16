@@ -1,9 +1,16 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { MappedImageMetadata } from './imageCompression';
 
-const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+const DEFAULT_SUPABASE_URL = 'https://nhofuamltqglrgfjucof.supabase.co';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY =
+  'sb_publishable_wKhXyZ7s3CtT4NcU8Nx8EQ_T9TZsxFI';
+
+const supabaseUrl = (
+  import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL
+).trim();
 const supabasePublishableKey = (
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  DEFAULT_SUPABASE_PUBLISHABLE_KEY
 ).trim();
 
 export const isSupabaseClientConfigured = Boolean(
@@ -16,6 +23,7 @@ export const supabase: SupabaseClient | null = isSupabaseClientConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        flowType: 'implicit',
       },
     })
   : null;
