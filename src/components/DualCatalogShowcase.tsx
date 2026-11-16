@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Check, Copy, Eye, Image as ImageIcon, X } from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
+import type { MappedImageMetadata } from '../lib/imageCompression';
 import { DesktopUploadSequence } from './DesktopUploadSequence';
 import type {
   CompressedImageMeta,
   ImageCompressionStatus,
+  ImageMapStatus,
   ImageReceiveStatus,
   ImageUploadStatus,
 } from './MobileCatalogCarousel';
@@ -22,6 +24,9 @@ interface DualCatalogShowcaseProps {
   uploadStatuses?: Record<string, ImageUploadStatus>;
   showReceiveBox?: boolean;
   receiveStatuses?: Record<string, ImageReceiveStatus>;
+  showMapBox?: boolean;
+  mapStatuses?: Record<string, ImageMapStatus>;
+  mappedResults?: Record<string, MappedImageMetadata>;
   compressionResults?: Record<string, CompressedImageMeta>;
 }
 
@@ -152,6 +157,9 @@ export function DualCatalogShowcase({
   uploadStatuses = {},
   showReceiveBox = false,
   receiveStatuses = {},
+  showMapBox = false,
+  mapStatuses = {},
+  mappedResults = {},
   compressionResults = {},
 }: DualCatalogShowcaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -186,6 +194,20 @@ export function DualCatalogShowcase({
   const [contentVisible, setContentVisible] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const isSplitWorkspaceActive = Boolean(
+    isFileUploadFlow && showMapBox && uploadSequenceCompleted,
+  );
+
+  const allMappedComplete = Boolean(
+    isSplitWorkspaceActive &&
+      images.length > 0 &&
+      images.every((img) => {
+        const status = mapStatuses[img.id];
+        return status === 'mapped' || status === 'error';
+      }) &&
+      images.some((img) => Boolean(mappedResults[img.id])),
+  );
+
   // Fullscreen edge-to-edge image viewer state
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
 
@@ -198,6 +220,15 @@ export function DualCatalogShowcase({
     expandTimersRef.current.forEach((id) => window.clearTimeout(id));
     expandTimersRef.current = [];
   }, []);
+
+  useEffect(() => {
+    if (!isSplitWorkspaceActive) return;
+    clearExpandTimers();
+    setExpandedMode(null);
+    setExpandStage('start');
+    setContentVisible(false);
+    setHoveredImage(null);
+  }, [isSplitWorkspaceActive, clearExpandTimers]);
 
   useEffect(() => {
     images.forEach((item) => {
@@ -544,6 +575,11 @@ export function DualCatalogShowcase({
         return;
       }
 
+      // Block legacy interface-opening commands (Ctrl+B, Ctrl+V) during Stage 5 split workspace
+      if (isSplitWorkspaceActive) {
+        return;
+      }
+
       // 1. Inside fullscreen edge-to-edge image viewer: Ctrl+B closes immediately back to home
       if (fullscreenImage) {
         if (key === 'b') {
@@ -598,6 +634,7 @@ export function DualCatalogShowcase({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     suspendShortcuts,
+    isSplitWorkspaceActive,
     fullscreenImage,
     expandedMode,
     expandStage,
@@ -607,30 +644,34 @@ export function DualCatalogShowcase({
     closeAllToHome,
   ]);
 
-  const handleCopyUrl = async (item: CatalogImageItem) => {
-    const received = compressionResults[item.id];
-    const urlToCopy = received?.url ?? item.sourcePageUrl ?? item.cleanUrl;
+  const handleCopyText = async (copyKey: string, textToCopy: string) => {
     try {
-      await navigator.clipboard.writeText(urlToCopy);
-      setCopiedId(item.id);
+      await navigator.clipboard.writeText(textToCopy);
+      setCopiedId(copyKey);
       window.setTimeout(() => {
-        setCopiedId((prev) => (prev === item.id ? null : prev));
+        setCopiedId((prev) => (prev === copyKey ? null : prev));
       }, 1600);
     } catch {
       setCopiedId(null);
     }
   };
 
+  const handleCopyUrl = async (item: CatalogImageItem) => {
+    const received = compressionResults[item.id];
+    const urlToCopy = received?.url ?? item.sourcePageUrl ?? item.cleanUrl;
+    await handleCopyText(item.id, urlToCopy);
+  };
+
   // Click on the pure-white outer border or corner of either box when animation has finished
   const handleLeftBorderClick = (event: MouseEvent<HTMLElement>) => {
-    if (phase !== 'COMPLETED') return;
+    if (phase !== 'COMPLETED' || isSplitWorkspaceActive) return;
     if (event.target === leftCardRef.current || event.target === leftStageRef.current) {
       openExpanded('images');
     }
   };
 
   const handleRightBorderClick = (event: MouseEvent<HTMLElement>) => {
-    if (phase !== 'COMPLETED') return;
+    if (phase !== 'COMPLETED' || isSplitWorkspaceActive) return;
     if (event.target === rightCardRef.current || event.target === rightStageRef.current) {
       openExpanded('urls');
     }
@@ -719,6 +760,11 @@ export function DualCatalogShowcase({
     setPhase('COMPLETED');
   }, [images]);
 
+  const splitGrid = useMemo(
+    () => computeGridDimensions(images.length, 2.0),
+    [images.length],
+  );
+
   if (isFileUploadFlow && !uploadSequenceCompleted) {
     return (
       <DesktopUploadSequence
@@ -737,10 +783,328 @@ export function DualCatalogShowcase({
 
   return (
     <>
-      <div
-        ref={containerRef}
-        className="relative z-10 hidden lg:grid grid-cols-2 gap-14 xl:gap-20 w-full max-w-[960px] mt-8"
-      >
+      {isSplitWorkspaceActive ? (
+        /* Stage 5 Desktop Split-Screen Workspace: Left = Images (top) + Links (animated down-left below); Right = White Canvas with Renderizar y mapear / Renderizado y mapeado JSON */
+        <div className="relative z-10 hidden lg:grid lg:grid-cols-2 flex-1 min-h-0 mt-4 w-[calc(100%+3rem)] -mx-6 -mb-8">
+          {/* Center vertical divider line starting below the header/URL bar */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px bg-white/35 z-20"
+          />
+
+          {/* LEFT HALF: Images on top + Links animated down & leftward below */}
+          <div className="flex flex-col gap-3.5 px-6 pt-1 pb-5 min-h-0">
+            {/* Top-left card: Aquí verás tus imágenes */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
+                Aquí verás tus imágenes
+              </h2>
+              <section
+                aria-label="Aquí verás tus imágenes"
+                className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] p-3 overflow-hidden"
+              >
+                <div
+                  className="w-full h-full grid gap-2"
+                  style={{
+                    gridTemplateColumns: `repeat(${splitGrid.cols}, minmax(0, 1fr))`,
+                    gridTemplateRows: `repeat(${splitGrid.rows}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {images.map((item) => (
+                    <button
+                      key={`split-img-${item.id}`}
+                      type="button"
+                      onClick={() => setFullscreenImage(item)}
+                      aria-label={`Ampliar ${item.alt} en el lado izquierdo`}
+                      title={`Clic para ver ${item.alt}`}
+                      className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] hover:brightness-95 active:scale-[0.98] transition-all duration-150 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70"
+                    >
+                      <TileImage
+                        item={item}
+                        hasError={Boolean(failedIds[item.id])}
+                        onError={() =>
+                          setFailedIds((prev) => ({ ...prev, [item.id]: true }))
+                        }
+                      />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            {/* Bottom-left card: Aquí puedes ver tus metadatos (animates down & across from right column) */}
+            <motion.div
+              initial={
+                shouldReduceMotion
+                  ? false
+                  : { x: '52%', y: '-54%', opacity: 0.7 }
+              }
+              animate={{ x: 0, y: 0, opacity: 1 }}
+              transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+              className="flex-1 min-h-0 flex flex-col"
+            >
+              <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
+                Aquí puedes ver tus metadatos
+              </h2>
+              <section
+                aria-label="Aquí puedes ver tus metadatos"
+                className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] p-3 overflow-y-auto"
+              >
+                <div className="flex flex-col gap-0.5">
+                  {images.map((item) => {
+                    const received = compressionResults[item.id];
+                    const displayUrl = received?.cleanUrl ?? item.cleanUrl;
+                    const isActive = activeBackgroundId === item.id;
+                    const isCopied = copiedId === item.id;
+
+                    return (
+                      <div
+                        key={`split-url-${item.id}`}
+                        className="group/row h-7 flex items-center gap-1.5 px-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onSelectBackground(item)}
+                          aria-pressed={isActive}
+                          className="flex-1 min-w-0 h-full flex items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded"
+                          title={`Ver ${item.alt} en el fondo`}
+                        >
+                          <Eye
+                            className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                              isActive
+                                ? 'text-slate-950'
+                                : received
+                                  ? 'text-emerald-600'
+                                  : 'text-slate-400'
+                            }`}
+                            aria-hidden="true"
+                          />
+                          <span
+                            className={`font-mono text-[11px] leading-none truncate tabular-nums ${
+                              isActive
+                                ? 'text-slate-950 font-medium'
+                                : 'text-slate-700'
+                            }`}
+                          >
+                            {displayUrl}
+                          </span>
+                        </button>
+
+                        {received && received.savedPercent > 0 && (
+                          <span className="text-[10px] font-semibold text-emerald-600 tabular-nums shrink-0 px-1">
+                            -{received.savedPercent}%
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyUrl(item)}
+                          aria-label={`Copiar URL de ${item.alt}`}
+                          title="Copiar URL"
+                          className="w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                        >
+                          {isCopied ? (
+                            <Check
+                              className="w-3.5 h-3.5 text-emerald-600"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Copy className="w-3 h-3" aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            </motion.div>
+          </div>
+
+          {/* RIGHT HALF: Full clean white half-screen from below input downward, with title breathing room & rounded panel */}
+          <motion.div
+            initial={shouldReduceMotion ? false : { opacity: 0, x: 24 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="flex flex-col min-h-0 bg-white rounded-tl-[28px] pt-4 pb-5 px-6 overflow-hidden"
+          >
+            <h2 className="text-sm font-semibold text-slate-950 tracking-tight mb-3 pl-1 shrink-0">
+              {allMappedComplete
+                ? 'Renderizado y mapeado'
+                : 'Renderizar y mapear'}
+            </h2>
+
+            <section
+              aria-label={
+                allMappedComplete
+                  ? 'Renderizado y mapeado'
+                  : 'Renderizar y mapear'
+              }
+              className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-slate-200/90 shadow-[0_12px_34px_-14px_rgba(15,23,42,0.12)] p-4 overflow-y-auto"
+            >
+              {allMappedComplete ? (
+                <ul className="divide-y divide-slate-900/15">
+                  {images.map((item) => {
+                    const mapped = mappedResults[item.id];
+                    const isCopied = copiedId === `split-json-${item.id}`;
+
+                    if (!mapped) {
+                      return (
+                        <li
+                          key={`split-mapped-err-${item.id}`}
+                          className="py-3.5 min-w-0"
+                        >
+                          <span className="text-xs text-rose-600/90">
+                            No se pudo mapear esta imagen.
+                          </span>
+                        </li>
+                      );
+                    }
+
+                    const jsonText = JSON.stringify(
+                      {
+                        nombre: mapped.nombre,
+                        categoria: mapped.categoria,
+                        descripcion: mapped.descripcion,
+                        url: mapped.url,
+                      },
+                      null,
+                      2,
+                    );
+
+                    return (
+                      <li
+                        key={`split-mapped-json-${item.id}`}
+                        className="min-w-0"
+                      >
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopyText(`split-json-${item.id}`, jsonText)
+                          }
+                          aria-label={`Copiar JSON de ${mapped.nombre}`}
+                          className="w-full py-3.5 px-2 text-left hover:bg-slate-50/80 active:opacity-75 transition-colors rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <pre className="flex-1 min-w-0 font-mono text-[12px] leading-[1.6] text-slate-800 whitespace-pre-wrap break-all">
+                              {jsonText}
+                            </pre>
+                            <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium pt-0.5 text-slate-400">
+                              {isCopied ? (
+                                <span className="inline-flex items-center gap-1 text-emerald-600">
+                                  <Check
+                                    className="w-3.5 h-3.5 stroke-[2.75]"
+                                    aria-hidden="true"
+                                  />
+                                  Copiado
+                                </span>
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                              )}
+                            </span>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {images.slice(0, 10).map((item) => {
+                    const status = mapStatuses[item.id] ?? 'waiting';
+                    const mapped = mappedResults[item.id];
+
+                    return (
+                      <li
+                        key={`split-map-row-${item.id}`}
+                        className="h-8 shrink-0 w-full min-w-0 flex items-center gap-2.5 px-2 rounded-xl bg-slate-50/70 border border-slate-100 select-none"
+                      >
+                        <div className="w-4 h-4 shrink-0 flex items-center justify-center">
+                          {status === 'waiting' && (
+                            <span
+                              aria-label={`En espera para mapear ${item.alt}`}
+                              className="w-2.5 h-2.5 rounded-full bg-slate-300"
+                            />
+                          )}
+
+                          {status === 'mapping' && (
+                            <span
+                              aria-label={`Renderizando y mapeando ${item.alt}`}
+                              className="w-4 h-4 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin [animation-duration:550ms]"
+                            />
+                          )}
+
+                          {status === 'mapped' && (
+                            <motion.span
+                              initial={
+                                shouldReduceMotion
+                                  ? false
+                                  : { scale: 0.5, opacity: 0 }
+                              }
+                              animate={{ scale: 1, opacity: 1 }}
+                              transition={{
+                                duration: 0.18,
+                                ease: [0.22, 1, 0.36, 1],
+                              }}
+                              aria-label={`Mapeado completo para ${item.alt}`}
+                              className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center"
+                            >
+                              <Check
+                                className="w-2.5 h-2.5 stroke-[3]"
+                                aria-hidden="true"
+                              />
+                            </motion.span>
+                          )}
+
+                          {status === 'error' && (
+                            <span
+                              aria-label={`Error al mapear ${item.alt}`}
+                              className="w-4 h-4 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center"
+                            >
+                              <X
+                                className="w-3 h-3 stroke-[2.5]"
+                                aria-hidden="true"
+                              />
+                            </span>
+                          )}
+                        </div>
+
+                        {status === 'mapped' && mapped ? (
+                          <motion.span
+                            initial={
+                              shouldReduceMotion ? false : { opacity: 0, x: 5 }
+                            }
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.18 }}
+                            className="flex-1 min-w-0 text-xs leading-none text-slate-800 truncate"
+                          >
+                            <span className="font-medium text-slate-900">
+                              {mapped.nombre}
+                            </span>
+                            <span className="text-slate-400">
+                              {' '}
+                              · {mapped.categoria}
+                            </span>
+                          </motion.span>
+                        ) : status === 'error' ? (
+                          <span className="flex-1 min-w-0 text-xs leading-none text-rose-500 truncate">
+                            No se pudo mapear
+                          </span>
+                        ) : (
+                          <span className="h-2.5 w-2/3 rounded-full bg-slate-200/80 animate-pulse" />
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+          </motion.div>
+        </div>
+      ) : (
+        <div
+          ref={containerRef}
+          className="relative z-10 hidden lg:grid grid-cols-2 gap-14 xl:gap-20 w-full max-w-[960px] mt-8"
+        >
         {/* Left column: Images */}
         <motion.div
           animate={{ opacity: isExpandingActive && expandedMode === 'urls' ? 0 : 1 }}
@@ -982,6 +1346,7 @@ export function DualCatalogShowcase({
           </div>
         )}
       </div>
+      )}
 
       {/* Expanded 80% Desktop Overlay triggered by Ctrl+B / Ctrl+V or clicking box white edge */}
       {expandedMode && expandGeometry && currentExpandedRect && (
@@ -1162,7 +1527,7 @@ export function DualCatalogShowcase({
         </div>
       )}
 
-      {/* Fullscreen edge-to-edge image viewer ("de punta a punta todo el computador") */}
+      {/* Fullscreen image viewer: left-half only during Stage 5 split workspace, or full screen otherwise */}
       <AnimatePresence>
         {fullscreenImage && (
           <motion.div
@@ -1174,9 +1539,14 @@ export function DualCatalogShowcase({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 hidden lg:flex items-center justify-center bg-slate-950 overflow-hidden"
+            onClick={() => {
+              if (isSplitWorkspaceActive) setFullscreenImage(null);
+            }}
+            className={`fixed inset-y-0 left-0 z-50 hidden lg:flex items-center justify-center bg-slate-950 overflow-hidden ${
+              isSplitWorkspaceActive ? 'w-1/2 border-r border-white/15' : 'right-0'
+            }`}
           >
-            {/* Ambient edge-to-edge atmospheric backdrop so 1:1 images feel seamless from corner to corner */}
+            {/* Ambient atmospheric backdrop so 1:1 images feel seamless */}
             <img
               src={fullscreenImage.url}
               alt=""
@@ -1191,6 +1561,7 @@ export function DualCatalogShowcase({
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.97, opacity: 0 }}
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              onClick={(e) => e.stopPropagation()}
               src={fullscreenImage.url}
               alt={fullscreenImage.alt}
               referrerPolicy="no-referrer"
@@ -1201,9 +1572,14 @@ export function DualCatalogShowcase({
 
             <button
               type="button"
-              onClick={() => setFullscreenImage(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setFullscreenImage(null);
+              }}
               aria-label="Cerrar imagen en pantalla completa"
-              className="fixed top-5 right-5 z-20 w-11 h-11 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md flex items-center justify-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className={`${
+                isSplitWorkspaceActive ? 'absolute' : 'fixed'
+              } top-5 right-5 z-20 w-11 h-11 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md flex items-center justify-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}
             >
               <X className="w-5 h-5" aria-hidden="true" />
             </button>

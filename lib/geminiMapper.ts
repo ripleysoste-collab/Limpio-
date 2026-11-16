@@ -75,85 +75,127 @@ export async function mapStoredImageWithGemini(options: {
     '2) "categoria": categoría corta y precisa (ej. "Comida rápida", "Calzado deportivo", "Accesorios"). ' +
     '3) "descripcion": descripción útil y natural de 2 a 3 líneas con detalles visuales clave y contexto para responder a clientes.';
 
-  try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_MAPPER_MODEL,
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: resolvedMimeType,
-              data: imageBase64,
+  const MAX_GEMINI_ATTEMPTS = 4;
+
+  const isTransientError = (msg: string): boolean => {
+    const upper = msg.toUpperCase();
+    return (
+      upper.includes('503') ||
+      upper.includes('UNAVAILABLE') ||
+      upper.includes('OVERLOADED') ||
+      upper.includes('HIGH DEMAND') ||
+      upper.includes('429') ||
+      upper.includes('RESOURCE_EXHAUSTED') ||
+      upper.includes('DEADLINE_EXCEEDED') ||
+      upper.includes('ETIMEDOUT') ||
+      upper.includes('ECONNRESET') ||
+      upper.includes('FETCH FAILED')
+    );
+  };
+
+  for (let attempt = 1; attempt <= MAX_GEMINI_ATTEMPTS; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: GEMINI_MAPPER_MODEL,
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: resolvedMimeType,
+                data: imageBase64,
+              },
             },
-          },
-          { text: promptText },
-        ],
-      },
-      config: {
-        systemInstruction:
-          'Eres un catalogador comercial experto en e-commerce y restaurantes. Responde únicamente JSON válido en español, sin inventar precios ni marcas que no sean visibles.',
-        thinkingConfig: {
-          thinkingLevel: ThinkingLevel.MINIMAL,
+            { text: promptText },
+          ],
         },
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            nombre: {
-              type: Type.STRING,
-              description:
-                'Nombre completo del producto o artículo en español.',
-            },
-            categoria: {
-              type: Type.STRING,
-              description:
-                'Categoría comercial corta y precisa en español.',
-            },
-            descripcion: {
-              type: Type.STRING,
-              description:
-                'Descripción contextual de 2 a 3 líneas en español.',
-            },
+        config: {
+          systemInstruction:
+            'Eres un catalogador comercial experto en e-commerce y restaurantes. Responde únicamente JSON válido en español, sin inventar precios ni marcas que no sean visibles.',
+          thinkingConfig: {
+            thinkingLevel: ThinkingLevel.MINIMAL,
           },
-          required: ['nombre', 'categoria', 'descripcion'],
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              nombre: {
+                type: Type.STRING,
+                description:
+                  'Nombre completo del producto o artículo en español.',
+              },
+              categoria: {
+                type: Type.STRING,
+                description:
+                  'Categoría comercial corta y precisa en español.',
+              },
+              descripcion: {
+                type: Type.STRING,
+                description:
+                  'Descripción contextual de 2 a 3 líneas en español.',
+              },
+            },
+            required: ['nombre', 'categoria', 'descripcion'],
+          },
         },
-      },
-    });
+      });
 
-    const rawText = (response.text ?? '{}').trim();
-    const parsed = JSON.parse(rawText) as Partial<MappedImageMetadata>;
+      const rawText = (response.text ?? '{}').trim();
+      const parsed = JSON.parse(rawText) as Partial<MappedImageMetadata>;
 
-    const nombre =
-      typeof parsed.nombre === 'string' && parsed.nombre.trim()
-        ? parsed.nombre.trim()
-        : 'Producto catalogado';
-    const categoria =
-      typeof parsed.categoria === 'string' && parsed.categoria.trim()
-        ? parsed.categoria.trim()
-        : 'General';
-    const descripcion =
-      typeof parsed.descripcion === 'string' && parsed.descripcion.trim()
-        ? parsed.descripcion.trim()
-        : 'Imagen procesada y lista para responder consultas de clientes en tu catálogo.';
+      const nombre =
+        typeof parsed.nombre === 'string' && parsed.nombre.trim()
+          ? parsed.nombre.trim()
+          : 'Producto catalogado';
+      const categoria =
+        typeof parsed.categoria === 'string' && parsed.categoria.trim()
+          ? parsed.categoria.trim()
+          : 'General';
+      const descripcion =
+        typeof parsed.descripcion === 'string' && parsed.descripcion.trim()
+          ? parsed.descripcion.trim()
+          : 'Imagen procesada y lista para responder consultas de clientes en tu catálogo.';
 
-    return {
-      nombre,
-      categoria,
-      descripcion,
-      url: options.imageUrl,
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Error al consultar Gemini';
-    if (message.includes('API_KEY') || message.includes('PERMISSION_DENIED') || message.includes('403')) {
-      throw new Error(
-        'La clave GEMINI_API_KEY fue rechazada o falta en Settings > Secrets.',
-      );
+      return {
+        nombre,
+        categoria,
+        descripcion,
+        url: options.imageUrl,
+      };
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Error al consultar Gemini';
+
+      if (
+        message.includes('API_KEY') ||
+        message.includes('PERMISSION_DENIED') ||
+        message.includes('403')
+      ) {
+        throw new Error(
+          'La clave GEMINI_API_KEY fue rechazada o falta en Settings > Secrets.',
+        );
+      }
+
+      const transient = isTransientError(message);
+      if (transient && attempt < MAX_GEMINI_ATTEMPTS) {
+        const baseDelay = attempt === 1 ? 950 : attempt === 2 ? 2200 : 4200;
+        const jitter = Math.floor(Math.random() * 400);
+        await new Promise((resolve) => setTimeout(resolve, baseDelay + jitter));
+        continue;
+      }
+
+      if (message.includes('503') || message.toUpperCase().includes('UNAVAILABLE')) {
+        throw new Error(
+          'El servidor de Gemini tuvo saturación temporal (503) tras varios reintentos.',
+        );
+      }
+      if (message.includes('429') || message.includes('RESOURCE_EXHAUSTED')) {
+        throw new Error(
+          'Se alcanzó el límite temporal gratuito de Gemini. Intenta en unos segundos.',
+        );
+      }
+      throw new Error(`Error al mapear con Gemini: ${message.slice(0, 120)}`);
     }
-    if (message.includes('429') || message.includes('RESOURCE_EXHAUSTED')) {
-      throw new Error(
-        'Se alcanzó el límite temporal gratuito de Gemini. Intenta en unos segundos.',
-      );
-    }
-    throw new Error(`Error al mapear con Gemini: ${message.slice(0, 120)}`);
   }
+
+  throw new Error('No se pudo completar el mapeo con Gemini.');
 }

@@ -28,8 +28,9 @@ const MAX_FREE_UPLOAD_IMAGES = 10;
 const COMPRESSION_START_DELAY_MS = 2000;
 const UPLOAD_START_DELAY_MS = 1000;
 const RECEIVE_START_DELAY_MS = 1000;
-const MAP_START_DELAY_MS = 1000;
+const MAP_START_DELAY_MS = 1800;
 const UPLOAD_CONCURRENCY = 3;
+const MAP_CONCURRENCY = 2;
 const MIN_RENDER_STEP_MS = 230;
 const MIN_TILE_STEP_MS = 260;
 const MIN_RECEIVE_STEP_MS = 230;
@@ -534,9 +535,14 @@ export default function App() {
         );
 
         let mapCursor = 0;
-        const mapWorkerCount = Math.min(UPLOAD_CONCURRENCY, uploadedPayloads.length);
+        const mapWorkerCount = Math.min(MAP_CONCURRENCY, uploadedPayloads.length);
         for (let w = 0; w < mapWorkerCount; w++) {
           void (async () => {
+            if (w > 0) {
+              await new Promise<void>((resolve) =>
+                window.setTimeout(resolve, w * 180),
+              );
+            }
             while (
               mapCursor < uploadedPayloads.length &&
               !controller.signal.aborted
@@ -685,8 +691,14 @@ export default function App() {
     setActiveBgImage(item);
   };
 
+  const isDesktopSplitActive = isFileUploadFlow && showMapBox;
+
   return (
-    <main className="bg-white lg:bg-[#0e1013] relative min-h-dvh w-full overflow-x-hidden lg:overflow-hidden flex flex-col items-center px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 lg:pt-5 pb-6 lg:pb-8">
+    <main
+      className={`bg-white lg:bg-[#0e1013] relative min-h-dvh w-full overflow-x-hidden lg:overflow-hidden flex flex-col items-center px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 lg:pt-5 pb-6 lg:pb-8 ${
+        isDesktopSplitActive ? 'lg:h-dvh' : ''
+      }`}
+    >
       {/* Mobile-only full-screen natural luminous backdrop with gentle living color movement */}
       <div
         aria-hidden="true"
@@ -851,11 +863,17 @@ export default function App() {
         </motion.div>
       )}
 
-      {/* Top header: corners hug edges; URL bar stays centered on desktop and below on mobile */}
-      <header className="relative z-10 w-full flex flex-col gap-2.5 lg:grid lg:grid-cols-[1fr_minmax(0,768px)_1fr] lg:items-center lg:gap-6">
+      {/* Top header: corners hug edges; URL bar shifts compactly left when split Stage 5 is active on desktop */}
+      <header
+        className={`relative z-30 w-full shrink-0 flex flex-col gap-2.5 lg:items-center lg:gap-4 transition-all duration-500 ${
+          isDesktopSplitActive
+            ? 'lg:grid lg:grid-cols-[auto_minmax(0,360px)_1fr]'
+            : 'lg:grid lg:grid-cols-[1fr_minmax(0,768px)_1fr] lg:gap-6'
+        }`}
+      >
         {/* Top row on mobile (Logo left + Guest icon right); split into outer grid tracks on desktop */}
         <div className="flex items-center justify-between lg:contents">
-          <div className="flex items-center justify-start lg:justify-self-start">
+          <div className="flex items-center justify-start lg:justify-self-start shrink-0">
             <SearchLinkLogo onDarkBackground="desktop" />
           </div>
 
@@ -869,7 +887,15 @@ export default function App() {
           </div>
         </div>
 
-        <div className="w-full max-w-3xl mx-auto flex flex-col">
+        <motion.div
+          layout
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          className={`w-full flex flex-col ${
+            isDesktopSplitActive
+              ? 'max-w-3xl mx-auto lg:max-w-[360px] lg:mx-0'
+              : 'max-w-3xl mx-auto'
+          }`}
+        >
           <div className="flex items-center gap-2.5 sm:gap-3 w-full">
             <button
               type="button"
@@ -877,7 +903,9 @@ export default function App() {
               disabled={isExtracting}
               aria-label="Subir imágenes desde el dispositivo"
               title="Subir imágenes desde tu dispositivo"
-              className="h-12 w-12 shrink-0 rounded-full flex items-center justify-center bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 text-blue-600/85 lg:text-slate-600 hover:bg-white/75 lg:hover:bg-white hover:text-blue-700 lg:hover:text-slate-900 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 lg:focus-visible:ring-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              className={`${
+                isDesktopSplitActive ? 'h-12 w-12 lg:h-11 lg:w-11' : 'h-12 w-12'
+              } shrink-0 rounded-full flex items-center justify-center bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 text-blue-600/85 lg:text-slate-600 hover:bg-white/75 lg:hover:bg-white hover:text-blue-700 lg:hover:text-slate-900 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 lg:focus-visible:ring-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer`}
             >
               <Upload className="w-4.5 h-4.5" aria-hidden="true" />
             </button>
@@ -899,7 +927,11 @@ export default function App() {
               aria-label="Pegar URL de página web"
               className="flex-1 min-w-0"
             >
-              <div className="group flex items-center gap-2.5 lg:gap-3 h-12 w-full rounded-full px-4 lg:px-5 bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 focus-within:bg-white/75 lg:focus-within:bg-white focus-within:border-blue-500/45 lg:focus-within:border-white focus-within:shadow-[0_10px_34px_-6px_rgba(37,99,235,0.2)] lg:focus-within:shadow-[0_14px_42px_-6px_rgba(0,0,0,0.48)]">
+              <div
+                className={`group flex items-center gap-2.5 lg:gap-3 ${
+                  isDesktopSplitActive ? 'h-12 lg:h-11' : 'h-12'
+                } w-full rounded-full px-4 lg:px-4.5 bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 focus-within:bg-white/75 lg:focus-within:bg-white focus-within:border-blue-500/45 lg:focus-within:border-white focus-within:shadow-[0_10px_34px_-6px_rgba(37,99,235,0.2)] lg:focus-within:shadow-[0_14px_42px_-6px_rgba(0,0,0,0.48)]`}
+              >
                 <Link2
                   className="w-4 h-4 text-blue-600/75 lg:text-slate-400 shrink-0 transition-colors duration-150 group-focus-within:text-blue-600 lg:group-focus-within:text-slate-700"
                   aria-hidden="true"
@@ -965,7 +997,7 @@ export default function App() {
               </p>
             )
           )}
-        </div>
+        </motion.div>
 
         {/* Desktop top-right guest sketch (dark executives backdrop contrast) */}
         <div className="hidden lg:flex lg:justify-self-end items-center justify-end">
@@ -977,7 +1009,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Desktop-only dual showcase boxes with cross-gap animations */}
+      {/* Desktop-only dual showcase boxes with cross-gap animations & Stage 5 split workspace */}
       <DualCatalogShowcase
         key={`desktop-catalog-${catalogVersion}`}
         images={catalogImages}
@@ -991,6 +1023,9 @@ export default function App() {
         uploadStatuses={uploadStatuses}
         showReceiveBox={showReceiveBox}
         receiveStatuses={receiveStatuses}
+        showMapBox={showMapBox}
+        mapStatuses={mapStatuses}
+        mappedResults={mappedResults}
         compressionResults={compressionResults}
       />
 
