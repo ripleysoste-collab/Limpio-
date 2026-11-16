@@ -6,6 +6,7 @@ import { extractImagesFromUrl } from './lib/extractor.ts';
 import { mapStoredImageWithGemini } from './lib/geminiMapper.ts';
 import { fetchProxiedImage } from './lib/imageProxy.ts';
 import { isValidMediaKey, readImageFromR2 } from './lib/r2Storage.ts';
+import { fetchCatalogByApiKey } from './lib/supabaseServer.ts';
 import {
   decodeBase64ImagePayload,
   getRequestOrigin,
@@ -146,6 +147,56 @@ async function startServer() {
       }
     },
   );
+
+  app.options('/api/v1/catalog', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Authorization, x-api-key, Content-Type',
+    );
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    return res.status(204).end();
+  });
+
+  app.get('/api/v1/catalog', async (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Authorization, x-api-key, Content-Type',
+    );
+
+    const rawAuth =
+      typeof req.headers.authorization === 'string'
+        ? req.headers.authorization
+        : '';
+    const bearerKey = rawAuth.toLowerCase().startsWith('bearer ')
+      ? rawAuth.slice(7).trim()
+      : '';
+    const headerKey =
+      typeof req.headers['x-api-key'] === 'string'
+        ? req.headers['x-api-key'].trim()
+        : '';
+    const queryKey =
+      typeof req.query.key === 'string'
+        ? req.query.key.trim()
+        : typeof req.query.apiKey === 'string'
+          ? req.query.apiKey.trim()
+          : typeof req.query.api_key === 'string'
+            ? req.query.api_key.trim()
+            : '';
+
+    const apiKey = bearerKey || headerKey || queryKey;
+    const result = await fetchCatalogByApiKey(apiKey);
+
+    if (!result.ok) {
+      return res.status(result.status).json({ ok: false, error: result.error });
+    }
+
+    return res.json({
+      ok: true,
+      ...result.data,
+    });
+  });
 
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');

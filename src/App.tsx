@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
+import type { User } from '@supabase/supabase-js';
 import { Link2, Loader2, Upload, X } from 'lucide-react';
 import desktopDesertBg from './assets/images/bg_desert_desktop_1794853953945.jpg';
 import { AuthDrawer } from './components/AuthDrawer';
@@ -23,6 +24,11 @@ import {
   type MappedImageMetadata,
   type UploadedCompressedImage,
 } from './lib/imageCompression';
+import {
+  saveMappedCatalogToSupabase,
+  supabase,
+  type SaveCatalogBatchInput,
+} from './lib/supabaseClient';
 
 const MAX_FREE_UPLOAD_IMAGES = 10;
 const COMPRESSION_START_DELAY_MS = 2000;
@@ -77,6 +83,10 @@ export default function App() {
   const [compressionResults, setCompressionResults] = useState<
     Record<string, CompressedImageMeta>
   >({});
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [pendingSaveBatch, setPendingSaveBatch] =
+    useState<SaveCatalogBatchInput | null>(null);
+  const authUserRef = useRef<User | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const extractAbortRef = useRef<AbortController | null>(null);
@@ -93,6 +103,34 @@ export default function App() {
     compressionAbortRef.current?.abort();
     compressionAbortRef.current = null;
   };
+
+  useEffect(() => {
+    authUserRef.current = authUser;
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active) {
+        setAuthUser(data.session?.user ?? null);
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) {
+        setAuthUser(session?.user ?? null);
+      }
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -187,6 +225,7 @@ export default function App() {
         extractedImages,
         extractedImages.map((img) => ({ kind: 'url', url: img.url })),
         overflowNotice,
+        normalized,
       );
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -204,6 +243,7 @@ export default function App() {
     items: CatalogImageItem[],
     sources: BatchImageSource[],
     initialNotice: string | null = null,
+    originPageUrl: string | null = null,
   ) => {
     const initialCompressionStatuses: Record<string, ImageCompressionStatus> = {};
     const initialUploadStatuses: Record<string, ImageUploadStatus> = {};
@@ -572,6 +612,7 @@ export default function App() {
         }
 
         let firstMapError: string | null = null;
+        const collectedMappedItems: SaveCatalogBatchInput['items'] = [];
 
         for (let i = 0; i < items.length; i++) {
           if (controller.signal.aborted) return;
@@ -590,6 +631,11 @@ export default function App() {
           if (controller.signal.aborted) return;
 
           if (mapResult.ok) {
+            collectedMappedItems.push({
+              ...mapResult.data,
+              r2Key: uploadedPayloads[i]?.key,
+              savedPercent: uploadedPayloads[i]?.savedPercent ?? 0,
+            });
             setMappedResults((prev) => ({
               ...prev,
               [item.id]: mapResult.data,
@@ -607,6 +653,42 @@ export default function App() {
               ...prev,
               [item.id]: 'error',
             }));
+          }
+        }
+
+        if (collectedMappedItems.length > 0 && !controller.signal.aborted) {
+          let batchTitle = `Catálogo (${collectedMappedItems.length} imágenes)`;
+          if (originPageUrl) {
+            try {
+              batchTitle = new URL(originPageUrl).hostname.replace(/^www\./, '');
+            } catch {
+              batchTitle = originPageUrl;
+            }
+          }
+
+          const batchToSave: SaveCatalogBatchInput = {
+            title: batchTitle,
+            sourceType: originPageUrl ? 'url' : 'files',
+            sourceUrl: originPageUrl,
+            items: collectedMappedItems,
+          };
+
+          if (authUserRef.current) {
+            const saveOutcome = await saveMappedCatalogToSupabase(batchToSave);
+            if (saveOutcome.saved) {
+              setPendingSaveBatch(null);
+              if (!firstMapError) {
+                setBatchNotice('Catálogo guardado en tu cuenta de Supabase.');
+              }
+            } else if (
+              saveOutcome.reason &&
+              (saveOutcome.reason.includes('relation') ||
+                saveOutcome.reason.includes('schema cache'))
+            ) {
+              setPendingSaveBatch(batchToSave);
+            }
+          } else {
+            setPendingSaveBatch(batchToSave);
           }
         }
       })();
@@ -882,6 +964,7 @@ export default function App() {
             <GuestAvatarSketch
               variant="light"
               expanded={isAuthOpen}
+              signedInEmail={authUser?.email ?? null}
               onClick={() => setIsAuthOpen(true)}
             />
           </div>
@@ -999,11 +1082,12 @@ export default function App() {
           )}
         </motion.div>
 
-        {/* Desktop top-right guest sketch (dark executives backdrop contrast) */}
+        {/* Desktop top-right guest sketch (dark backdrop contrast) */}
         <div className="hidden lg:flex lg:justify-self-end items-center justify-end">
           <GuestAvatarSketch
             variant="dark"
             expanded={isAuthOpen}
+            signedInEmail={authUser?.email ?? null}
             onClick={() => setIsAuthOpen(true)}
           />
         </div>
@@ -1048,8 +1132,14 @@ export default function App() {
         compressionResults={compressionResults}
       />
 
-      {/* Responsive white dot-grid registration panel */}
-      <AuthDrawer open={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      {/* Responsive white dot-grid account, catalogs & API keys panel */}
+      <AuthDrawer
+        open={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        user={authUser}
+        pendingBatch={pendingSaveBatch}
+        onPendingBatchSaved={() => setPendingSaveBatch(null)}
+      />
     </main>
   );
 }
@@ -1057,10 +1147,16 @@ export default function App() {
 interface GuestAvatarSketchProps {
   variant: 'light' | 'dark';
   expanded: boolean;
+  signedInEmail?: string | null;
   onClick: () => void;
 }
 
-function GuestAvatarSketch({ variant, expanded, onClick }: GuestAvatarSketchProps) {
+function GuestAvatarSketch({
+  variant,
+  expanded,
+  signedInEmail,
+  onClick,
+}: GuestAvatarSketchProps) {
   const toneClass =
     variant === 'light'
       ? 'border-slate-300/90 bg-white/85 text-slate-700 shadow-[0_2px_10px_rgba(15,23,42,0.08)] hover:border-slate-400 hover:bg-white focus-visible:ring-slate-400'
@@ -1072,9 +1168,13 @@ function GuestAvatarSketch({ variant, expanded, onClick }: GuestAvatarSketchProp
       onClick={onClick}
       aria-expanded={expanded}
       aria-haspopup="dialog"
-      aria-label="Abrir registro de cuenta"
-      title="Crear cuenta o iniciar sesión"
-      className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border backdrop-blur-sm flex items-center justify-center cursor-pointer select-none transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 shrink-0 ${toneClass}`}
+      aria-label={
+        signedInEmail
+          ? `Abrir tu espacio (${signedInEmail})`
+          : 'Abrir registro de cuenta'
+      }
+      title={signedInEmail ? `Conectado: ${signedInEmail}` : 'Crear cuenta o iniciar sesión'}
+      className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border backdrop-blur-sm flex items-center justify-center cursor-pointer select-none transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 shrink-0 ${toneClass}`}
     >
       <svg
         viewBox="0 0 24 24"
@@ -1089,6 +1189,12 @@ function GuestAvatarSketch({ variant, expanded, onClick }: GuestAvatarSketchProp
         <circle cx="12" cy="8.5" r="3.25" />
         <path d="M5.75 19.25a6.5 6.5 0 0 1 12.5 0" />
       </svg>
+      {signedInEmail && (
+        <span
+          aria-hidden="true"
+          className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white"
+        />
+      )}
     </button>
   );
 }
