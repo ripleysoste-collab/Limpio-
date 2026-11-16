@@ -534,6 +534,20 @@ export function DesktopUploadSequence({
                         />
                       )}
 
+                      {showCompressionBox && compStatus === 'rendering' && (
+                        <motion.div
+                          initial={shouldReduceMotion ? false : { opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.14 }}
+                          aria-label={`Renderizando ${item.alt}`}
+                          className="absolute inset-0 bg-slate-950/25 flex items-center justify-center"
+                        >
+                          <span className="w-10 h-10 rounded-full bg-white/95 shadow-sm flex items-center justify-center">
+                            <span className="w-6 h-6 rounded-full border-[2.5px] border-blue-200 border-t-blue-600 animate-spin" />
+                          </span>
+                        </motion.div>
+                      )}
+
                       {showCompressionBox && compStatus === 'compressing' && (
                         <motion.div
                           initial={shouldReduceMotion ? false : { opacity: 0 }}

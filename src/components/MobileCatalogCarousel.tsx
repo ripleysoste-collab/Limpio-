@@ -20,7 +20,12 @@ import {
 } from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
 
-export type ImageCompressionStatus = 'pending' | 'compressing' | 'done' | 'error';
+export type ImageCompressionStatus =
+  | 'pending'
+  | 'rendering'
+  | 'compressing'
+  | 'done'
+  | 'error';
 export type ImageUploadStatus = 'pending' | 'uploading' | 'done' | 'error';
 export type ImageReceiveStatus = 'waiting' | 'received' | 'error';
 
@@ -577,6 +582,18 @@ export function MobileCatalogCarousel({
                                     draggable={false}
                                   />
                                 )
+                              )}
+
+                              {status === 'rendering' && (
+                                <motion.div
+                                  initial={shouldReduceMotion ? false : { scale: 0.7, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  transition={{ duration: 0.16 }}
+                                  aria-label={`Renderizando ${item.alt}`}
+                                  className="flex items-center justify-center"
+                                >
+                                  <span className="w-5 h-5 rounded-full border-[2.5px] border-blue-200 border-t-blue-600 animate-spin" />
+                                </motion.div>
                               )}
 
                               {status === 'compressing' && (

@@ -15,6 +15,7 @@ import { SearchLinkLogo } from './components/SearchLinkLogo';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
 import {
   compressImageToWebp,
+  renderImageBlobFromUrl,
   uploadCompressedImage,
   type CompressedImageResult,
   type UploadedCompressedImage,
@@ -25,8 +26,13 @@ const COMPRESSION_START_DELAY_MS = 2000;
 const UPLOAD_START_DELAY_MS = 1000;
 const RECEIVE_START_DELAY_MS = 1000;
 const UPLOAD_CONCURRENCY = 3;
-const MIN_TILE_STEP_MS = 320;
+const MIN_RENDER_STEP_MS = 230;
+const MIN_TILE_STEP_MS = 260;
 const MIN_RECEIVE_STEP_MS = 230;
+
+type BatchImageSource =
+  | { kind: 'file'; file: File }
+  | { kind: 'url'; url: string };
 
 export default function App() {
   const [url, setUrl] = useState('');
@@ -154,9 +160,18 @@ export default function App() {
         return;
       }
 
-      setCatalogImages(data.images);
-      setCatalogVersion((prev) => prev + 1);
+      const extractedImages = data.images.slice(0, MAX_FREE_UPLOAD_IMAGES);
+      const overflowNotice =
+        data.images.length > MAX_FREE_UPLOAD_IMAGES
+          ? `Plan gratuito: se procesarán las primeras ${MAX_FREE_UPLOAD_IMAGES} imágenes.`
+          : null;
+
       inputRef.current?.blur();
+      startAutomatedBatchPipeline(
+        extractedImages,
+        extractedImages.map((img) => ({ kind: 'url', url: img.url })),
+        overflowNotice,
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       setExtractError(
@@ -169,123 +184,94 @@ export default function App() {
     }
   };
 
-  const handleFilesSelected = (event: ChangeEvent<HTMLInputElement>) => {
-    const fileList = event.target.files;
-    if (!fileList || fileList.length === 0) return;
-
-    const allValidFiles = Array.from(fileList).filter(
-      (file) =>
-        file.type.startsWith('image/') ||
-        /\.(jpe?g|png|webp|gif|avif|bmp|svg)$/i.test(file.name),
-    );
-
-    event.target.value = '';
-
-    if (allValidFiles.length === 0) {
-      setExtractError('Por favor selecciona archivos de imagen válidos.');
-      return;
-    }
-
-    const validFiles = allValidFiles.slice(0, MAX_FREE_UPLOAD_IMAGES);
-    setBatchNotice(
-      allValidFiles.length > MAX_FREE_UPLOAD_IMAGES
-        ? `Plan gratuito: se procesarán las primeras ${MAX_FREE_UPLOAD_IMAGES} imágenes.`
-        : null,
-    );
-
-    extractAbortRef.current?.abort();
-    cancelOngoingCompression();
-    setIsExtracting(false);
-    setExtractError(null);
-    setIsFileUploadFlow(true);
-    setShowCompressionBox(false);
-    setShowUploadBox(false);
-    setUploadStatuses({});
-    setShowReceiveBox(false);
-    setReceiveStatuses({});
-    setCompressionResults({});
-
-    const activeBgUrl = activeBgImage?.url ?? null;
-    objectUrlsRef.current.forEach((oldUrl) => {
-      if (oldUrl !== activeBgUrl) {
-        URL.revokeObjectURL(oldUrl);
-      }
-    });
-
-    const newBlobUrls: string[] = [];
-    const batchStamp = Date.now();
-    const uploadedItems: CatalogImageItem[] = validFiles.map((file, idx) => {
-      const objectUrl = URL.createObjectURL(file);
-      newBlobUrls.push(objectUrl);
-
-      const cleanTitle =
-        file.name
-          .replace(/\.[^/.]+$/, '')
-          .replace(/[-_]+/g, ' ')
-          .trim() || `Imagen ${idx + 1}`;
-
-      return {
-        id: `local-${batchStamp}-${idx}-${file.lastModified}`,
-        url: objectUrl,
-        cleanUrl: `archivo/${file.name}`,
-        alt: cleanTitle,
-        originalBytes: file.size,
-      };
-    });
-
+  const startAutomatedBatchPipeline = (
+    items: CatalogImageItem[],
+    sources: BatchImageSource[],
+    initialNotice: string | null = null,
+  ) => {
     const initialCompressionStatuses: Record<string, ImageCompressionStatus> = {};
     const initialUploadStatuses: Record<string, ImageUploadStatus> = {};
     const initialReceiveStatuses: Record<string, ImageReceiveStatus> = {};
-    uploadedItems.forEach((item) => {
+
+    items.forEach((item) => {
       initialCompressionStatuses[item.id] = 'pending';
       initialUploadStatuses[item.id] = 'pending';
       initialReceiveStatuses[item.id] = 'waiting';
     });
 
-    objectUrlsRef.current =
-      activeBgUrl && activeBgUrl.startsWith('blob:')
-        ? [activeBgUrl, ...newBlobUrls]
-        : newBlobUrls;
-
+    setBatchNotice(initialNotice);
+    setIsFileUploadFlow(true);
+    setShowCompressionBox(false);
+    setShowUploadBox(false);
+    setShowReceiveBox(false);
     setCompressionStatuses(initialCompressionStatuses);
     setUploadStatuses(initialUploadStatuses);
     setReceiveStatuses(initialReceiveStatuses);
+    setCompressionResults({});
     setHasSearched(true);
-    setCatalogImages(uploadedItems);
+    setCatalogImages(items);
     setCatalogVersion((prev) => prev + 1);
 
     const controller = new AbortController();
     compressionAbortRef.current = controller;
 
-    // Wait 2 seconds after images settle, then reveal Comprimiendo (Stage 2) and afterwards Lanzando a base de datos (Stage 3)
+    // Wait 2 seconds after images settle, then run Stage 2 (render URL if needed -> WebP compress), Stage 3 (R2 upload), Stage 4 (receive URLs)
     compressionTimerRef.current = window.setTimeout(() => {
       compressionTimerRef.current = null;
       if (controller.signal.aborted) return;
 
       setShowCompressionBox(true);
 
+      type RenderTaskResult =
+        | { ok: true; blob: Blob }
+        | { ok: false };
+
       type CompressTaskResult =
         | { ok: true; data: CompressedImageResult }
         | { ok: false };
 
+      const renderResolvers: Array<(res: RenderTaskResult) => void> = [];
+      const renderPromises: Array<Promise<RenderTaskResult>> = sources.map(
+        (_, idx) =>
+          new Promise<RenderTaskResult>((resolve) => {
+            renderResolvers[idx] = resolve;
+          }),
+      );
+
       const compressResolvers: Array<(res: CompressTaskResult) => void> = [];
-      const compressPromises: Array<Promise<CompressTaskResult>> = validFiles.map(
+      const compressPromises: Array<Promise<CompressTaskResult>> = sources.map(
         (_, idx) =>
           new Promise<CompressTaskResult>((resolve) => {
             compressResolvers[idx] = resolve;
           }),
       );
 
-      let compressCursor = 0;
-      const compressWorkerCount = Math.min(UPLOAD_CONCURRENCY, validFiles.length);
-      for (let w = 0; w < compressWorkerCount; w++) {
+      // Workers render URLs (if remote) and compress to WebP in parallel
+      let workerCursor = 0;
+      const workerCount = Math.min(UPLOAD_CONCURRENCY, sources.length);
+      for (let w = 0; w < workerCount; w++) {
         void (async () => {
-          while (compressCursor < validFiles.length && !controller.signal.aborted) {
-            const index = compressCursor++;
+          while (workerCursor < sources.length && !controller.signal.aborted) {
+            const index = workerCursor++;
+            const source = sources[index];
+
             try {
-              const data = await compressImageToWebp(validFiles[index]);
-              compressResolvers[index]({ ok: true, data });
+              let sourceBlob: Blob;
+              if (source.kind === 'url') {
+                sourceBlob = await renderImageBlobFromUrl(
+                  source.url,
+                  controller.signal,
+                );
+                renderResolvers[index]({ ok: true, blob: sourceBlob });
+              } else {
+                sourceBlob = source.file;
+                renderResolvers[index]({ ok: true, blob: sourceBlob });
+              }
+
+              const compressed = await compressImageToWebp(sourceBlob);
+              compressResolvers[index]({ ok: true, data: compressed });
             } catch {
+              renderResolvers[index]({ ok: false });
               compressResolvers[index]({ ok: false });
             }
           }
@@ -294,12 +280,34 @@ export default function App() {
 
       void (async () => {
         const compressedPayloads: Array<CompressedImageResult | null> = new Array(
-          uploadedItems.length,
+          items.length,
         ).fill(null);
 
-        for (let i = 0; i < uploadedItems.length; i++) {
+        for (let i = 0; i < items.length; i++) {
           if (controller.signal.aborted) return;
-          const item = uploadedItems[i];
+          const item = items[i];
+          const source = sources[i];
+
+          if (source.kind === 'url') {
+            setCompressionStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'rendering',
+            }));
+
+            const renderBeat = new Promise<void>((resolve) =>
+              window.setTimeout(resolve, MIN_RENDER_STEP_MS),
+            );
+            const [renderResult] = await Promise.all([renderPromises[i], renderBeat]);
+            if (controller.signal.aborted) return;
+
+            if (!renderResult.ok) {
+              setCompressionStatuses((prev) => ({
+                ...prev,
+                [item.id]: 'error',
+              }));
+              continue;
+            }
+          }
 
           setCompressionStatuses((prev) => ({
             ...prev,
@@ -307,7 +315,10 @@ export default function App() {
           }));
 
           const stepBeat = new Promise<void>((resolve) =>
-            window.setTimeout(resolve, MIN_TILE_STEP_MS),
+            window.setTimeout(
+              resolve,
+              source.kind === 'file' ? 320 : MIN_TILE_STEP_MS,
+            ),
           );
 
           const [result] = await Promise.all([compressPromises[i], stepBeat]);
@@ -383,13 +394,13 @@ export default function App() {
         }
 
         const uploadedPayloads: Array<UploadedCompressedImage | null> = new Array(
-          uploadedItems.length,
+          items.length,
         ).fill(null);
         let firstUploadError: string | null = null;
 
-        for (let i = 0; i < uploadedItems.length; i++) {
+        for (let i = 0; i < items.length; i++) {
           if (controller.signal.aborted) return;
-          const item = uploadedItems[i];
+          const item = items[i];
 
           setUploadStatuses((prev) => ({
             ...prev,
@@ -441,9 +452,9 @@ export default function App() {
           }, 360);
         });
 
-        for (let i = 0; i < uploadedItems.length; i++) {
+        for (let i = 0; i < items.length; i++) {
           if (controller.signal.aborted) return;
-          const item = uploadedItems[i];
+          const item = items[i];
           const uploaded = uploadedPayloads[i];
 
           if (uploaded) {
@@ -467,7 +478,7 @@ export default function App() {
             }));
           }
 
-          if (i < uploadedItems.length - 1) {
+          if (i < items.length - 1) {
             await new Promise<void>((resolve) =>
               window.setTimeout(resolve, MIN_RECEIVE_STEP_MS),
             );
@@ -475,6 +486,74 @@ export default function App() {
         }
       })();
     }, COMPRESSION_START_DELAY_MS);
+  };
+
+  const handleFilesSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    const fileList = event.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    const allValidFiles = Array.from(fileList).filter(
+      (file) =>
+        file.type.startsWith('image/') ||
+        /\.(jpe?g|png|webp|gif|avif|bmp|svg)$/i.test(file.name),
+    );
+
+    event.target.value = '';
+
+    if (allValidFiles.length === 0) {
+      setExtractError('Por favor selecciona archivos de imagen válidos.');
+      return;
+    }
+
+    const validFiles = allValidFiles.slice(0, MAX_FREE_UPLOAD_IMAGES);
+    const overflowNotice =
+      allValidFiles.length > MAX_FREE_UPLOAD_IMAGES
+        ? `Plan gratuito: se procesarán las primeras ${MAX_FREE_UPLOAD_IMAGES} imágenes.`
+        : null;
+
+    extractAbortRef.current?.abort();
+    cancelOngoingCompression();
+    setIsExtracting(false);
+    setExtractError(null);
+
+    const activeBgUrl = activeBgImage?.url ?? null;
+    objectUrlsRef.current.forEach((oldUrl) => {
+      if (oldUrl !== activeBgUrl) {
+        URL.revokeObjectURL(oldUrl);
+      }
+    });
+
+    const newBlobUrls: string[] = [];
+    const batchStamp = Date.now();
+    const uploadedItems: CatalogImageItem[] = validFiles.map((file, idx) => {
+      const objectUrl = URL.createObjectURL(file);
+      newBlobUrls.push(objectUrl);
+
+      const cleanTitle =
+        file.name
+          .replace(/\.[^/.]+$/, '')
+          .replace(/[-_]+/g, ' ')
+          .trim() || `Imagen ${idx + 1}`;
+
+      return {
+        id: `local-${batchStamp}-${idx}-${file.lastModified}`,
+        url: objectUrl,
+        cleanUrl: `archivo/${file.name}`,
+        alt: cleanTitle,
+        originalBytes: file.size,
+      };
+    });
+
+    objectUrlsRef.current =
+      activeBgUrl && activeBgUrl.startsWith('blob:')
+        ? [activeBgUrl, ...newBlobUrls]
+        : newBlobUrls;
+
+    startAutomatedBatchPipeline(
+      uploadedItems,
+      validFiles.map((file) => ({ kind: 'file', file })),
+      overflowNotice,
+    );
   };
 
   const handleSelectBackground = (item: CatalogImageItem) => {

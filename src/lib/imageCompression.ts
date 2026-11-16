@@ -19,7 +19,7 @@ const PRIMARY_WEBP_QUALITY = 0.8;
 const SECONDARY_WEBP_QUALITY = 0.68;
 
 async function decodeImageSource(
-  file: File,
+  source: Blob,
 ): Promise<{
   width: number;
   height: number;
@@ -28,7 +28,7 @@ async function decodeImageSource(
 }> {
   if (typeof createImageBitmap === 'function') {
     try {
-      const bitmap = await createImageBitmap(file);
+      const bitmap = await createImageBitmap(source);
       return {
         width: bitmap.width,
         height: bitmap.height,
@@ -40,7 +40,7 @@ async function decodeImageSource(
     }
   }
 
-  const objectUrl = URL.createObjectURL(file);
+  const objectUrl = URL.createObjectURL(source);
   try {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const el = new Image();
@@ -71,11 +71,53 @@ function canvasToBlob(
   });
 }
 
+export async function renderImageBlobFromUrl(
+  imageUrl: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const tryFetchBlob = async (targetUrl: string): Promise<Blob> => {
+    const response = await fetch(targetUrl, {
+      mode: 'cors',
+      signal,
+    });
+    if (!response.ok) {
+      throw new Error(`No se pudo renderizar la imagen (${response.status}).`);
+    }
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      throw new Error('La imagen descargada está vacía.');
+    }
+    return blob;
+  };
+
+  let blob: Blob;
+  const isAlreadyProxied = imageUrl.startsWith('/api/image-proxy');
+  const isRemoteHttp = /^https?:\/\//i.test(imageUrl);
+
+  if (isAlreadyProxied || !isRemoteHttp) {
+    blob = await tryFetchBlob(imageUrl);
+  } else {
+    try {
+      blob = await tryFetchBlob(imageUrl);
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      blob = await tryFetchBlob(
+        `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`,
+      );
+    }
+  }
+
+  // Verify the downloaded bytes actually decode/render as a valid image
+  const decoded = await decodeImageSource(blob);
+  decoded.cleanup();
+  return blob;
+}
+
 export async function compressImageToWebp(
-  file: File,
+  source: Blob,
 ): Promise<CompressedImageResult> {
-  const originalBytes = file.size;
-  const decoded = await decodeImageSource(file);
+  const originalBytes = source.size;
+  const decoded = await decodeImageSource(source);
 
   try {
     const srcW = Math.max(1, decoded.width);
@@ -127,12 +169,12 @@ export async function compressImageToWebp(
 
     // If an already tiny WebP became larger after re-encode, keep original bytes
     const shouldKeepOriginal =
-      file.type === 'image/webp' &&
+      source.type === 'image/webp' &&
       scale === 1 &&
       originalBytes <= bestBlob.size &&
       originalBytes <= 3.5 * 1024 * 1024;
 
-    const finalBlob: Blob = shouldKeepOriginal ? file : bestBlob;
+    const finalBlob: Blob = shouldKeepOriginal ? source : bestBlob;
     const finalMime = shouldKeepOriginal ? 'image/webp' : chosenMime;
     const finalExt = shouldKeepOriginal ? 'webp' : chosenExt;
     const compressedBytes = finalBlob.size;
