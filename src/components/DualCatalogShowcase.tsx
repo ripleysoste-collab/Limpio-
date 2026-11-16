@@ -209,6 +209,10 @@ export function DualCatalogShowcase({
   }, [images]);
 
   useEffect(() => {
+    if (isFileUploadFlow && !uploadSequenceCompleted) {
+      return;
+    }
+
     const measure = () => {
       const container = containerRef.current;
       const left = leftStageRef.current;
@@ -218,6 +222,8 @@ export function DualCatalogShowcase({
       const cRect = container.getBoundingClientRect();
       const lRect = left.getBoundingClientRect();
       const rRect = right.getBoundingClientRect();
+
+      if (lRect.width <= 0 || rRect.width <= 0) return;
 
       setRects({
         left: {
@@ -236,6 +242,7 @@ export function DualCatalogShowcase({
     };
 
     measure();
+    const rafId = window.requestAnimationFrame(measure);
     const observer = new ResizeObserver(measure);
     if (containerRef.current) observer.observe(containerRef.current);
     if (leftStageRef.current) observer.observe(leftStageRef.current);
@@ -243,10 +250,11 @@ export function DualCatalogShowcase({
     window.addEventListener('resize', measure);
 
     return () => {
+      window.cancelAnimationFrame(rafId);
       observer.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [isFileUploadFlow, uploadSequenceCompleted]);
 
   const grid = useMemo(() => {
     const aspect =
