@@ -1,7 +1,7 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { isValidMediaKey, readImageFromR2 } from './r2Storage.ts';
 
-export const GEMINI_MAPPER_MODEL = 'gemini-2.5-flash-lite';
+export const GEMINI_MAPPER_MODEL = 'gemini-3.1-flash-lite';
 
 export interface MappedImageMetadata {
   nombre: string;
@@ -92,6 +92,9 @@ export async function mapStoredImageWithGemini(options: {
       config: {
         systemInstruction:
           'Eres un catalogador comercial experto en e-commerce y restaurantes. Responde únicamente JSON válido en español, sin inventar precios ni marcas que no sean visibles.',
+        thinkingConfig: {
+          thinkingLevel: ThinkingLevel.MINIMAL,
+        },
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
