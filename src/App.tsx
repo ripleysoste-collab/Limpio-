@@ -122,7 +122,11 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active) {
-        setAuthUser(session?.user ?? null);
+        const nextUser = session?.user ?? null;
+        setAuthUser(nextUser);
+        if (nextUser) {
+          setIsAuthOpen(false);
+        }
       }
     });
 
@@ -959,13 +963,15 @@ export default function App() {
             <SearchLinkLogo onDarkBackground="desktop" />
           </div>
 
-          {/* Mobile top-right guest sketch (light backdrop contrast) */}
+          {/* Mobile top-right guest sketch or authenticated avatar (no menu yet) */}
           <div className="flex items-center justify-end lg:hidden">
             <GuestAvatarSketch
               variant="light"
-              expanded={isAuthOpen}
-              signedInEmail={authUser?.email ?? null}
-              onClick={() => setIsAuthOpen(true)}
+              expanded={isAuthOpen && !authUser}
+              user={authUser}
+              onClick={() => {
+                if (!authUser) setIsAuthOpen(true);
+              }}
             />
           </div>
         </div>
@@ -1082,13 +1088,15 @@ export default function App() {
           )}
         </motion.div>
 
-        {/* Desktop top-right guest sketch (dark backdrop contrast) */}
+        {/* Desktop top-right guest sketch or authenticated avatar (no menu yet) */}
         <div className="hidden lg:flex lg:justify-self-end items-center justify-end">
           <GuestAvatarSketch
             variant="dark"
-            expanded={isAuthOpen}
-            signedInEmail={authUser?.email ?? null}
-            onClick={() => setIsAuthOpen(true)}
+            expanded={isAuthOpen && !authUser}
+            user={authUser}
+            onClick={() => {
+              if (!authUser) setIsAuthOpen(true);
+            }}
           />
         </div>
       </header>
@@ -1099,7 +1107,7 @@ export default function App() {
         images={catalogImages}
         activeBackgroundId={activeBgImage?.id ?? null}
         onSelectBackground={handleSelectBackground}
-        suspendShortcuts={isAuthOpen}
+        suspendShortcuts={isAuthOpen && !authUser}
         isFileUploadFlow={isFileUploadFlow}
         showCompressionBox={showCompressionBox}
         compressionStatuses={compressionStatuses}
@@ -1132,9 +1140,9 @@ export default function App() {
         compressionResults={compressionResults}
       />
 
-      {/* Responsive white dot-grid account, catalogs & API keys panel */}
+      {/* Auth sheet only shown while logged out (logged-in menu deferred until authorized) */}
       <AuthDrawer
-        open={isAuthOpen}
+        open={isAuthOpen && !authUser}
         onClose={() => setIsAuthOpen(false)}
         user={authUser}
         pendingBatch={pendingSaveBatch}
@@ -1147,16 +1155,79 @@ export default function App() {
 interface GuestAvatarSketchProps {
   variant: 'light' | 'dark';
   expanded: boolean;
-  signedInEmail?: string | null;
+  user: User | null;
   onClick: () => void;
 }
 
 function GuestAvatarSketch({
   variant,
   expanded,
-  signedInEmail,
+  user,
   onClick,
 }: GuestAvatarSketchProps) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
+  const appMeta = (user?.app_metadata ?? {}) as Record<string, unknown>;
+  const provider =
+    typeof appMeta.provider === 'string' ? appMeta.provider : 'email';
+
+  const rawGooglePhoto =
+    typeof meta.avatar_url === 'string' && meta.avatar_url.trim()
+      ? meta.avatar_url.trim()
+      : typeof meta.picture === 'string' && meta.picture.trim()
+        ? meta.picture.trim()
+        : null;
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [rawGooglePhoto]);
+
+  const showGooglePhoto = Boolean(
+    user && (provider === 'google' || rawGooglePhoto) && rawGooglePhoto && !imgFailed,
+  );
+
+  if (user) {
+    const rawName =
+      (typeof meta.full_name === 'string' && meta.full_name.trim()) ||
+      (typeof meta.name === 'string' && meta.name.trim()) ||
+      user.email?.split('@')[0] ||
+      'U';
+    const initialLetter = rawName.trim().charAt(0).toUpperCase() || 'U';
+    const ringClass =
+      variant === 'light'
+        ? 'border-slate-300/90 shadow-[0_2px_10px_rgba(15,23,42,0.12)]'
+        : 'border-white/75 shadow-[0_2px_12px_rgba(0,0,0,0.35)]';
+    const letterBgClass =
+      variant === 'light'
+        ? 'bg-slate-900 text-white'
+        : 'bg-white text-slate-950';
+
+    return (
+      <div
+        aria-label={`Cuenta conectada (${rawName})`}
+        title={rawName}
+        className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border overflow-hidden flex items-center justify-center select-none shrink-0 ${ringClass} ${
+          showGooglePhoto ? 'bg-slate-100' : letterBgClass
+        }`}
+      >
+        {showGooglePhoto && rawGooglePhoto ? (
+          <img
+            src={rawGooglePhoto}
+            alt={rawName}
+            referrerPolicy="no-referrer"
+            onError={() => setImgFailed(true)}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="text-xs sm:text-sm font-semibold leading-none tracking-tight">
+            {initialLetter}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   const toneClass =
     variant === 'light'
       ? 'border-slate-300/90 bg-white/85 text-slate-700 shadow-[0_2px_10px_rgba(15,23,42,0.08)] hover:border-slate-400 hover:bg-white focus-visible:ring-slate-400'
@@ -1168,12 +1239,8 @@ function GuestAvatarSketch({
       onClick={onClick}
       aria-expanded={expanded}
       aria-haspopup="dialog"
-      aria-label={
-        signedInEmail
-          ? `Abrir tu espacio (${signedInEmail})`
-          : 'Abrir registro de cuenta'
-      }
-      title={signedInEmail ? `Conectado: ${signedInEmail}` : 'Crear cuenta o iniciar sesión'}
+      aria-label="Abrir registro de cuenta"
+      title="Crear cuenta o iniciar sesión"
       className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border backdrop-blur-sm flex items-center justify-center cursor-pointer select-none transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 shrink-0 ${toneClass}`}
     >
       <svg
@@ -1189,12 +1256,6 @@ function GuestAvatarSketch({
         <circle cx="12" cy="8.5" r="3.25" />
         <path d="M5.75 19.25a6.5 6.5 0 0 1 12.5 0" />
       </svg>
-      {signedInEmail && (
-        <span
-          aria-hidden="true"
-          className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white"
-        />
-      )}
     </button>
   );
 }

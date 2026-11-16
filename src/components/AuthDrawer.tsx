@@ -15,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   Trash2,
+  User as UserIcon,
   X,
 } from 'lucide-react';
 import {
@@ -52,6 +53,7 @@ export function AuthDrawer({
   onPendingBatchSaved,
 }: AuthDrawerProps) {
   const [authMode, setAuthMode] = useState<AuthMode>('signup');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -141,7 +143,12 @@ export function AuthDrawer({
       return;
     }
 
+    const trimmedUsername = username.trim();
     const trimmedEmail = email.trim();
+    if (authMode === 'signup' && !trimmedUsername) {
+      setAuthError('Ingresa tu nombre de usuario.');
+      return;
+    }
     if (!trimmedEmail || !password) {
       setAuthError('Ingresa tu correo electrónico y una contraseña.');
       return;
@@ -160,6 +167,12 @@ export function AuthDrawer({
         const { data, error } = await supabase.auth.signUp({
           email: trimmedEmail,
           password,
+          options: {
+            data: {
+              full_name: trimmedUsername,
+              name: trimmedUsername,
+            },
+          },
         });
         if (error) {
           setAuthError(translateSupabaseAuthError(error.message));
@@ -1035,6 +1048,29 @@ export function AuthDrawer({
                   </div>
 
                   <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+                    {authMode === 'signup' && (
+                      <div>
+                        <label
+                          htmlFor="register-username"
+                          className="block text-xs font-medium text-slate-600 mb-1.5 pl-1"
+                        >
+                          Nombre de usuario
+                        </label>
+                        <div className="flex items-center gap-2.5 h-12 w-full rounded-full bg-white border border-slate-200/95 px-4 shadow-[0_1px_4px_rgba(15,23,42,0.03)] focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-200/70 transition-all duration-150">
+                          <UserIcon className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
+                          <input
+                            id="register-username"
+                            type="text"
+                            autoComplete="name"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            placeholder="Tu nombre"
+                            className="flex-1 min-w-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label
                         htmlFor="register-email"
