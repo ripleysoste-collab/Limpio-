@@ -19,6 +19,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
+import type { MappedImageMetadata } from '../lib/imageCompression';
 
 export type ImageCompressionStatus =
   | 'pending'
@@ -28,6 +29,7 @@ export type ImageCompressionStatus =
   | 'error';
 export type ImageUploadStatus = 'pending' | 'uploading' | 'done' | 'error';
 export type ImageReceiveStatus = 'waiting' | 'received' | 'error';
+export type ImageMapStatus = 'waiting' | 'mapping' | 'mapped' | 'error';
 
 export interface CompressedImageMeta {
   url: string;
@@ -48,6 +50,9 @@ interface MobileCatalogCarouselProps {
   uploadStatuses?: Record<string, ImageUploadStatus>;
   showReceiveBox?: boolean;
   receiveStatuses?: Record<string, ImageReceiveStatus>;
+  showMapBox?: boolean;
+  mapStatuses?: Record<string, ImageMapStatus>;
+  mappedResults?: Record<string, MappedImageMetadata>;
   compressionResults?: Record<string, CompressedImageMeta>;
 }
 
@@ -94,6 +99,9 @@ export function MobileCatalogCarousel({
   uploadStatuses = {},
   showReceiveBox = false,
   receiveStatuses = {},
+  showMapBox = false,
+  mapStatuses = {},
+  mappedResults = {},
   compressionResults = {},
 }: MobileCatalogCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -101,8 +109,11 @@ export function MobileCatalogCarousel({
   const compressionCardRef = useRef<HTMLDivElement>(null);
   const uploadCardRef = useRef<HTMLDivElement>(null);
   const receiveCardRef = useRef<HTMLDivElement>(null);
+  const mapCardRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState<0 | 1 | 2>(0);
-  const [activeCompressionCard, setActiveCompressionCard] = useState<0 | 1 | 2 | 3>(0);
+  const [activeCompressionCard, setActiveCompressionCard] = useState<
+    0 | 1 | 2 | 3 | 4
+  >(0);
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
   const [copiedMetadataId, setCopiedMetadataId] = useState<string | null>(null);
@@ -183,7 +194,13 @@ export function MobileCatalogCarousel({
   }, [isUnified, shouldReduceMotion]);
 
   useEffect(() => {
-    if (!showCompressionBox || showUploadBox || showReceiveBox || mergeStage !== 'unified') {
+    if (
+      !showCompressionBox ||
+      showUploadBox ||
+      showReceiveBox ||
+      showMapBox ||
+      mergeStage !== 'unified'
+    ) {
       if (!showCompressionBox) setActiveCompressionCard(0);
       return;
     }
@@ -206,10 +223,23 @@ export function MobileCatalogCarousel({
     }, 90);
 
     return () => window.clearTimeout(scrollTimer);
-  }, [showCompressionBox, showUploadBox, showReceiveBox, mergeStage, shouldReduceMotion]);
+  }, [
+    showCompressionBox,
+    showUploadBox,
+    showReceiveBox,
+    showMapBox,
+    mergeStage,
+    shouldReduceMotion,
+  ]);
 
   useEffect(() => {
-    if (!showUploadBox || !showCompressionBox || showReceiveBox || mergeStage !== 'unified') {
+    if (
+      !showUploadBox ||
+      !showCompressionBox ||
+      showReceiveBox ||
+      showMapBox ||
+      mergeStage !== 'unified'
+    ) {
       return;
     }
 
@@ -231,10 +261,23 @@ export function MobileCatalogCarousel({
     }, 90);
 
     return () => window.clearTimeout(scrollTimer);
-  }, [showUploadBox, showCompressionBox, showReceiveBox, mergeStage, shouldReduceMotion]);
+  }, [
+    showUploadBox,
+    showCompressionBox,
+    showReceiveBox,
+    showMapBox,
+    mergeStage,
+    shouldReduceMotion,
+  ]);
 
   useEffect(() => {
-    if (!showReceiveBox || !showUploadBox || !showCompressionBox || mergeStage !== 'unified') {
+    if (
+      !showReceiveBox ||
+      !showUploadBox ||
+      !showCompressionBox ||
+      showMapBox ||
+      mergeStage !== 'unified'
+    ) {
       return;
     }
 
@@ -256,7 +299,52 @@ export function MobileCatalogCarousel({
     }, 90);
 
     return () => window.clearTimeout(scrollTimer);
-  }, [showReceiveBox, showUploadBox, showCompressionBox, mergeStage, shouldReduceMotion]);
+  }, [
+    showReceiveBox,
+    showUploadBox,
+    showCompressionBox,
+    showMapBox,
+    mergeStage,
+    shouldReduceMotion,
+  ]);
+
+  useEffect(() => {
+    if (
+      !showMapBox ||
+      !showReceiveBox ||
+      !showUploadBox ||
+      !showCompressionBox ||
+      mergeStage !== 'unified'
+    ) {
+      return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+      const container = compressionScrollRef.current;
+      const target = mapCardRef.current;
+      if (!container || !target) return;
+
+      const paddingLeft = Number.parseFloat(
+        window.getComputedStyle(container).paddingLeft || '16',
+      );
+      const targetLeft = Math.max(0, target.offsetLeft - paddingLeft);
+
+      container.scrollTo({
+        left: targetLeft,
+        behavior: shouldReduceMotion ? 'auto' : 'smooth',
+      });
+      setActiveCompressionCard(4);
+    }, 90);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [
+    showMapBox,
+    showReceiveBox,
+    showUploadBox,
+    showCompressionBox,
+    mergeStage,
+    shouldReduceMotion,
+  ]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -272,13 +360,23 @@ export function MobileCatalogCarousel({
     if (!el) return;
     const maxScroll = el.scrollWidth - el.clientWidth;
     if (maxScroll <= 0) return;
-    const totalSteps = showReceiveBox ? 3 : showUploadBox ? 2 : 1;
+    const totalSteps = showMapBox ? 4 : showReceiveBox ? 3 : showUploadBox ? 2 : 1;
     const index = Math.min(
       totalSteps,
       Math.max(0, Math.round((el.scrollLeft / maxScroll) * totalSteps)),
     );
-    setActiveCompressionCard(index as 0 | 1 | 2 | 3);
+    setActiveCompressionCard(index as 0 | 1 | 2 | 3 | 4);
   };
+
+  const allMappedComplete = Boolean(
+    showMapBox &&
+      images.length > 0 &&
+      images.every((img) => {
+        const status = mapStatuses[img.id];
+        return status === 'mapped' || status === 'error';
+      }) &&
+      images.some((img) => Boolean(mappedResults[img.id])),
+  );
 
   const mobileCols = images.length <= 1 ? 1 : images.length <= 4 ? 2 : 3;
   const mobileRows = Math.max(1, Math.ceil(images.length / mobileCols));
@@ -816,19 +914,111 @@ export function MobileCatalogCarousel({
                       </section>
                     </motion.div>
                   )}
+                  {/* Card 5: Automatic "Renderizar y mapear" box — Gemini Vision JSON mapping per image */}
+                  {showMapBox && (
+                    <motion.div
+                      ref={mapCardRef}
+                      initial={shouldReduceMotion ? false : { opacity: 0, x: 24, scale: 0.97 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                      className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
+                    >
+                      <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                        Renderizar y mapear
+                      </h2>
+
+                      <section
+                        aria-label="Renderizar y mapear"
+                        className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] p-2.5 overflow-hidden"
+                      >
+                        <ul className="w-full h-full flex flex-col justify-start gap-[2.5px] overflow-hidden">
+                          {images.slice(0, 10).map((item) => {
+                            const status = mapStatuses[item.id] ?? 'waiting';
+                            const mapped = mappedResults[item.id];
+
+                            return (
+                              <li
+                                key={`map-row-${item.id}`}
+                                className="h-5 shrink-0 w-full min-w-0 flex items-center gap-2 px-1 overflow-hidden select-none"
+                              >
+                                <div className="w-3.5 h-3.5 shrink-0 flex items-center justify-center">
+                                  {status === 'waiting' && (
+                                    <span
+                                      aria-label={`En espera para mapear ${item.alt}`}
+                                      className="w-2 h-2 rounded-full bg-slate-300"
+                                    />
+                                  )}
+
+                                  {status === 'mapping' && (
+                                    <span
+                                      aria-label={`Renderizando y mapeando ${item.alt}`}
+                                      className="w-3.5 h-3.5 rounded-full border-2 border-blue-200 border-t-blue-600 animate-spin [animation-duration:550ms]"
+                                    />
+                                  )}
+
+                                  {status === 'mapped' && (
+                                    <motion.span
+                                      initial={shouldReduceMotion ? false : { scale: 0.5, opacity: 0 }}
+                                      animate={{ scale: 1, opacity: 1 }}
+                                      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                                      aria-label={`Mapeado completo para ${item.alt}`}
+                                      className="w-3.5 h-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center"
+                                    >
+                                      <Check className="w-2.5 h-2.5 stroke-[3]" aria-hidden="true" />
+                                    </motion.span>
+                                  )}
+
+                                  {status === 'error' && (
+                                    <span
+                                      aria-label={`Error al mapear ${item.alt}`}
+                                      className="w-3.5 h-3.5 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center"
+                                    >
+                                      <X className="w-2.5 h-2.5 stroke-[2.5]" aria-hidden="true" />
+                                    </span>
+                                  )}
+                                </div>
+
+                                {status === 'mapped' && mapped ? (
+                                  <motion.span
+                                    initial={shouldReduceMotion ? false : { opacity: 0, x: 4 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.18 }}
+                                    className="flex-1 min-w-0 text-[11px] leading-none text-slate-800 truncate"
+                                  >
+                                    <span className="font-medium text-slate-900">
+                                      {mapped.nombre}
+                                    </span>
+                                    <span className="text-slate-400"> · {mapped.categoria}</span>
+                                  </motion.span>
+                                ) : status === 'error' ? (
+                                  <span className="flex-1 min-w-0 text-[10.5px] leading-none text-rose-500 truncate">
+                                    No se pudo mapear
+                                  </span>
+                                ) : (
+                                  <span className="h-2 w-3/4 rounded-full bg-slate-100 animate-pulse" />
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </section>
+                    </motion.div>
+                  )}
                 </div>
               </div>
 
-              {/* Dynamic 2-step, 3-step, or 4-step swipe indicator */}
+              {/* Dynamic 2-step, 3-step, 4-step, or 5-step swipe indicator */}
               <div
                 aria-hidden="true"
                 className="flex items-center justify-center gap-1.5 mt-0.5"
               >
-                {(showReceiveBox
-                  ? [0, 1, 2, 3]
-                  : showUploadBox
-                    ? [0, 1, 2]
-                    : [0, 1]
+                {(showMapBox
+                  ? [0, 1, 2, 3, 4]
+                  : showReceiveBox
+                    ? [0, 1, 2, 3]
+                    : showUploadBox
+                      ? [0, 1, 2]
+                      : [0, 1]
                 ).map((step) => (
                   <span
                     key={step}
@@ -903,101 +1093,166 @@ export function MobileCatalogCarousel({
             </>
           )}
 
-          {/* Clean unboxed metadata/URLs stacked vertically directly over the moving light background */}
+          {/* Clean unboxed metadata/URLs or "Renderizado y mapeado" JSON stacked vertically directly over the moving light background */}
           {!isExtracting && (hasExtractedResults || !extractError) && images.length > 0 && (
             <motion.section
+              key={allMappedComplete ? 'mapped-json-list' : 'raw-metadata-list'}
               initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              aria-label="Aquí puedes ver tus metadatos"
-              className="mt-5 px-1 pb-4"
+              aria-label={
+                allMappedComplete
+                  ? 'Renderizado y mapeado'
+                  : 'Aquí puedes ver tus metadatos'
+              }
+              className="mt-5 px-1 pb-6"
             >
               <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2">
-                Aquí puedes ver tus metadatos
+                {allMappedComplete
+                  ? 'Renderizado y mapeado'
+                  : 'Aquí puedes ver tus metadatos'}
               </h2>
 
-              <ul className="divide-y divide-slate-900/[0.06]">
-                {images.map((item) => {
-                  const compressed = compressionResults[item.id];
-                  const displayUrl = compressed?.cleanUrl ?? item.cleanUrl;
-                  const copyableUrl = compressed?.url
-                    ? compressed.url
-                    : /^https?:\/\//i.test(item.sourcePageUrl || '')
-                      ? item.sourcePageUrl!
-                      : /^https?:\/\//i.test(displayUrl)
-                        ? displayUrl
-                        : null;
-                  const isCopied = copiedMetadataId === item.id;
+              {allMappedComplete ? (
+                <ul className="divide-y divide-slate-900/15">
+                  {images.map((item) => {
+                    const mapped = mappedResults[item.id];
+                    const isCopied = copiedMetadataId === `json-${item.id}`;
 
-                  return (
-                    <li
-                      key={`unified-url-${item.id}`}
-                      className="min-w-0 select-none"
-                    >
-                      {copyableUrl ? (
+                    if (!mapped) {
+                      return (
+                        <li key={`mapped-error-${item.id}`} className="py-3.5 min-w-0">
+                          <span className="text-xs text-rose-600/90">
+                            No se pudo mapear esta imagen.
+                          </span>
+                        </li>
+                      );
+                    }
+
+                    const jsonText = JSON.stringify(
+                      {
+                        nombre: mapped.nombre,
+                        categoria: mapped.categoria,
+                        descripcion: mapped.descripcion,
+                        url: mapped.url,
+                      },
+                      null,
+                      2,
+                    );
+
+                    return (
+                      <li key={`mapped-json-${item.id}`} className="min-w-0">
                         <button
                           type="button"
-                          onClick={() => handleCopyMetadataUrl(item.id, copyableUrl)}
-                          aria-label={`Copiar URL ${displayUrl}`}
-                          className="w-full flex items-center justify-between gap-2.5 py-2.5 min-w-0 text-left active:opacity-65 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-md"
+                          onClick={() =>
+                            handleCopyMetadataUrl(`json-${item.id}`, jsonText)
+                          }
+                          aria-label={`Copiar JSON de ${mapped.nombre}`}
+                          className="w-full py-3.5 text-left active:opacity-70 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-md"
                         >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            {isCopied ? (
-                              <Check
-                                className="w-3.5 h-3.5 shrink-0 text-emerald-600 stroke-[2.75]"
-                                aria-hidden="true"
-                              />
-                            ) : (
+                          <div className="flex items-start justify-between gap-2">
+                            <pre className="flex-1 min-w-0 font-mono text-[11px] leading-[1.55] text-slate-800 whitespace-pre-wrap break-all">
+                              {jsonText}
+                            </pre>
+                            {isCopied && (
+                              <span className="shrink-0 inline-flex items-center gap-1 text-[10.5px] font-medium text-emerald-600 pt-0.5">
+                                <Check
+                                  className="w-3 h-3 stroke-[2.75]"
+                                  aria-hidden="true"
+                                />
+                                Copiado
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <ul className="divide-y divide-slate-900/[0.06]">
+                  {images.map((item) => {
+                    const compressed = compressionResults[item.id];
+                    const displayUrl = compressed?.cleanUrl ?? item.cleanUrl;
+                    const copyableUrl = compressed?.url
+                      ? compressed.url
+                      : /^https?:\/\//i.test(item.sourcePageUrl || '')
+                        ? item.sourcePageUrl!
+                        : /^https?:\/\//i.test(displayUrl)
+                          ? displayUrl
+                          : null;
+                    const isCopied = copiedMetadataId === item.id;
+
+                    return (
+                      <li
+                        key={`unified-url-${item.id}`}
+                        className="min-w-0 select-none"
+                      >
+                        {copyableUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCopyMetadataUrl(item.id, copyableUrl)}
+                            aria-label={`Copiar URL ${displayUrl}`}
+                            className="w-full flex items-center justify-between gap-2.5 py-2.5 min-w-0 text-left active:opacity-65 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-md"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              {isCopied ? (
+                                <Check
+                                  className="w-3.5 h-3.5 shrink-0 text-emerald-600 stroke-[2.75]"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <Eye
+                                  className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                                    compressed ? 'text-emerald-600' : 'text-blue-600/80'
+                                  }`}
+                                  aria-hidden="true"
+                                />
+                              )}
+                              <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
+                                {displayUrl}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isCopied && (
+                                <span className="text-[10.5px] font-medium text-emerald-600">
+                                  Copiado
+                                </span>
+                              )}
+                              {compressed && compressed.savedPercent > 0 && (
+                                <span className="text-[10.5px] font-semibold text-emerald-600 tabular-nums">
+                                  -{compressed.savedPercent}%
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2.5 py-2.5 min-w-0">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
                               <Eye
                                 className={`w-3.5 h-3.5 shrink-0 transition-colors ${
                                   compressed ? 'text-emerald-600' : 'text-blue-600/80'
                                 }`}
                                 aria-hidden="true"
                               />
-                            )}
-                            <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
-                              {displayUrl}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {isCopied && (
-                              <span className="text-[10.5px] font-medium text-emerald-600">
-                                Copiado
+                              <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
+                                {displayUrl}
                               </span>
-                            )}
+                            </div>
+
                             {compressed && compressed.savedPercent > 0 && (
-                              <span className="text-[10.5px] font-semibold text-emerald-600 tabular-nums">
+                              <span className="text-[10.5px] font-semibold text-emerald-600 tabular-nums shrink-0">
                                 -{compressed.savedPercent}%
                               </span>
                             )}
                           </div>
-                        </button>
-                      ) : (
-                        <div className="flex items-center justify-between gap-2.5 py-2.5 min-w-0">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <Eye
-                              className={`w-3.5 h-3.5 shrink-0 transition-colors ${
-                                compressed ? 'text-emerald-600' : 'text-blue-600/80'
-                              }`}
-                              aria-hidden="true"
-                            />
-                            <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
-                              {displayUrl}
-                            </span>
-                          </div>
-
-                          {compressed && compressed.savedPercent > 0 && (
-                            <span className="text-[10.5px] font-semibold text-emerald-600 tabular-nums shrink-0">
-                              -{compressed.savedPercent}%
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </motion.section>
           )}
         </div>

@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractImagesFromUrl } from './lib/extractor.ts';
+import { mapStoredImageWithGemini } from './lib/geminiMapper.ts';
 import { fetchProxiedImage } from './lib/imageProxy.ts';
 import { isValidMediaKey, readImageFromR2 } from './lib/r2Storage.ts';
 import {
@@ -105,6 +106,42 @@ async function startServer() {
           err instanceof Error
             ? err.message
             : 'Ocurrió un error al subir la imagen.';
+        return res.status(400).json({ error: message });
+      }
+    },
+  );
+
+  app.post(
+    '/api/map-image',
+    express.json({ type: 'application/json', limit: '5mb' }),
+    async (req, res) => {
+      try {
+        const body = (req.body ?? {}) as Record<string, unknown>;
+        const key = typeof body.key === 'string' ? body.key : undefined;
+        const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl : '';
+        const dataBase64 =
+          typeof body.dataBase64 === 'string' ? body.dataBase64 : undefined;
+        const mimeType =
+          typeof body.mimeType === 'string' ? body.mimeType : undefined;
+
+        if (!imageUrl) {
+          return res.status(400).json({
+            error: 'Falta la URL de la imagen para mapear.',
+          });
+        }
+
+        const mapped = await mapStoredImageWithGemini({
+          key,
+          imageUrl,
+          dataBase64,
+          mimeType,
+        });
+        return res.json(mapped);
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'No se pudo mapear la imagen con IA.';
         return res.status(400).json({ error: message });
       }
     },

@@ -288,3 +288,55 @@ export async function compressAndUploadImage(
   const compressed = await compressImageToWebp(file);
   return uploadCompressedImage(compressed, signal);
 }
+
+export interface MappedImageMetadata {
+  nombre: string;
+  categoria: string;
+  descripcion: string;
+  url: string;
+}
+
+export async function mapUploadedImageWithAi(
+  input: { key?: string; imageUrl: string },
+  signal?: AbortSignal,
+): Promise<MappedImageMetadata> {
+  const response = await fetch('/api/map-image', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      key: input.key,
+      imageUrl: input.imageUrl,
+    }),
+    signal,
+  });
+
+  const rawBody = await response.text();
+  let payload: Partial<MappedImageMetadata> & { error?: string } = {};
+
+  try {
+    payload = JSON.parse(rawBody) as typeof payload;
+  } catch {
+    payload = {};
+  }
+
+  if (
+    !response.ok ||
+    !payload.nombre ||
+    !payload.categoria ||
+    !payload.descripcion
+  ) {
+    throw new Error(
+      payload.error ||
+        `Error HTTP ${response.status} al renderizar y mapear con IA.`,
+    );
+  }
+
+  return {
+    nombre: payload.nombre,
+    categoria: payload.categoria,
+    descripcion: payload.descripcion,
+    url: payload.url || input.imageUrl,
+  };
+}

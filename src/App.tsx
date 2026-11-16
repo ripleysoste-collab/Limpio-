@@ -8,6 +8,7 @@ import {
   MobileCatalogCarousel,
   type CompressedImageMeta,
   type ImageCompressionStatus,
+  type ImageMapStatus,
   type ImageReceiveStatus,
   type ImageUploadStatus,
 } from './components/MobileCatalogCarousel';
@@ -15,9 +16,11 @@ import { SearchLinkLogo } from './components/SearchLinkLogo';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
 import {
   compressImageToWebp,
+  mapUploadedImageWithAi,
   renderImageBlobFromUrl,
   uploadCompressedImage,
   type CompressedImageResult,
+  type MappedImageMetadata,
   type UploadedCompressedImage,
 } from './lib/imageCompression';
 
@@ -25,10 +28,12 @@ const MAX_FREE_UPLOAD_IMAGES = 10;
 const COMPRESSION_START_DELAY_MS = 2000;
 const UPLOAD_START_DELAY_MS = 1000;
 const RECEIVE_START_DELAY_MS = 1000;
+const MAP_START_DELAY_MS = 1000;
 const UPLOAD_CONCURRENCY = 3;
 const MIN_RENDER_STEP_MS = 230;
 const MIN_TILE_STEP_MS = 260;
 const MIN_RECEIVE_STEP_MS = 230;
+const MIN_MAP_STEP_MS = 230;
 
 type BatchImageSource =
   | { kind: 'file'; file: File }
@@ -60,6 +65,13 @@ export default function App() {
   const [showReceiveBox, setShowReceiveBox] = useState(false);
   const [receiveStatuses, setReceiveStatuses] = useState<
     Record<string, ImageReceiveStatus>
+  >({});
+  const [showMapBox, setShowMapBox] = useState(false);
+  const [mapStatuses, setMapStatuses] = useState<
+    Record<string, ImageMapStatus>
+  >({});
+  const [mappedResults, setMappedResults] = useState<
+    Record<string, MappedImageMetadata>
   >({});
   const [compressionResults, setCompressionResults] = useState<
     Record<string, CompressedImageMeta>
@@ -129,6 +141,9 @@ export default function App() {
     setUploadStatuses({});
     setShowReceiveBox(false);
     setReceiveStatuses({});
+    setShowMapBox(false);
+    setMapStatuses({});
+    setMappedResults({});
     setCompressionResults({});
     setUrl(normalized);
     setHasSearched(true);
@@ -192,11 +207,13 @@ export default function App() {
     const initialCompressionStatuses: Record<string, ImageCompressionStatus> = {};
     const initialUploadStatuses: Record<string, ImageUploadStatus> = {};
     const initialReceiveStatuses: Record<string, ImageReceiveStatus> = {};
+    const initialMapStatuses: Record<string, ImageMapStatus> = {};
 
     items.forEach((item) => {
       initialCompressionStatuses[item.id] = 'pending';
       initialUploadStatuses[item.id] = 'pending';
       initialReceiveStatuses[item.id] = 'waiting';
+      initialMapStatuses[item.id] = 'waiting';
     });
 
     setBatchNotice(initialNotice);
@@ -204,9 +221,12 @@ export default function App() {
     setShowCompressionBox(false);
     setShowUploadBox(false);
     setShowReceiveBox(false);
+    setShowMapBox(false);
     setCompressionStatuses(initialCompressionStatuses);
     setUploadStatuses(initialUploadStatuses);
     setReceiveStatuses(initialReceiveStatuses);
+    setMapStatuses(initialMapStatuses);
+    setMappedResults({});
     setCompressionResults({});
     setHasSearched(true);
     setCatalogImages(items);
@@ -482,6 +502,105 @@ export default function App() {
             await new Promise<void>((resolve) =>
               window.setTimeout(resolve, MIN_RECEIVE_STEP_MS),
             );
+          }
+        }
+
+        // Wait 1 second after all URLs are received before moving to Stage 5 ("Renderizar y mapear")
+        await new Promise<void>((resolve) => {
+          compressionTimerRef.current = window.setTimeout(() => {
+            compressionTimerRef.current = null;
+            resolve();
+          }, MAP_START_DELAY_MS);
+        });
+
+        if (controller.signal.aborted) return;
+
+        setShowMapBox(true);
+
+        type MapTaskResult =
+          | { ok: true; data: MappedImageMetadata }
+          | { ok: false; aborted: boolean; errorMessage?: string };
+
+        const mapResolvers: Array<(res: MapTaskResult) => void> = [];
+        const mapPromises: Array<Promise<MapTaskResult>> = uploadedPayloads.map(
+          (uploaded, idx) => {
+            if (!uploaded) {
+              return Promise.resolve({ ok: false, aborted: false });
+            }
+            return new Promise<MapTaskResult>((resolve) => {
+              mapResolvers[idx] = resolve;
+            });
+          },
+        );
+
+        let mapCursor = 0;
+        const mapWorkerCount = Math.min(UPLOAD_CONCURRENCY, uploadedPayloads.length);
+        for (let w = 0; w < mapWorkerCount; w++) {
+          void (async () => {
+            while (
+              mapCursor < uploadedPayloads.length &&
+              !controller.signal.aborted
+            ) {
+              const index = mapCursor++;
+              const uploaded = uploadedPayloads[index];
+              if (!uploaded) continue;
+
+              try {
+                const data = await mapUploadedImageWithAi(
+                  { key: uploaded.key, imageUrl: uploaded.url },
+                  controller.signal,
+                );
+                mapResolvers[index]({ ok: true, data });
+              } catch (err) {
+                const aborted =
+                  controller.signal.aborted ||
+                  (err instanceof DOMException && err.name === 'AbortError');
+                const errorMessage =
+                  err instanceof Error
+                    ? err.message
+                    : 'Error al renderizar y mapear la imagen con IA.';
+                mapResolvers[index]({ ok: false, aborted, errorMessage });
+              }
+            }
+          })();
+        }
+
+        let firstMapError: string | null = null;
+
+        for (let i = 0; i < items.length; i++) {
+          if (controller.signal.aborted) return;
+          const item = items[i];
+
+          setMapStatuses((prev) => ({
+            ...prev,
+            [item.id]: 'mapping',
+          }));
+
+          const stepBeat = new Promise<void>((resolve) =>
+            window.setTimeout(resolve, MIN_MAP_STEP_MS),
+          );
+
+          const [mapResult] = await Promise.all([mapPromises[i], stepBeat]);
+          if (controller.signal.aborted) return;
+
+          if (mapResult.ok) {
+            setMappedResults((prev) => ({
+              ...prev,
+              [item.id]: mapResult.data,
+            }));
+            setMapStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'mapped',
+            }));
+          } else if (!mapResult.aborted) {
+            if (!firstMapError && mapResult.errorMessage) {
+              firstMapError = mapResult.errorMessage;
+              setBatchNotice(mapResult.errorMessage);
+            }
+            setMapStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'error',
+            }));
           }
         }
       })();
@@ -875,7 +994,7 @@ export default function App() {
         compressionResults={compressionResults}
       />
 
-      {/* Mobile-only swipeable boxes with 2s compression + 1s upload + 1s receive transition + unboxed metadata below */}
+      {/* Mobile-only swipeable boxes with Stage 2–5 auto-pan + unboxed metadata / JSON below */}
       <MobileCatalogCarousel
         images={catalogImages}
         isUnified={hasSearched}
@@ -888,6 +1007,9 @@ export default function App() {
         uploadStatuses={uploadStatuses}
         showReceiveBox={showReceiveBox}
         receiveStatuses={receiveStatuses}
+        showMapBox={showMapBox}
+        mapStatuses={mapStatuses}
+        mappedResults={mappedResults}
         compressionResults={compressionResults}
       />
 
