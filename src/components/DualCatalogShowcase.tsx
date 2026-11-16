@@ -920,14 +920,14 @@ export function DualCatalogShowcase({
             </motion.div>
           </div>
 
-          {/* RIGHT HALF: Full clean white half-screen from below input downward, with title breathing room & rounded panel */}
+          {/* RIGHT HALF: Clean white half-screen from below input downward; title sits outside the card at exact same pt-1/mb-2 baseline so the card height matches left images + links flush */}
           <motion.div
             initial={shouldReduceMotion ? false : { opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col min-h-0 bg-white rounded-tl-[28px] pt-4 pb-5 px-6 overflow-hidden"
+            className="flex flex-col min-h-0 bg-white rounded-tl-[28px] pt-1 pb-5 px-6 overflow-hidden"
           >
-            <h2 className="text-sm font-semibold text-slate-950 tracking-tight mb-3 pl-1 shrink-0">
+            <h2 className="text-sm font-semibold text-slate-950 tracking-tight mb-2 pl-1 shrink-0">
               {allMappedComplete
                 ? 'Renderizado y mapeado'
                 : 'Renderizar y mapear'}

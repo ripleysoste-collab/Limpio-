@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Link2, Loader2, Upload, X } from 'lucide-react';
-import desktopExecutivesBg from './assets/images/bg_executives_desktop_1794778300480.jpg';
+import desktopDesertBg from './assets/images/bg_desert_desktop_1794853953945.jpg';
 import { AuthDrawer } from './components/AuthDrawer';
 import { DualCatalogShowcase } from './components/DualCatalogShowcase';
 import {
@@ -797,16 +797,16 @@ export default function App() {
         />
       </div>
 
-      {/* Desktop-only official AI-generated executives background */}
+      {/* Desktop-only AI-generated daytime desert background */}
       <div
         aria-hidden="true"
         className="pointer-events-none select-none fixed inset-0 z-0 hidden lg:block overflow-hidden bg-[#0e1013]"
       >
         <img
-          src={desktopExecutivesBg}
+          src={desktopDesertBg}
           alt=""
           decoding="sync"
-          className="w-full h-full object-cover object-[50%_18%]"
+          className="w-full h-full object-cover object-center"
         />
         <div className="absolute inset-0 bg-black/20" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/40" />
