@@ -22,6 +22,7 @@ import type { CatalogImageItem } from '../data/catalogSamples';
 
 export type ImageCompressionStatus = 'pending' | 'compressing' | 'done' | 'error';
 export type ImageUploadStatus = 'pending' | 'uploading' | 'done' | 'error';
+export type ImageReceiveStatus = 'waiting' | 'received' | 'error';
 
 export interface CompressedImageMeta {
   url: string;
@@ -40,6 +41,8 @@ interface MobileCatalogCarouselProps {
   compressionStatuses?: Record<string, ImageCompressionStatus>;
   showUploadBox?: boolean;
   uploadStatuses?: Record<string, ImageUploadStatus>;
+  showReceiveBox?: boolean;
+  receiveStatuses?: Record<string, ImageReceiveStatus>;
   compressionResults?: Record<string, CompressedImageMeta>;
 }
 
@@ -84,18 +87,72 @@ export function MobileCatalogCarousel({
   compressionStatuses = {},
   showUploadBox = false,
   uploadStatuses = {},
+  showReceiveBox = false,
+  receiveStatuses = {},
   compressionResults = {},
 }: MobileCatalogCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const compressionScrollRef = useRef<HTMLDivElement>(null);
   const compressionCardRef = useRef<HTMLDivElement>(null);
   const uploadCardRef = useRef<HTMLDivElement>(null);
+  const receiveCardRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState<0 | 1 | 2>(0);
-  const [activeCompressionCard, setActiveCompressionCard] = useState<0 | 1 | 2>(0);
+  const [activeCompressionCard, setActiveCompressionCard] = useState<0 | 1 | 2 | 3>(0);
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
+  const [copiedMetadataId, setCopiedMetadataId] = useState<string | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
   const [mergeStage, setMergeStage] = useState<'idle' | 'merging' | 'unified'>('idle');
   const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopyMetadataUrl = async (itemId: string, urlToCopy: string) => {
+    let copied = false;
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(urlToCopy);
+        copied = true;
+      } catch {
+        copied = false;
+      }
+    }
+
+    if (!copied) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = urlToCopy;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        textarea.style.pointerEvents = 'none';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch {
+        copied = false;
+      }
+    }
+
+    if (copied) {
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+      setCopiedMetadataId(itemId);
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopiedMetadataId((prev) => (prev === itemId ? null : prev));
+        copyTimerRef.current = null;
+      }, 1500);
+    }
+  };
 
   useEffect(() => {
     if (!isUnified) {
@@ -121,7 +178,7 @@ export function MobileCatalogCarousel({
   }, [isUnified, shouldReduceMotion]);
 
   useEffect(() => {
-    if (!showCompressionBox || showUploadBox || mergeStage !== 'unified') {
+    if (!showCompressionBox || showUploadBox || showReceiveBox || mergeStage !== 'unified') {
       if (!showCompressionBox) setActiveCompressionCard(0);
       return;
     }
@@ -144,10 +201,10 @@ export function MobileCatalogCarousel({
     }, 90);
 
     return () => window.clearTimeout(scrollTimer);
-  }, [showCompressionBox, showUploadBox, mergeStage, shouldReduceMotion]);
+  }, [showCompressionBox, showUploadBox, showReceiveBox, mergeStage, shouldReduceMotion]);
 
   useEffect(() => {
-    if (!showUploadBox || !showCompressionBox || mergeStage !== 'unified') {
+    if (!showUploadBox || !showCompressionBox || showReceiveBox || mergeStage !== 'unified') {
       return;
     }
 
@@ -169,7 +226,32 @@ export function MobileCatalogCarousel({
     }, 90);
 
     return () => window.clearTimeout(scrollTimer);
-  }, [showUploadBox, showCompressionBox, mergeStage, shouldReduceMotion]);
+  }, [showUploadBox, showCompressionBox, showReceiveBox, mergeStage, shouldReduceMotion]);
+
+  useEffect(() => {
+    if (!showReceiveBox || !showUploadBox || !showCompressionBox || mergeStage !== 'unified') {
+      return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+      const container = compressionScrollRef.current;
+      const target = receiveCardRef.current;
+      if (!container || !target) return;
+
+      const paddingLeft = Number.parseFloat(
+        window.getComputedStyle(container).paddingLeft || '16',
+      );
+      const targetLeft = Math.max(0, target.offsetLeft - paddingLeft);
+
+      container.scrollTo({
+        left: targetLeft,
+        behavior: shouldReduceMotion ? 'auto' : 'smooth',
+      });
+      setActiveCompressionCard(3);
+    }, 90);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [showReceiveBox, showUploadBox, showCompressionBox, mergeStage, shouldReduceMotion]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -185,12 +267,12 @@ export function MobileCatalogCarousel({
     if (!el) return;
     const maxScroll = el.scrollWidth - el.clientWidth;
     if (maxScroll <= 0) return;
-    const totalSteps = showUploadBox ? 2 : 1;
+    const totalSteps = showReceiveBox ? 3 : showUploadBox ? 2 : 1;
     const index = Math.min(
       totalSteps,
       Math.max(0, Math.round((el.scrollLeft / maxScroll) * totalSteps)),
     );
-    setActiveCompressionCard(index as 0 | 1 | 2);
+    setActiveCompressionCard(index as 0 | 1 | 2 | 3);
   };
 
   const mobileCols = images.length <= 1 ? 1 : images.length <= 4 ? 2 : 3;
@@ -635,15 +717,102 @@ export function MobileCatalogCarousel({
                       </section>
                     </motion.div>
                   )}
+
+                  {/* Card 4: Automatic "Recibiendo" box — stacked from top inside fixed card height (max 10) */}
+                  {showReceiveBox && (
+                    <motion.div
+                      ref={receiveCardRef}
+                      initial={shouldReduceMotion ? false : { opacity: 0, x: 24, scale: 0.97 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                      className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
+                    >
+                      <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                        Recibiendo
+                      </h2>
+
+                      <section
+                        aria-label="Recibiendo"
+                        className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(16,185,129,0.08)] p-2.5 overflow-hidden"
+                      >
+                        <ul className="w-full h-full flex flex-col justify-start gap-[2.5px] overflow-hidden">
+                          {images.slice(0, 10).map((item) => {
+                            const status = receiveStatuses[item.id] ?? 'waiting';
+                            const received = compressionResults[item.id];
+                            const displayUrl = received?.cleanUrl ?? item.cleanUrl;
+
+                            return (
+                              <li
+                                key={`receive-row-${item.id}`}
+                                className="h-5 shrink-0 w-full min-w-0 flex items-center gap-2 px-1 overflow-hidden select-none"
+                              >
+                                <div className="w-3.5 h-3.5 shrink-0 flex items-center justify-center">
+                                  {status === 'waiting' && (
+                                    <span
+                                      aria-label={`Recibiendo URL de ${item.alt}`}
+                                      className="w-3.5 h-3.5 rounded-full border-2 border-emerald-200 border-t-emerald-500 animate-spin [animation-duration:500ms]"
+                                    />
+                                  )}
+
+                                  {status === 'received' && (
+                                    <motion.span
+                                      initial={shouldReduceMotion ? false : { scale: 0.5, opacity: 0 }}
+                                      animate={{ scale: 1, opacity: 1 }}
+                                      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                                      aria-label={`URL recibida para ${item.alt}`}
+                                      className="w-3.5 h-3.5 rounded-full bg-emerald-500 text-white flex items-center justify-center"
+                                    >
+                                      <Check className="w-2.5 h-2.5 stroke-[3]" aria-hidden="true" />
+                                    </motion.span>
+                                  )}
+
+                                  {status === 'error' && (
+                                    <span
+                                      aria-label={`Error al recibir ${item.alt}`}
+                                      className="w-3.5 h-3.5 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center"
+                                    >
+                                      <X className="w-2.5 h-2.5 stroke-[2.5]" aria-hidden="true" />
+                                    </span>
+                                  )}
+                                </div>
+
+                                {status === 'received' ? (
+                                  <motion.span
+                                    initial={shouldReduceMotion ? false : { opacity: 0, x: 4 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.18 }}
+                                    className="flex-1 min-w-0 font-mono text-[10.5px] leading-none text-slate-800 truncate tabular-nums"
+                                  >
+                                    {displayUrl}
+                                  </motion.span>
+                                ) : status === 'error' ? (
+                                  <span className="flex-1 min-w-0 text-[10.5px] leading-none text-rose-500 truncate">
+                                    No se pudo recibir
+                                  </span>
+                                ) : (
+                                  <span className="h-2 w-2/3 rounded-full bg-slate-100 animate-pulse" />
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </section>
+                    </motion.div>
+                  )}
                 </div>
               </div>
 
-              {/* Dynamic 2-step or 3-step swipe indicator */}
+              {/* Dynamic 2-step, 3-step, or 4-step swipe indicator */}
               <div
                 aria-hidden="true"
                 className="flex items-center justify-center gap-1.5 mt-0.5"
               >
-                {(showUploadBox ? [0, 1, 2] : [0, 1]).map((step) => (
+                {(showReceiveBox
+                  ? [0, 1, 2, 3]
+                  : showUploadBox
+                    ? [0, 1, 2]
+                    : [0, 1]
+                ).map((step) => (
                   <span
                     key={step}
                     className={`h-1.5 rounded-full transition-all duration-200 ${
@@ -734,28 +903,79 @@ export function MobileCatalogCarousel({
                 {images.map((item) => {
                   const compressed = compressionResults[item.id];
                   const displayUrl = compressed?.cleanUrl ?? item.cleanUrl;
+                  const copyableUrl = compressed?.url
+                    ? compressed.url
+                    : /^https?:\/\//i.test(item.sourcePageUrl || '')
+                      ? item.sourcePageUrl!
+                      : /^https?:\/\//i.test(displayUrl)
+                        ? displayUrl
+                        : null;
+                  const isCopied = copiedMetadataId === item.id;
 
                   return (
                     <li
                       key={`unified-url-${item.id}`}
-                      className="flex items-center justify-between gap-2.5 py-2.5 min-w-0 select-none"
+                      className="min-w-0 select-none"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <Eye
-                          className={`w-3.5 h-3.5 shrink-0 transition-colors ${
-                            compressed ? 'text-emerald-600' : 'text-blue-600/80'
-                          }`}
-                          aria-hidden="true"
-                        />
-                        <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
-                          {displayUrl}
-                        </span>
-                      </div>
+                      {copyableUrl ? (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMetadataUrl(item.id, copyableUrl)}
+                          aria-label={`Copiar URL ${displayUrl}`}
+                          className="w-full flex items-center justify-between gap-2.5 py-2.5 min-w-0 text-left active:opacity-65 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-md"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            {isCopied ? (
+                              <Check
+                                className="w-3.5 h-3.5 shrink-0 text-emerald-600 stroke-[2.75]"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Eye
+                                className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                                  compressed ? 'text-emerald-600' : 'text-blue-600/80'
+                                }`}
+                                aria-hidden="true"
+                              />
+                            )}
+                            <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
+                              {displayUrl}
+                            </span>
+                          </div>
 
-                      {compressed && compressed.savedPercent > 0 && (
-                        <span className="text-[10.5px] font-semibold text-emerald-600 tabular-nums shrink-0">
-                          -{compressed.savedPercent}%
-                        </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isCopied && (
+                              <span className="text-[10.5px] font-medium text-emerald-600">
+                                Copiado
+                              </span>
+                            )}
+                            {compressed && compressed.savedPercent > 0 && (
+                              <span className="text-[10.5px] font-semibold text-emerald-600 tabular-nums">
+                                -{compressed.savedPercent}%
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2.5 py-2.5 min-w-0">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <Eye
+                              className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                                compressed ? 'text-emerald-600' : 'text-blue-600/80'
+                              }`}
+                              aria-hidden="true"
+                            />
+                            <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
+                              {displayUrl}
+                            </span>
+                          </div>
+
+                          {compressed && compressed.savedPercent > 0 && (
+                            <span className="text-[10.5px] font-semibold text-emerald-600 tabular-nums shrink-0">
+                              -{compressed.savedPercent}%
+                            </span>
+                          )}
+                        </div>
                       )}
                     </li>
                   );

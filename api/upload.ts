@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
+  getRequestOrigin,
   MAX_UPLOAD_BYTES,
   processAndStoreUploadedImage,
 } from '../lib/uploadHandler.ts';
@@ -41,7 +42,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     }
 
     const buffer = await readBinaryBody(req);
-    const result = await processAndStoreUploadedImage(buffer);
+    const result = await processAndStoreUploadedImage(
+      buffer,
+      getRequestOrigin(req.headers),
+    );
     return sendJson(res, 200, result);
   } catch (err) {
     const message =

@@ -6,6 +6,7 @@ import { extractImagesFromUrl } from './lib/extractor.ts';
 import { fetchProxiedImage } from './lib/imageProxy.ts';
 import { isValidMediaKey, readImageFromR2 } from './lib/r2Storage.ts';
 import {
+  getRequestOrigin,
   MAX_UPLOAD_BYTES,
   processAndStoreUploadedImage,
 } from './lib/uploadHandler.ts';
@@ -88,7 +89,10 @@ async function startServer() {
           });
         }
 
-        const result = await processAndStoreUploadedImage(req.body);
+        const result = await processAndStoreUploadedImage(
+          req.body,
+          getRequestOrigin(req.headers),
+        );
         return res.json(result);
       } catch (err) {
         const message =

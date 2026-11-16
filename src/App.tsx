@@ -8,6 +8,7 @@ import {
   MobileCatalogCarousel,
   type CompressedImageMeta,
   type ImageCompressionStatus,
+  type ImageReceiveStatus,
   type ImageUploadStatus,
 } from './components/MobileCatalogCarousel';
 import { SearchLinkLogo } from './components/SearchLinkLogo';
@@ -19,10 +20,13 @@ import {
   type UploadedCompressedImage,
 } from './lib/imageCompression';
 
+const MAX_FREE_UPLOAD_IMAGES = 10;
 const COMPRESSION_START_DELAY_MS = 2000;
 const UPLOAD_START_DELAY_MS = 1000;
+const RECEIVE_START_DELAY_MS = 1000;
 const UPLOAD_CONCURRENCY = 3;
 const MIN_TILE_STEP_MS = 320;
+const MIN_RECEIVE_STEP_MS = 230;
 
 export default function App() {
   const [url, setUrl] = useState('');
@@ -37,6 +41,7 @@ export default function App() {
   const [hasAnimatedFirstBg, setHasAnimatedFirstBg] = useState(false);
   const [shouldAnimateBgEntry, setShouldAnimateBgEntry] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [showCompressionBox, setShowCompressionBox] = useState(false);
   const [compressionStatuses, setCompressionStatuses] = useState<
     Record<string, ImageCompressionStatus>
@@ -44,6 +49,10 @@ export default function App() {
   const [showUploadBox, setShowUploadBox] = useState(false);
   const [uploadStatuses, setUploadStatuses] = useState<
     Record<string, ImageUploadStatus>
+  >({});
+  const [showReceiveBox, setShowReceiveBox] = useState(false);
+  const [receiveStatuses, setReceiveStatuses] = useState<
+    Record<string, ImageReceiveStatus>
   >({});
   const [compressionResults, setCompressionResults] = useState<
     Record<string, CompressedImageMeta>
@@ -105,10 +114,13 @@ export default function App() {
 
     const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     cancelOngoingCompression();
+    setBatchNotice(null);
     setShowCompressionBox(false);
     setCompressionStatuses({});
     setShowUploadBox(false);
     setUploadStatuses({});
+    setShowReceiveBox(false);
+    setReceiveStatuses({});
     setCompressionResults({});
     setUrl(normalized);
     setHasSearched(true);
@@ -159,7 +171,7 @@ export default function App() {
     const fileList = event.target.files;
     if (!fileList || fileList.length === 0) return;
 
-    const validFiles = Array.from(fileList).filter(
+    const allValidFiles = Array.from(fileList).filter(
       (file) =>
         file.type.startsWith('image/') ||
         /\.(jpe?g|png|webp|gif|avif|bmp|svg)$/i.test(file.name),
@@ -167,10 +179,17 @@ export default function App() {
 
     event.target.value = '';
 
-    if (validFiles.length === 0) {
+    if (allValidFiles.length === 0) {
       setExtractError('Por favor selecciona archivos de imagen válidos.');
       return;
     }
+
+    const validFiles = allValidFiles.slice(0, MAX_FREE_UPLOAD_IMAGES);
+    setBatchNotice(
+      allValidFiles.length > MAX_FREE_UPLOAD_IMAGES
+        ? `Plan gratuito: se procesarán las primeras ${MAX_FREE_UPLOAD_IMAGES} imágenes.`
+        : null,
+    );
 
     extractAbortRef.current?.abort();
     cancelOngoingCompression();
@@ -179,6 +198,8 @@ export default function App() {
     setShowCompressionBox(false);
     setShowUploadBox(false);
     setUploadStatuses({});
+    setShowReceiveBox(false);
+    setReceiveStatuses({});
     setCompressionResults({});
 
     const activeBgUrl = activeBgImage?.url ?? null;
@@ -211,9 +232,11 @@ export default function App() {
 
     const initialCompressionStatuses: Record<string, ImageCompressionStatus> = {};
     const initialUploadStatuses: Record<string, ImageUploadStatus> = {};
+    const initialReceiveStatuses: Record<string, ImageReceiveStatus> = {};
     uploadedItems.forEach((item) => {
       initialCompressionStatuses[item.id] = 'pending';
       initialUploadStatuses[item.id] = 'pending';
+      initialReceiveStatuses[item.id] = 'waiting';
     });
 
     objectUrlsRef.current =
@@ -223,6 +246,7 @@ export default function App() {
 
     setCompressionStatuses(initialCompressionStatuses);
     setUploadStatuses(initialUploadStatuses);
+    setReceiveStatuses(initialReceiveStatuses);
     setHasSearched(true);
     setCatalogImages(uploadedItems);
     setCatalogVersion((prev) => prev + 1);
@@ -353,6 +377,10 @@ export default function App() {
           })();
         }
 
+        const uploadedPayloads: Array<UploadedCompressedImage | null> = new Array(
+          uploadedItems.length,
+        ).fill(null);
+
         for (let i = 0; i < uploadedItems.length; i++) {
           if (controller.signal.aborted) return;
           const item = uploadedItems[i];
@@ -370,24 +398,69 @@ export default function App() {
           if (controller.signal.aborted) return;
 
           if (result.ok) {
+            uploadedPayloads[i] = result.data;
             setUploadStatuses((prev) => ({
               ...prev,
               [item.id]: 'done',
-            }));
-            setCompressionResults((prev) => ({
-              ...prev,
-              [item.id]: {
-                url: result.data.url,
-                cleanUrl: result.data.url,
-                savedPercent: result.data.savedPercent,
-                compressedBytes: result.data.compressedBytes,
-              },
             }));
           } else if (!result.aborted) {
             setUploadStatuses((prev) => ({
               ...prev,
               [item.id]: 'error',
             }));
+          }
+        }
+
+        // Wait 1 second after all uploads finish before moving to Stage 4 ("Recibiendo")
+        await new Promise<void>((resolve) => {
+          compressionTimerRef.current = window.setTimeout(() => {
+            compressionTimerRef.current = null;
+            resolve();
+          }, RECEIVE_START_DELAY_MS);
+        });
+
+        if (controller.signal.aborted) return;
+
+        setShowReceiveBox(true);
+
+        // Brief spin beat so the user sees all green circles rotating rapidly before URLs settle
+        await new Promise<void>((resolve) => {
+          compressionTimerRef.current = window.setTimeout(() => {
+            compressionTimerRef.current = null;
+            resolve();
+          }, 360);
+        });
+
+        for (let i = 0; i < uploadedItems.length; i++) {
+          if (controller.signal.aborted) return;
+          const item = uploadedItems[i];
+          const uploaded = uploadedPayloads[i];
+
+          if (uploaded) {
+            setCompressionResults((prev) => ({
+              ...prev,
+              [item.id]: {
+                url: uploaded.url,
+                cleanUrl: uploaded.url,
+                savedPercent: uploaded.savedPercent,
+                compressedBytes: uploaded.compressedBytes,
+              },
+            }));
+            setReceiveStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'received',
+            }));
+          } else {
+            setReceiveStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'error',
+            }));
+          }
+
+          if (i < uploadedItems.length - 1) {
+            await new Promise<void>((resolve) =>
+              window.setTimeout(resolve, MIN_RECEIVE_STEP_MS),
+            );
           }
         }
       })();
@@ -667,13 +740,22 @@ export default function App() {
             </form>
           </div>
 
-          {extractError && (
+          {extractError ? (
             <p
               role="alert"
               className="mt-2 px-4 text-xs font-medium text-rose-600 lg:text-rose-200 lg:drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] text-center"
             >
               {extractError}
             </p>
+          ) : (
+            batchNotice && (
+              <p
+                role="status"
+                className="mt-2 px-4 text-xs font-medium text-slate-600 lg:text-slate-200 lg:drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] text-center"
+              >
+                {batchNotice}
+              </p>
+            )
           )}
         </div>
 
@@ -696,7 +778,7 @@ export default function App() {
         suspendShortcuts={isAuthOpen}
       />
 
-      {/* Mobile-only swipeable boxes with 2s compression + 1s upload transition + unboxed metadata below */}
+      {/* Mobile-only swipeable boxes with 2s compression + 1s upload + 1s receive transition + unboxed metadata below */}
       <MobileCatalogCarousel
         images={catalogImages}
         isUnified={hasSearched}
@@ -707,6 +789,8 @@ export default function App() {
         compressionStatuses={compressionStatuses}
         showUploadBox={showUploadBox}
         uploadStatuses={uploadStatuses}
+        showReceiveBox={showReceiveBox}
+        receiveStatuses={receiveStatuses}
         compressionResults={compressionResults}
       />
 

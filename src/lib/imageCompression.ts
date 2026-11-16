@@ -189,10 +189,14 @@ export async function uploadCompressedImage(
     );
   }
 
+  const absoluteUrl = payload.url.startsWith('/')
+    ? `${window.location.origin}${payload.url}`
+    : payload.url;
+
   return {
     ...compressed,
     key: payload.key,
-    url: payload.url,
+    url: absoluteUrl,
     compressedBytes: payload.sizeBytes ?? compressed.compressedBytes,
   };
 }

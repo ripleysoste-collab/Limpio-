@@ -61,8 +61,43 @@ export interface ImageUploadResponse {
   contentType: string;
 }
 
+export function getRequestOrigin(headers: {
+  host?: string | string[];
+  'x-forwarded-host'?: string | string[];
+  'x-forwarded-proto'?: string | string[];
+}): string | undefined {
+  const rawHost = headers['x-forwarded-host'] || headers.host;
+  const hostValue = (Array.isArray(rawHost) ? rawHost[0] : rawHost || '')
+    .split(',')[0]
+    .trim();
+
+  if (!hostValue || /[\s/\\]/.test(hostValue)) {
+    return undefined;
+  }
+
+  const rawProto = headers['x-forwarded-proto'];
+  const protoCandidate = (
+    Array.isArray(rawProto) ? rawProto[0] : rawProto || ''
+  )
+    .split(',')[0]
+    .trim()
+    .toLowerCase();
+
+  const isLocal =
+    hostValue.startsWith('localhost') || hostValue.startsWith('127.0.0.1');
+  const proto =
+    protoCandidate === 'http' || protoCandidate === 'https'
+      ? protoCandidate
+      : isLocal
+        ? 'http'
+        : 'https';
+
+  return `${proto}://${hostValue}`;
+}
+
 export async function processAndStoreUploadedImage(
   buffer: Buffer,
+  requestOrigin?: string,
 ): Promise<ImageUploadResponse> {
   if (!isR2Configured()) {
     throw new Error('El almacenamiento en la nube aún no está configurado.');
@@ -90,6 +125,7 @@ export async function processAndStoreUploadedImage(
     key,
     body: buffer,
     contentType: detected.contentType,
+    requestOrigin,
   });
 
   return {

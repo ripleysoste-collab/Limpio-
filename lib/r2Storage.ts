@@ -96,12 +96,19 @@ export function buildSafeObjectKey(options?: {
   return `${rawPrefix}/${yearMonth}/${id}.${safeExt}`;
 }
 
-export function resolveMediaUrl(key: string): string {
+export function resolveMediaUrl(key: string, requestOrigin?: string): string {
   const { publicBaseUrl } = getR2Env();
   if (publicBaseUrl) {
     return `${publicBaseUrl}/${key}`;
   }
-  return `/api/media?k=${encodeURIComponent(key)}`;
+  const relativePath = `/api/media?k=${encodeURIComponent(key)}`;
+  const cleanOrigin = (requestOrigin || process.env.APP_URL || '')
+    .trim()
+    .replace(/\/+$/, '');
+  if (cleanOrigin && /^https?:\/\//i.test(cleanOrigin)) {
+    return `${cleanOrigin}${relativePath}`;
+  }
+  return relativePath;
 }
 
 export interface UploadImageToR2Input {
@@ -109,6 +116,7 @@ export interface UploadImageToR2Input {
   body: Buffer | Uint8Array;
   contentType: string;
   cacheControl?: string;
+  requestOrigin?: string;
 }
 
 export interface UploadImageToR2Result {
@@ -143,7 +151,7 @@ export async function uploadImageToR2(
 
   return {
     key: input.key,
-    url: resolveMediaUrl(input.key),
+    url: resolveMediaUrl(input.key, input.requestOrigin),
     sizeBytes: input.body.byteLength,
   };
 }
