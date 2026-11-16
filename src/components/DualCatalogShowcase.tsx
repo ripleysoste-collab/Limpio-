@@ -784,8 +784,8 @@ export function DualCatalogShowcase({
   return (
     <>
       {isSplitWorkspaceActive ? (
-        /* Stage 5 Desktop Split-Screen Workspace: Left = Images (top) + Links (animated down-left below); Right = White Canvas with Renderizar y mapear / Renderizado y mapeado JSON */
-        <div className="relative z-10 hidden lg:grid lg:grid-cols-2 flex-1 min-h-0 mt-4 w-[calc(100%+3rem)] -mx-6 -mb-8">
+        /* Stage 5 Desktop Split-Screen Workspace: Left = Images (top) + Links (animated down-left below); Right = Rounded card matching left stack height */
+        <div className="relative z-10 hidden lg:grid lg:grid-cols-2 lg:grid-rows-[minmax(0,1fr)] flex-1 min-h-0 overflow-hidden mt-4 w-[calc(100%+3rem)] -mx-6 -mb-8">
           {/* Center vertical divider line starting below the header/URL bar */}
           <div
             aria-hidden="true"
@@ -793,7 +793,7 @@ export function DualCatalogShowcase({
           />
 
           {/* LEFT HALF: Images on top + Links animated down & leftward below */}
-          <div className="flex flex-col gap-3.5 px-6 pt-1 pb-5 min-h-0">
+          <div className="flex flex-col gap-3.5 px-6 pt-1 pb-5 h-full min-h-0 overflow-hidden">
             {/* Top-left card: Aquí verás tus imágenes */}
             <div className="flex-1 min-h-0 flex flex-col">
               <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
@@ -920,14 +920,14 @@ export function DualCatalogShowcase({
             </motion.div>
           </div>
 
-          {/* RIGHT HALF: Clean white half-screen from below input downward; title sits outside the card at exact same pt-1/mb-2 baseline so the card height matches left images + links flush */}
+          {/* RIGHT HALF: Only the rounded white card over the background; title outside with exact same top/bottom alignment & fixed height with internal mouse scroll */}
           <motion.div
             initial={shouldReduceMotion ? false : { opacity: 0, x: 24 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col min-h-0 bg-white rounded-tl-[28px] pt-1 pb-5 px-6 overflow-hidden"
+            className="flex flex-col h-full min-h-0 pt-1 pb-5 px-6 overflow-hidden"
           >
-            <h2 className="text-sm font-semibold text-slate-950 tracking-tight mb-2 pl-1 shrink-0">
+            <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
               {allMappedComplete
                 ? 'Renderizado y mapeado'
                 : 'Renderizar y mapear'}
@@ -939,7 +939,7 @@ export function DualCatalogShowcase({
                   ? 'Renderizado y mapeado'
                   : 'Renderizar y mapear'
               }
-              className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-slate-200/90 shadow-[0_12px_34px_-14px_rgba(15,23,42,0.12)] p-4 overflow-y-auto"
+              className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] p-4 overflow-y-auto overscroll-contain"
             >
               {allMappedComplete ? (
                 <ul className="divide-y divide-slate-900/15">
