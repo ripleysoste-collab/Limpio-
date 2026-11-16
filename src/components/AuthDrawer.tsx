@@ -5,17 +5,13 @@ import {
   Check,
   Copy,
   Database,
-  Eye,
-  EyeOff,
   KeyRound,
   Loader2,
-  Lock,
   LogOut,
-  Mail,
   Plus,
   RefreshCw,
+  ShieldCheck,
   Trash2,
-  User as UserIcon,
   X,
 } from 'lucide-react';
 import {
@@ -42,7 +38,6 @@ interface AuthDrawerProps {
   onPendingBatchSaved: () => void;
 }
 
-type AuthMode = 'signup' | 'signin';
 type WorkspaceTab = 'catalogs' | 'endpoints';
 
 export function AuthDrawer({
@@ -52,12 +47,6 @@ export function AuthDrawer({
   pendingBatch,
   onPendingBatchSaved,
 }: AuthDrawerProps) {
-  const [authMode, setAuthMode] = useState<AuthMode>('signup');
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [oauthFallbackUrl, setOauthFallbackUrl] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
@@ -133,78 +122,6 @@ export function AuthDrawer({
       }, 1600);
     } catch {
       setCopiedId(null);
-    }
-  };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!supabase) {
-      setAuthError('Supabase no está configurado en el entorno.');
-      return;
-    }
-
-    const trimmedUsername = username.trim();
-    const trimmedEmail = email.trim();
-    if (authMode === 'signup' && !trimmedUsername) {
-      setAuthError('Ingresa tu nombre de usuario.');
-      return;
-    }
-    if (!trimmedEmail || !password) {
-      setAuthError('Ingresa tu correo electrónico y una contraseña.');
-      return;
-    }
-    if (authMode === 'signup' && password.length < 6) {
-      setAuthError('La contraseña debe tener al menos 6 caracteres.');
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthError(null);
-    setAuthSuccess(null);
-
-    try {
-      if (authMode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({
-          email: trimmedEmail,
-          password,
-          options: {
-            data: {
-              full_name: trimmedUsername,
-              name: trimmedUsername,
-            },
-          },
-        });
-        if (error) {
-          setAuthError(translateSupabaseAuthError(error.message));
-          return;
-        }
-        if (data.session) {
-          setAuthSuccess('Cuenta creada e iniciada correctamente.');
-          if (pendingBatch) {
-            const res = await saveMappedCatalogToSupabase(pendingBatch);
-            if (res.saved) onPendingBatchSaved();
-          }
-        } else {
-          setAuthSuccess(
-            'Revisa tu correo para confirmar tu cuenta y luego inicia sesión.',
-          );
-        }
-      } else {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: trimmedEmail,
-          password,
-        });
-        if (error) {
-          setAuthError(translateSupabaseAuthError(error.message));
-          return;
-        }
-        if (data.session && pendingBatch) {
-          const res = await saveMappedCatalogToSupabase(pendingBatch);
-          if (res.saved) onPendingBatchSaved();
-        }
-      }
-    } finally {
-      setAuthLoading(false);
     }
   };
 
@@ -996,34 +913,31 @@ export function AuthDrawer({
                 </div>
               </div>
             ) : (
-              /* AUTHENTICATION FORM: Sign Up / Sign In with Supabase */
-              <div className="relative z-10 flex-1 overflow-y-auto flex items-start sm:items-center justify-center px-6 sm:px-10 lg:px-12 pt-4 pb-10 sm:py-8">
-                <div className="w-full max-w-[390px]">
-                  <div className="mb-6 lg:mb-7">
-                    <h2 className="text-[22px] sm:text-[26px] font-semibold tracking-tight text-slate-950 text-balance">
-                      {authMode === 'signup'
-                        ? 'Crea tu cuenta en Search Link'
-                        : 'Inicia sesión en Search Link'}
+              /* GOOGLE-ONLY AUTHENTICATION: Elevated single-provider access */
+              <div className="relative z-10 flex-1 overflow-y-auto flex items-center justify-center px-6 sm:px-10 lg:px-12 py-8">
+                <div className="w-full max-w-[400px] rounded-[28px] border border-slate-200/85 bg-white/95 backdrop-blur-sm p-7 sm:p-8 shadow-[0_24px_60px_-24px_rgba(15,23,42,0.16)]">
+                  <div className="mb-7">
+                    <h2 className="text-[24px] sm:text-[28px] font-semibold tracking-tight text-slate-950 leading-[1.15] text-balance">
+                      Tu cuenta de Search Link
                     </h2>
-                    <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">
-                      Guarda tus catálogos en Supabase y conecta tu API a cualquier chatbot.
+                    <p className="mt-2.5 text-sm text-slate-500 leading-relaxed">
+                      Inicia sesión en un toque con Google para guardar tus catálogos procesados y conectar tu API.
                     </p>
                   </div>
 
-                  {/* Rounded Google provider button */}
                   <button
                     type="button"
                     onClick={() => void handleGoogleSignIn()}
                     disabled={googleLoading}
-                    className="w-full h-12 rounded-full bg-white border border-slate-200/95 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08)] hover:border-slate-300 hover:bg-slate-50/80 px-5 flex items-center justify-center gap-3 text-[15px] font-medium text-slate-800 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:opacity-65"
+                    className="w-full h-13 rounded-full bg-white border border-slate-200/95 shadow-[0_2px_12px_-4px_rgba(15,23,42,0.09)] hover:border-slate-300 hover:bg-slate-50/85 text-slate-800 px-5 flex items-center justify-center gap-3 text-[15px] font-medium transition-all duration-150 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:opacity-65 cursor-pointer"
                   >
                     {googleLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-slate-600" />
+                      <Loader2 className="w-4.5 h-4.5 animate-spin text-slate-600 shrink-0" />
                     ) : (
                       <GoogleLogoIcon />
                     )}
                     <span>
-                      {googleLoading ? 'Conectando con Google…' : 'Google'}
+                      {googleLoading ? 'Conectando con Google…' : 'Continuar con Google'}
                     </span>
                   </button>
 
@@ -1032,146 +946,40 @@ export function AuthDrawer({
                       href={oauthFallbackUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2.5 w-full h-10 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 flex items-center justify-center transition-colors"
+                      className="mt-3 w-full h-10 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 flex items-center justify-center transition-colors"
                     >
                       Abrir acceso con Google en una pestaña nueva
                     </a>
                   )}
 
-                  {/* Clean hairline divider */}
-                  <div className="relative my-5 lg:my-6 flex items-center">
-                    <div className="flex-1 border-t border-slate-200/90" />
-                    <span className="px-3 text-xs font-medium text-slate-400 whitespace-nowrap">
-                      o con tu correo y contraseña
-                    </span>
-                    <div className="flex-1 border-t border-slate-200/90" />
-                  </div>
+                  {authError && (
+                    <p role="alert" className="mt-3 text-xs font-medium text-rose-600">
+                      {authError}
+                    </p>
+                  )}
 
-                  <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-                    {authMode === 'signup' && (
-                      <div>
-                        <label
-                          htmlFor="register-username"
-                          className="block text-xs font-medium text-slate-600 mb-1.5 pl-1"
-                        >
-                          Nombre de usuario
-                        </label>
-                        <div className="flex items-center gap-2.5 h-12 w-full rounded-full bg-white border border-slate-200/95 px-4 shadow-[0_1px_4px_rgba(15,23,42,0.03)] focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-200/70 transition-all duration-150">
-                          <UserIcon className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
-                          <input
-                            id="register-username"
-                            type="text"
-                            autoComplete="name"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            placeholder="Tu nombre"
-                            className="flex-1 min-w-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
-                          />
-                        </div>
-                      </div>
-                    )}
+                  {authSuccess && (
+                    <p role="status" className="mt-3 text-xs font-medium text-emerald-700">
+                      {authSuccess}
+                    </p>
+                  )}
 
-                    <div>
-                      <label
-                        htmlFor="register-email"
-                        className="block text-xs font-medium text-slate-600 mb-1.5 pl-1"
-                      >
-                        Correo electrónico
-                      </label>
-                      <div className="flex items-center gap-2.5 h-12 w-full rounded-full bg-white border border-slate-200/95 px-4 shadow-[0_1px_4px_rgba(15,23,42,0.03)] focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-200/70 transition-all duration-150">
-                        <Mail className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
-                        <input
-                          id="register-email"
-                          type="email"
-                          inputMode="email"
-                          autoComplete="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="nombre@correo.com"
-                          className="flex-1 min-w-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
-                        />
-                      </div>
-                    </div>
+                  <div className="my-6 border-t border-slate-200/80" />
 
-                    <div>
-                      <label
-                        htmlFor="register-password"
-                        className="block text-xs font-medium text-slate-600 mb-1.5 pl-1"
-                      >
-                        Contraseña
-                      </label>
-                      <div className="flex items-center gap-2.5 h-12 w-full rounded-full bg-white border border-slate-200/95 pl-4 pr-2.5 shadow-[0_1px_4px_rgba(15,23,42,0.03)] focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-200/70 transition-all duration-150">
-                        <Lock className="w-4 h-4 text-slate-400 shrink-0" aria-hidden="true" />
-                        <input
-                          id="register-password"
-                          type={showPassword ? 'text' : 'password'}
-                          autoComplete={
-                            authMode === 'signup' ? 'new-password' : 'current-password'
-                          }
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder={
-                            authMode === 'signup'
-                              ? 'Crea una contraseña (mín. 6 caracteres)'
-                              : 'Tu contraseña'
-                          }
-                          className="flex-1 min-w-0 bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword((prev) => !prev)}
-                          aria-label={
-                            showPassword ? 'Ocultar contraseña' : 'Ver contraseña'
-                          }
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 shrink-0"
-                        >
-                          {showPassword ? (
-                            <EyeOff className="w-4 h-4" aria-hidden="true" />
-                          ) : (
-                            <Eye className="w-4 h-4" aria-hidden="true" />
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    {authError && (
-                      <p role="alert" className="text-xs font-medium text-rose-600 px-1">
-                        {authError}
-                      </p>
-                    )}
-
-                    {authSuccess && (
-                      <p role="status" className="text-xs font-medium text-emerald-700 px-1">
-                        {authSuccess}
-                      </p>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={authLoading}
-                      className="w-full h-12 rounded-full bg-slate-950 hover:bg-slate-800 text-white text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 mt-1 inline-flex items-center justify-center gap-2 disabled:opacity-60"
-                    >
-                      {authLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                      <span>
-                        {authMode === 'signup' ? 'Crear cuenta' : 'Iniciar sesión'}
-                      </span>
-                    </button>
-                  </form>
-
-                  <p className="mt-5 text-center text-xs text-slate-500">
-                    {authMode === 'signup' ? '¿Ya tienes cuenta?' : '¿Aún no tienes cuenta?'}{' '}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAuthMode(authMode === 'signup' ? 'signin' : 'signup');
-                        setAuthError(null);
-                        setAuthSuccess(null);
-                      }}
-                      className="font-semibold text-slate-900 hover:underline underline-offset-4"
-                    >
-                      {authMode === 'signup' ? 'Inicia sesión' : 'Regístrate gratis'}
-                    </button>
-                  </p>
+                  <ul className="space-y-3 text-[13px] text-slate-600">
+                    <li className="flex items-center gap-3">
+                      <ShieldCheck className="w-4 h-4 text-slate-800 shrink-0" aria-hidden="true" />
+                      <span>Acceso inmediato sin contraseñas ni correos extra</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <Database className="w-4 h-4 text-slate-800 shrink-0" aria-hidden="true" />
+                      <span>Tus imágenes y JSON respaldados en tu espacio</span>
+                    </li>
+                    <li className="flex items-center gap-3">
+                      <KeyRound className="w-4 h-4 text-slate-800 shrink-0" aria-hidden="true" />
+                      <span>Listo para generar tu Endpoint y API Keys</span>
+                    </li>
+                  </ul>
                 </div>
               </div>
             )}
@@ -1184,14 +992,8 @@ export function AuthDrawer({
 
 function translateSupabaseAuthError(message: string): string {
   const lower = message.toLowerCase();
-  if (lower.includes('invalid login credentials')) {
-    return 'Correo o contraseña incorrectos.';
-  }
-  if (lower.includes('already registered')) {
-    return 'Este correo ya tiene una cuenta. Cambia a "Inicia sesión".';
-  }
-  if (lower.includes('email not confirmed')) {
-    return 'Confirma tu correo electrónico antes de iniciar sesión.';
+  if (lower.includes('provider is not enabled')) {
+    return 'El acceso con Google no está activado en Supabase.';
   }
   if (lower.includes('rate limit') || lower.includes('too many requests')) {
     return 'Demasiados intentos seguidos. Espera unos segundos.';
