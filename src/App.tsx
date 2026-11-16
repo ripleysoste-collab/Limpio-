@@ -1,12 +1,28 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Link2, Loader2, X } from 'lucide-react';
+import { Link2, Loader2, Upload, X } from 'lucide-react';
 import desktopExecutivesBg from './assets/images/bg_executives_desktop_1794778300480.jpg';
 import { AuthDrawer } from './components/AuthDrawer';
 import { DualCatalogShowcase } from './components/DualCatalogShowcase';
-import { MobileCatalogCarousel } from './components/MobileCatalogCarousel';
+import {
+  MobileCatalogCarousel,
+  type CompressedImageMeta,
+  type ImageCompressionStatus,
+  type ImageUploadStatus,
+} from './components/MobileCatalogCarousel';
 import { SearchLinkLogo } from './components/SearchLinkLogo';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
+import {
+  compressImageToWebp,
+  uploadCompressedImage,
+  type CompressedImageResult,
+  type UploadedCompressedImage,
+} from './lib/imageCompression';
+
+const COMPRESSION_START_DELAY_MS = 2000;
+const UPLOAD_START_DELAY_MS = 1000;
+const UPLOAD_CONCURRENCY = 3;
+const MIN_TILE_STEP_MS = 320;
 
 export default function App() {
   const [url, setUrl] = useState('');
@@ -21,13 +37,39 @@ export default function App() {
   const [hasAnimatedFirstBg, setHasAnimatedFirstBg] = useState(false);
   const [shouldAnimateBgEntry, setShouldAnimateBgEntry] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [showCompressionBox, setShowCompressionBox] = useState(false);
+  const [compressionStatuses, setCompressionStatuses] = useState<
+    Record<string, ImageCompressionStatus>
+  >({});
+  const [showUploadBox, setShowUploadBox] = useState(false);
+  const [uploadStatuses, setUploadStatuses] = useState<
+    Record<string, ImageUploadStatus>
+  >({});
+  const [compressionResults, setCompressionResults] = useState<
+    Record<string, CompressedImageMeta>
+  >({});
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const extractAbortRef = useRef<AbortController | null>(null);
+  const compressionAbortRef = useRef<AbortController | null>(null);
+  const compressionTimerRef = useRef<number | null>(null);
+  const objectUrlsRef = useRef<string[]>([]);
   const shouldReduceMotion = useReducedMotion();
+
+  const cancelOngoingCompression = () => {
+    if (compressionTimerRef.current !== null) {
+      window.clearTimeout(compressionTimerRef.current);
+      compressionTimerRef.current = null;
+    }
+    compressionAbortRef.current?.abort();
+    compressionAbortRef.current = null;
+  };
 
   useEffect(() => {
     return () => {
       extractAbortRef.current?.abort();
+      cancelOngoingCompression();
+      objectUrlsRef.current.forEach((blobUrl) => URL.revokeObjectURL(blobUrl));
     };
   }, []);
 
@@ -62,6 +104,12 @@ export default function App() {
     if (!trimmed || isExtracting) return;
 
     const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    cancelOngoingCompression();
+    setShowCompressionBox(false);
+    setCompressionStatuses({});
+    setShowUploadBox(false);
+    setUploadStatuses({});
+    setCompressionResults({});
     setUrl(normalized);
     setHasSearched(true);
     setExtractError(null);
@@ -105,6 +153,245 @@ export default function App() {
         setIsExtracting(false);
       }
     }
+  };
+
+  const handleFilesSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    const fileList = event.target.files;
+    if (!fileList || fileList.length === 0) return;
+
+    const validFiles = Array.from(fileList).filter(
+      (file) =>
+        file.type.startsWith('image/') ||
+        /\.(jpe?g|png|webp|gif|avif|bmp|svg)$/i.test(file.name),
+    );
+
+    event.target.value = '';
+
+    if (validFiles.length === 0) {
+      setExtractError('Por favor selecciona archivos de imagen válidos.');
+      return;
+    }
+
+    extractAbortRef.current?.abort();
+    cancelOngoingCompression();
+    setIsExtracting(false);
+    setExtractError(null);
+    setShowCompressionBox(false);
+    setShowUploadBox(false);
+    setUploadStatuses({});
+    setCompressionResults({});
+
+    const activeBgUrl = activeBgImage?.url ?? null;
+    objectUrlsRef.current.forEach((oldUrl) => {
+      if (oldUrl !== activeBgUrl) {
+        URL.revokeObjectURL(oldUrl);
+      }
+    });
+
+    const newBlobUrls: string[] = [];
+    const batchStamp = Date.now();
+    const uploadedItems: CatalogImageItem[] = validFiles.map((file, idx) => {
+      const objectUrl = URL.createObjectURL(file);
+      newBlobUrls.push(objectUrl);
+
+      const cleanTitle =
+        file.name
+          .replace(/\.[^/.]+$/, '')
+          .replace(/[-_]+/g, ' ')
+          .trim() || `Imagen ${idx + 1}`;
+
+      return {
+        id: `local-${batchStamp}-${idx}-${file.lastModified}`,
+        url: objectUrl,
+        cleanUrl: `archivo/${file.name}`,
+        alt: cleanTitle,
+        originalBytes: file.size,
+      };
+    });
+
+    const initialCompressionStatuses: Record<string, ImageCompressionStatus> = {};
+    const initialUploadStatuses: Record<string, ImageUploadStatus> = {};
+    uploadedItems.forEach((item) => {
+      initialCompressionStatuses[item.id] = 'pending';
+      initialUploadStatuses[item.id] = 'pending';
+    });
+
+    objectUrlsRef.current =
+      activeBgUrl && activeBgUrl.startsWith('blob:')
+        ? [activeBgUrl, ...newBlobUrls]
+        : newBlobUrls;
+
+    setCompressionStatuses(initialCompressionStatuses);
+    setUploadStatuses(initialUploadStatuses);
+    setHasSearched(true);
+    setCatalogImages(uploadedItems);
+    setCatalogVersion((prev) => prev + 1);
+
+    const controller = new AbortController();
+    compressionAbortRef.current = controller;
+
+    // Wait 2 seconds after images settle, then reveal Comprimiendo (Stage 2) and afterwards Lanzando a base de datos (Stage 3)
+    compressionTimerRef.current = window.setTimeout(() => {
+      compressionTimerRef.current = null;
+      if (controller.signal.aborted) return;
+
+      setShowCompressionBox(true);
+
+      type CompressTaskResult =
+        | { ok: true; data: CompressedImageResult }
+        | { ok: false };
+
+      const compressResolvers: Array<(res: CompressTaskResult) => void> = [];
+      const compressPromises: Array<Promise<CompressTaskResult>> = validFiles.map(
+        (_, idx) =>
+          new Promise<CompressTaskResult>((resolve) => {
+            compressResolvers[idx] = resolve;
+          }),
+      );
+
+      let compressCursor = 0;
+      const compressWorkerCount = Math.min(UPLOAD_CONCURRENCY, validFiles.length);
+      for (let w = 0; w < compressWorkerCount; w++) {
+        void (async () => {
+          while (compressCursor < validFiles.length && !controller.signal.aborted) {
+            const index = compressCursor++;
+            try {
+              const data = await compressImageToWebp(validFiles[index]);
+              compressResolvers[index]({ ok: true, data });
+            } catch {
+              compressResolvers[index]({ ok: false });
+            }
+          }
+        })();
+      }
+
+      void (async () => {
+        const compressedPayloads: Array<CompressedImageResult | null> = new Array(
+          uploadedItems.length,
+        ).fill(null);
+
+        for (let i = 0; i < uploadedItems.length; i++) {
+          if (controller.signal.aborted) return;
+          const item = uploadedItems[i];
+
+          setCompressionStatuses((prev) => ({
+            ...prev,
+            [item.id]: 'compressing',
+          }));
+
+          const stepBeat = new Promise<void>((resolve) =>
+            window.setTimeout(resolve, MIN_TILE_STEP_MS),
+          );
+
+          const [result] = await Promise.all([compressPromises[i], stepBeat]);
+          if (controller.signal.aborted) return;
+
+          if (result.ok) {
+            compressedPayloads[i] = result.data;
+            setCompressionStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'done',
+            }));
+          } else {
+            setCompressionStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'error',
+            }));
+          }
+        }
+
+        // Wait 1 second after all images finish compressing before moving to Stage 3
+        await new Promise<void>((resolve) => {
+          compressionTimerRef.current = window.setTimeout(() => {
+            compressionTimerRef.current = null;
+            resolve();
+          }, UPLOAD_START_DELAY_MS);
+        });
+
+        if (controller.signal.aborted) return;
+
+        setShowUploadBox(true);
+
+        type UploadTaskResult =
+          | { ok: true; data: UploadedCompressedImage }
+          | { ok: false; aborted: boolean };
+
+        const uploadResolvers: Array<(res: UploadTaskResult) => void> = [];
+        const uploadPromises: Array<Promise<UploadTaskResult>> = compressedPayloads.map(
+          (payload, idx) => {
+            if (!payload) {
+              return Promise.resolve({ ok: false, aborted: false });
+            }
+            return new Promise<UploadTaskResult>((resolve) => {
+              uploadResolvers[idx] = resolve;
+            });
+          },
+        );
+
+        let uploadCursor = 0;
+        const uploadWorkerCount = Math.min(UPLOAD_CONCURRENCY, compressedPayloads.length);
+        for (let w = 0; w < uploadWorkerCount; w++) {
+          void (async () => {
+            while (
+              uploadCursor < compressedPayloads.length &&
+              !controller.signal.aborted
+            ) {
+              const index = uploadCursor++;
+              const payload = compressedPayloads[index];
+              if (!payload) continue;
+
+              try {
+                const data = await uploadCompressedImage(payload, controller.signal);
+                uploadResolvers[index]({ ok: true, data });
+              } catch (err) {
+                const aborted =
+                  controller.signal.aborted ||
+                  (err instanceof DOMException && err.name === 'AbortError');
+                uploadResolvers[index]({ ok: false, aborted });
+              }
+            }
+          })();
+        }
+
+        for (let i = 0; i < uploadedItems.length; i++) {
+          if (controller.signal.aborted) return;
+          const item = uploadedItems[i];
+
+          setUploadStatuses((prev) => ({
+            ...prev,
+            [item.id]: 'uploading',
+          }));
+
+          const stepBeat = new Promise<void>((resolve) =>
+            window.setTimeout(resolve, MIN_TILE_STEP_MS),
+          );
+
+          const [result] = await Promise.all([uploadPromises[i], stepBeat]);
+          if (controller.signal.aborted) return;
+
+          if (result.ok) {
+            setUploadStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'done',
+            }));
+            setCompressionResults((prev) => ({
+              ...prev,
+              [item.id]: {
+                url: result.data.url,
+                cleanUrl: result.data.url,
+                savedPercent: result.data.savedPercent,
+                compressedBytes: result.data.compressedBytes,
+              },
+            }));
+          } else if (!result.aborted) {
+            setUploadStatuses((prev) => ({
+              ...prev,
+              [item.id]: 'error',
+            }));
+          }
+        }
+      })();
+    }, COMPRESSION_START_DELAY_MS);
   };
 
   const handleSelectBackground = (item: CatalogImageItem) => {
@@ -301,58 +588,85 @@ export default function App() {
           </div>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          role="search"
-          aria-label="Pegar URL de página web"
-          className="w-full max-w-3xl mx-auto"
-        >
-          <div className="group flex items-center gap-3 h-12 w-full rounded-full px-5 bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 focus-within:bg-white/75 lg:focus-within:bg-white focus-within:border-blue-500/45 lg:focus-within:border-white focus-within:shadow-[0_10px_34px_-6px_rgba(37,99,235,0.2)] lg:focus-within:shadow-[0_14px_42px_-6px_rgba(0,0,0,0.48)]">
-            <Link2
-              className="w-4 h-4 text-blue-600/75 lg:text-slate-400 shrink-0 transition-colors duration-150 group-focus-within:text-blue-600 lg:group-focus-within:text-slate-700"
+        <div className="w-full max-w-3xl mx-auto flex flex-col">
+          <div className="flex items-center gap-2.5 sm:gap-3 w-full">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isExtracting}
+              aria-label="Subir imágenes desde el dispositivo"
+              title="Subir imágenes desde tu dispositivo"
+              className="h-12 w-12 shrink-0 rounded-full flex items-center justify-center bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 text-blue-600/85 lg:text-slate-600 hover:bg-white/75 lg:hover:bg-white hover:text-blue-700 lg:hover:text-slate-900 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 lg:focus-visible:ring-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <Upload className="w-4.5 h-4.5" aria-hidden="true" />
+            </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFilesSelected}
+              className="sr-only"
+              tabIndex={-1}
               aria-hidden="true"
             />
-            <input
-              ref={inputRef}
-              type="text"
-              inputMode="url"
-              value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                if (extractError) setExtractError(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  e.currentTarget.blur();
-                }
-              }}
-              placeholder="Pega aquí la URL de tu página web..."
-              aria-label="URL de tu página web"
-              autoComplete="url"
-              spellCheck={false}
-              className="flex-1 min-w-0 bg-transparent text-[15px] font-normal text-slate-900 placeholder:text-slate-500 lg:placeholder:text-slate-400 focus:outline-none"
-            />
-            {isExtracting ? (
-              <Loader2
-                className="w-4 h-4 text-blue-600 lg:text-slate-700 animate-spin shrink-0"
-                aria-label="Extrayendo imágenes"
-              />
-            ) : (
-              url.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUrl('');
-                    setExtractError(null);
+
+            <form
+              onSubmit={handleSubmit}
+              role="search"
+              aria-label="Pegar URL de página web"
+              className="flex-1 min-w-0"
+            >
+              <div className="group flex items-center gap-2.5 lg:gap-3 h-12 w-full rounded-full px-4 lg:px-5 bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 focus-within:bg-white/75 lg:focus-within:bg-white focus-within:border-blue-500/45 lg:focus-within:border-white focus-within:shadow-[0_10px_34px_-6px_rgba(37,99,235,0.2)] lg:focus-within:shadow-[0_14px_42px_-6px_rgba(0,0,0,0.48)]">
+                <Link2
+                  className="w-4 h-4 text-blue-600/75 lg:text-slate-400 shrink-0 transition-colors duration-150 group-focus-within:text-blue-600 lg:group-focus-within:text-slate-700"
+                  aria-hidden="true"
+                />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  inputMode="url"
+                  value={url}
+                  onChange={(e) => {
+                    setUrl(e.target.value);
+                    if (extractError) setExtractError(null);
                   }}
-                  aria-label="Limpiar URL"
-                  className="flex items-center justify-center w-7 h-7 -mr-1.5 rounded-full text-slate-500 lg:text-slate-400 hover:text-slate-800 hover:bg-white/60 lg:hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:focus-visible:ring-slate-400 shrink-0"
-                >
-                  <X className="w-3.5 h-3.5" aria-hidden="true" />
-                </button>
-              )
-            )}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  placeholder="Pega aquí la URL de tu página web..."
+                  aria-label="URL de tu página web"
+                  autoComplete="url"
+                  spellCheck={false}
+                  className="flex-1 min-w-0 bg-transparent text-[14px] sm:text-[15px] font-normal text-slate-900 placeholder:text-slate-500 lg:placeholder:text-slate-400 focus:outline-none"
+                />
+                {isExtracting ? (
+                  <Loader2
+                    className="w-4 h-4 text-blue-600 lg:text-slate-700 animate-spin shrink-0"
+                    aria-label="Extrayendo imágenes"
+                  />
+                ) : (
+                  url.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUrl('');
+                        setExtractError(null);
+                      }}
+                      aria-label="Limpiar URL"
+                      className="flex items-center justify-center w-7 h-7 -mr-1.5 rounded-full text-slate-500 lg:text-slate-400 hover:text-slate-800 hover:bg-white/60 lg:hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:focus-visible:ring-slate-400 shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  )
+                )}
+              </div>
+            </form>
           </div>
+
           {extractError && (
             <p
               role="alert"
@@ -361,7 +675,7 @@ export default function App() {
               {extractError}
             </p>
           )}
-        </form>
+        </div>
 
         {/* Desktop top-right guest sketch (dark executives backdrop contrast) */}
         <div className="hidden lg:flex lg:justify-self-end items-center justify-end">
@@ -382,13 +696,18 @@ export default function App() {
         suspendShortcuts={isAuthOpen}
       />
 
-      {/* Mobile-only swipeable boxes that merge into 1 unified image box + unboxed URLs below */}
+      {/* Mobile-only swipeable boxes with 2s compression + 1s upload transition + unboxed metadata below */}
       <MobileCatalogCarousel
         images={catalogImages}
         isUnified={hasSearched}
         isExtracting={isExtracting}
         extractError={extractError}
         hasExtractedResults={catalogVersion > 0}
+        showCompressionBox={showCompressionBox}
+        compressionStatuses={compressionStatuses}
+        showUploadBox={showUploadBox}
+        uploadStatuses={uploadStatuses}
+        compressionResults={compressionResults}
       />
 
       {/* Responsive white dot-grid registration panel */}

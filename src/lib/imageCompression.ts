@@ -1,0 +1,206 @@
+export interface CompressedImageResult {
+  blob: Blob;
+  mimeType: string;
+  extension: string;
+  width: number;
+  height: number;
+  originalBytes: number;
+  compressedBytes: number;
+  savedPercent: number;
+}
+
+export interface UploadedCompressedImage extends CompressedImageResult {
+  key: string;
+  url: string;
+}
+
+const MAX_EDGE_PX = 1600;
+const PRIMARY_WEBP_QUALITY = 0.8;
+const SECONDARY_WEBP_QUALITY = 0.68;
+
+async function decodeImageSource(
+  file: File,
+): Promise<{
+  width: number;
+  height: number;
+  draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
+  cleanup: () => void;
+}> {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(file);
+      return {
+        width: bitmap.width,
+        height: bitmap.height,
+        draw: (ctx, w, h) => ctx.drawImage(bitmap, 0, 0, w, h),
+        cleanup: () => bitmap.close(),
+      };
+    } catch {
+      // Fall back to HTMLImageElement decoding
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+      el.src = objectUrl;
+    });
+
+    return {
+      width: img.naturalWidth || img.width,
+      height: img.naturalHeight || img.height,
+      draw: (ctx, w, h) => ctx.drawImage(img, 0, 0, w, h),
+      cleanup: () => URL.revokeObjectURL(objectUrl),
+    };
+  } catch (err) {
+    URL.revokeObjectURL(objectUrl);
+    throw err;
+  }
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  mimeType: string,
+  quality: number,
+): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), mimeType, quality);
+  });
+}
+
+export async function compressImageToWebp(
+  file: File,
+): Promise<CompressedImageResult> {
+  const originalBytes = file.size;
+  const decoded = await decodeImageSource(file);
+
+  try {
+    const srcW = Math.max(1, decoded.width);
+    const srcH = Math.max(1, decoded.height);
+    const scale = Math.min(1, MAX_EDGE_PX / Math.max(srcW, srcH));
+    const targetW = Math.max(1, Math.round(srcW * scale));
+    const targetH = Math.max(1, Math.round(srcH * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('No se pudo inicializar el motor gráfico de compresión.');
+    }
+
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    decoded.draw(ctx, targetW, targetH);
+
+    // Encode to WebP (modern smallest lossless-like perceptual format)
+    let bestBlob = await canvasToBlob(canvas, 'image/webp', PRIMARY_WEBP_QUALITY);
+    let chosenMime = 'image/webp';
+    let chosenExt = 'webp';
+
+    // Fallback to JPEG only if the browser does not support WebP encoding
+    if (!bestBlob || bestBlob.type !== 'image/webp') {
+      bestBlob = await canvasToBlob(canvas, 'image/jpeg', 0.82);
+      chosenMime = 'image/jpeg';
+      chosenExt = 'jpg';
+    } else if (
+      bestBlob.size > Math.max(220 * 1024, originalBytes * 0.35)
+    ) {
+      // Adaptive second pass if still larger than expected while preserving sharpness
+      const smallerBlob = await canvasToBlob(
+        canvas,
+        'image/webp',
+        SECONDARY_WEBP_QUALITY,
+      );
+      if (smallerBlob && smallerBlob.size < bestBlob.size) {
+        bestBlob = smallerBlob;
+      }
+    }
+
+    if (!bestBlob) {
+      throw new Error('No se pudo comprimir la imagen.');
+    }
+
+    // If an already tiny WebP became larger after re-encode, keep original bytes
+    const shouldKeepOriginal =
+      file.type === 'image/webp' &&
+      scale === 1 &&
+      originalBytes <= bestBlob.size &&
+      originalBytes <= 3.5 * 1024 * 1024;
+
+    const finalBlob: Blob = shouldKeepOriginal ? file : bestBlob;
+    const finalMime = shouldKeepOriginal ? 'image/webp' : chosenMime;
+    const finalExt = shouldKeepOriginal ? 'webp' : chosenExt;
+    const compressedBytes = finalBlob.size;
+
+    const savedPercent =
+      originalBytes > 0
+        ? Math.max(
+            0,
+            Math.min(
+              99,
+              Math.round(((originalBytes - compressedBytes) / originalBytes) * 100),
+            ),
+          )
+        : 0;
+
+    return {
+      blob: finalBlob,
+      mimeType: finalMime,
+      extension: finalExt,
+      width: targetW,
+      height: targetH,
+      originalBytes,
+      compressedBytes,
+      savedPercent,
+    };
+  } finally {
+    decoded.cleanup();
+  }
+}
+
+export async function uploadCompressedImage(
+  compressed: CompressedImageResult,
+  signal?: AbortSignal,
+): Promise<UploadedCompressedImage> {
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    headers: {
+      'Content-Type': compressed.mimeType,
+    },
+    body: compressed.blob,
+    signal,
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    key?: string;
+    url?: string;
+    sizeBytes?: number;
+    error?: string;
+  };
+
+  if (!response.ok || !payload.key || !payload.url) {
+    throw new Error(
+      payload.error || 'No se pudo subir la imagen comprimida a la nube.',
+    );
+  }
+
+  return {
+    ...compressed,
+    key: payload.key,
+    url: payload.url,
+    compressedBytes: payload.sizeBytes ?? compressed.compressedBytes,
+  };
+}
+
+export async function compressAndUploadImage(
+  file: File,
+  signal?: AbortSignal,
+): Promise<UploadedCompressedImage> {
+  const compressed = await compressImageToWebp(file);
+  return uploadCompressedImage(compressed, signal);
+}

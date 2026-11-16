@@ -758,11 +758,11 @@ export function DualCatalogShowcase({
           transition={{ duration: 0.25 }}
           className="flex flex-col"
         >
-          <h2 className={headingClasses}>Acá verás tu URL</h2>
+          <h2 className={headingClasses}>Aquí puedes ver tus metadatos</h2>
           <section
             ref={rightCardRef}
             onClick={handleRightBorderClick}
-            aria-label="Acá verás tu URL"
+            aria-label="Aquí puedes ver tus metadatos"
             title={isCompleted ? 'Toca el borde blanco para ampliar' : undefined}
             className={cardClasses}
           >
@@ -897,7 +897,7 @@ export function DualCatalogShowcase({
             aria-label={
               expandedMode === 'images'
                 ? 'Vista ampliada de imágenes'
-                : 'Vista ampliada de URLs'
+                : 'Vista ampliada de metadatos'
             }
             initial={{
               left: expandGeometry.start.left,
@@ -921,7 +921,7 @@ export function DualCatalogShowcase({
                 <h2 className="text-lg font-semibold text-slate-950 tracking-tight">
                   {expandedMode === 'images'
                     ? 'Aquí verás tus imágenes'
-                    : 'Acá verás tu URL'}
+                    : 'Aquí puedes ver tus metadatos'}
                 </h2>
                 <span className="text-xs text-slate-400 tabular-nums">
                   {images.length} elementos

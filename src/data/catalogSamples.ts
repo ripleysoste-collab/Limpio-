@@ -20,6 +20,9 @@ export interface CatalogImageItem {
   cleanUrl: string;
   sourcePageUrl?: string;
   alt: string;
+  originalBytes?: number;
+  compressedBytes?: number;
+  savedPercent?: number;
 }
 
 export const CATALOG_SAMPLE_IMAGES: CatalogImageItem[] = [

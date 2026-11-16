@@ -8,6 +8,7 @@ import {
   type PanInfo,
 } from 'motion/react';
 import {
+  Check,
   Copy,
   Eye,
   Image as ImageIcon,
@@ -19,12 +20,27 @@ import {
 } from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
 
+export type ImageCompressionStatus = 'pending' | 'compressing' | 'done' | 'error';
+export type ImageUploadStatus = 'pending' | 'uploading' | 'done' | 'error';
+
+export interface CompressedImageMeta {
+  url: string;
+  cleanUrl: string;
+  savedPercent: number;
+  compressedBytes: number;
+}
+
 interface MobileCatalogCarouselProps {
   images: CatalogImageItem[];
   isUnified: boolean;
   isExtracting: boolean;
   extractError: string | null;
   hasExtractedResults: boolean;
+  showCompressionBox?: boolean;
+  compressionStatuses?: Record<string, ImageCompressionStatus>;
+  showUploadBox?: boolean;
+  uploadStatuses?: Record<string, ImageUploadStatus>;
+  compressionResults?: Record<string, CompressedImageMeta>;
 }
 
 const SEARCH_LINK_BENEFITS = [
@@ -64,9 +80,18 @@ export function MobileCatalogCarousel({
   isExtracting,
   extractError,
   hasExtractedResults,
+  showCompressionBox = false,
+  compressionStatuses = {},
+  showUploadBox = false,
+  uploadStatuses = {},
+  compressionResults = {},
 }: MobileCatalogCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const compressionScrollRef = useRef<HTMLDivElement>(null);
+  const compressionCardRef = useRef<HTMLDivElement>(null);
+  const uploadCardRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState<0 | 1 | 2>(0);
+  const [activeCompressionCard, setActiveCompressionCard] = useState<0 | 1 | 2>(0);
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
   const [mergeStage, setMergeStage] = useState<'idle' | 'merging' | 'unified'>('idle');
@@ -95,6 +120,57 @@ export function MobileCatalogCarousel({
     return () => window.clearTimeout(timer);
   }, [isUnified, shouldReduceMotion]);
 
+  useEffect(() => {
+    if (!showCompressionBox || showUploadBox || mergeStage !== 'unified') {
+      if (!showCompressionBox) setActiveCompressionCard(0);
+      return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+      const container = compressionScrollRef.current;
+      const target = compressionCardRef.current;
+      if (!container || !target) return;
+
+      const paddingLeft = Number.parseFloat(
+        window.getComputedStyle(container).paddingLeft || '16',
+      );
+      const targetLeft = Math.max(0, target.offsetLeft - paddingLeft);
+
+      container.scrollTo({
+        left: targetLeft,
+        behavior: shouldReduceMotion ? 'auto' : 'smooth',
+      });
+      setActiveCompressionCard(1);
+    }, 90);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [showCompressionBox, showUploadBox, mergeStage, shouldReduceMotion]);
+
+  useEffect(() => {
+    if (!showUploadBox || !showCompressionBox || mergeStage !== 'unified') {
+      return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+      const container = compressionScrollRef.current;
+      const target = uploadCardRef.current;
+      if (!container || !target) return;
+
+      const paddingLeft = Number.parseFloat(
+        window.getComputedStyle(container).paddingLeft || '16',
+      );
+      const targetLeft = Math.max(0, target.offsetLeft - paddingLeft);
+
+      container.scrollTo({
+        left: targetLeft,
+        behavior: shouldReduceMotion ? 'auto' : 'smooth',
+      });
+      setActiveCompressionCard(2);
+    }, 90);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [showUploadBox, showCompressionBox, mergeStage, shouldReduceMotion]);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -102,6 +178,19 @@ export function MobileCatalogCarousel({
     if (maxScroll <= 0) return;
     const index = Math.min(2, Math.max(0, Math.round((el.scrollLeft / maxScroll) * 2)));
     setActiveCard(index as 0 | 1 | 2);
+  };
+
+  const handleCompressionScroll = () => {
+    const el = compressionScrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) return;
+    const totalSteps = showUploadBox ? 2 : 1;
+    const index = Math.min(
+      totalSteps,
+      Math.max(0, Math.round((el.scrollLeft / maxScroll) * totalSteps)),
+    );
+    setActiveCompressionCard(index as 0 | 1 | 2);
   };
 
   const mobileCols = images.length <= 1 ? 1 : images.length <= 4 ? 2 : 3;
@@ -195,11 +284,11 @@ export function MobileCatalogCarousel({
                 className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col"
               >
                 <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                  Acá verás tu URL
+                  Aquí puedes ver tus metadatos
                 </h2>
 
                 <section
-                  aria-label="Acá verás tu URL"
+                  aria-label="Aquí puedes ver tus metadatos"
                   className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] px-2.5 py-1.5"
                 >
                   <div className="w-full h-full flex flex-col divide-y divide-slate-100/85 select-none overflow-hidden">
@@ -287,94 +376,390 @@ export function MobileCatalogCarousel({
           </motion.div>
         </div>
       ) : (
-        /* Unified single-width mobile view after merge: 1 centered white image box + unboxed URLs directly below */
+        /* Unified mobile view after merge: single image box or auto-panning 2-box compression flow + unboxed metadata below */
         <div className="relative z-10 lg:hidden w-full flex flex-col mt-6">
-          <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-            Aquí verás tus imágenes
-          </h2>
-
-          <section
-            aria-label="Aquí verás tus imágenes"
-            className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.06)] p-2.5 overflow-hidden"
-          >
-            {isExtracting ? (
-              <ExtractingPlaceholder />
-            ) : extractError && (!hasExtractedResults || images.length === 0) ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-center px-4">
-                <ImageIcon className="w-7 h-7 text-slate-300 mb-2" aria-hidden="true" />
-                <p className="text-xs text-slate-500 leading-relaxed">{extractError}</p>
-              </div>
-            ) : (
+          {showCompressionBox && !isExtracting && images.length > 0 ? (
+            <div className="w-full flex flex-col">
               <div
-                className="w-full h-full grid gap-1.5"
-                style={{
-                  gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
-                }}
+                ref={compressionScrollRef}
+                onScroll={handleCompressionScroll}
+                className="relative -mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] overflow-x-auto snap-x snap-mandatory scroll-pl-4 sm:scroll-pl-5 px-4 sm:px-5 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                aria-label="Imágenes y proceso de compresión"
               >
-                {images.map((item) => {
-                  const hasError = Boolean(failedIds[item.id]);
+                <div className="flex items-start gap-3.5 w-max pr-4 sm:pr-5">
+                  {/* Card 1: Uploaded images remain safely accessible on the left */}
+                  <div className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col">
+                    <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                      Aquí verás tus imágenes
+                    </h2>
 
-                  return (
-                    <button
-                      key={`unified-thumb-${item.id}`}
-                      type="button"
-                      onClick={() => setFullscreenImage(item)}
-                      aria-label={`Ver ${item.alt}`}
-                      className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                    <section
+                      aria-label="Aquí verás tus imágenes"
+                      className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.06)] p-2.5 overflow-hidden"
                     >
-                      {hasError ? (
-                        <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
-                          <ImageIcon className="w-4 h-4" aria-hidden="true" />
-                        </div>
-                      ) : (
-                        <img
-                          src={item.url}
-                          alt={item.alt}
-                          referrerPolicy="no-referrer"
-                          decoding="sync"
-                          onError={() =>
-                            setFailedIds((prev) => ({ ...prev, [item.id]: true }))
-                          }
-                          className="w-full h-full object-cover select-none"
-                          draggable={false}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </section>
+                      <div
+                        className="w-full h-full grid gap-1.5"
+                        style={{
+                          gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
+                          gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {images.map((item) => {
+                          const hasError = Boolean(failedIds[item.id]);
 
-          {/* Clean unboxed URLs stacked vertically directly over the moving light background */}
+                          return (
+                            <button
+                              key={`comp-left-thumb-${item.id}`}
+                              type="button"
+                              onClick={() => setFullscreenImage(item)}
+                              aria-label={`Ver ${item.alt}`}
+                              className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                            >
+                              {hasError ? (
+                                <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
+                                  <ImageIcon className="w-4 h-4" aria-hidden="true" />
+                                </div>
+                              ) : (
+                                <img
+                                  src={item.url}
+                                  alt={item.alt}
+                                  referrerPolicy="no-referrer"
+                                  decoding="sync"
+                                  onError={() =>
+                                    setFailedIds((prev) => ({ ...prev, [item.id]: true }))
+                                  }
+                                  className="w-full h-full object-cover select-none"
+                                  draggable={false}
+                                />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  </div>
+
+                  {/* Card 2: Automatic "Comprimiendo" box that slides into view to the right */}
+                  <motion.div
+                    ref={compressionCardRef}
+                    initial={shouldReduceMotion ? false : { opacity: 0, x: 24, scale: 0.97 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                    className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
+                  >
+                    <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                      Comprimiendo
+                    </h2>
+
+                    <section
+                      aria-label="Comprimiendo"
+                      className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(16,185,129,0.08)] p-2.5 overflow-hidden"
+                    >
+                      <div
+                        className="w-full h-full grid gap-1.5"
+                        style={{
+                          gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
+                          gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
+                        }}
+                      >
+                        {images.map((item) => {
+                          const status = compressionStatuses[item.id] ?? 'pending';
+                          const hasError = Boolean(failedIds[item.id]);
+
+                          return (
+                            <div
+                              key={`comp-right-tile-${item.id}`}
+                              className={`relative w-full h-full overflow-hidden rounded-xl ring-1 ring-inset transition-colors duration-200 flex items-center justify-center ${
+                                status === 'done'
+                                  ? 'bg-emerald-50/70 ring-emerald-200/70'
+                                  : status === 'error'
+                                    ? 'bg-rose-50/70 ring-rose-200/70'
+                                    : 'bg-slate-50 ring-black/[0.04]'
+                              }`}
+                            >
+                              {status === 'pending' && (
+                                hasError ? (
+                                  <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
+                                    <ImageIcon className="w-4 h-4" aria-hidden="true" />
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={item.url}
+                                    alt={item.alt}
+                                    referrerPolicy="no-referrer"
+                                    decoding="sync"
+                                    onError={() =>
+                                      setFailedIds((prev) => ({ ...prev, [item.id]: true }))
+                                    }
+                                    className="w-full h-full object-cover select-none"
+                                    draggable={false}
+                                  />
+                                )
+                              )}
+
+                              {status === 'compressing' && (
+                                <motion.div
+                                  initial={shouldReduceMotion ? false : { scale: 0.7, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  transition={{ duration: 0.16 }}
+                                  aria-label={`Comprimiendo ${item.alt}`}
+                                  className="flex items-center justify-center"
+                                >
+                                  <span className="w-5 h-5 rounded-full border-[2.5px] border-emerald-200 border-t-emerald-500 animate-spin" />
+                                </motion.div>
+                              )}
+
+                              {status === 'done' && (
+                                <motion.div
+                                  initial={shouldReduceMotion ? false : { scale: 0.5, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                  aria-label={`${item.alt} comprimida`}
+                                  className="w-6 h-6 rounded-full bg-emerald-500 text-white shadow-[0_2px_8px_rgba(16,185,129,0.35)] flex items-center justify-center"
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-[2.75]" aria-hidden="true" />
+                                </motion.div>
+                              )}
+
+                              {status === 'error' && (
+                                <div
+                                  aria-label={`Error al comprimir ${item.alt}`}
+                                  className="w-6 h-6 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center"
+                                >
+                                  <X className="w-3.5 h-3.5 stroke-[2.5]" aria-hidden="true" />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  </motion.div>
+
+                  {/* Card 3: Automatic "Lanzando a base de datos" box — thumbnails stay visible with green spinner/check overlay */}
+                  {showUploadBox && (
+                    <motion.div
+                      ref={uploadCardRef}
+                      initial={shouldReduceMotion ? false : { opacity: 0, x: 24, scale: 0.97 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                      className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
+                    >
+                      <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                        Lanzando a base de datos
+                      </h2>
+
+                      <section
+                        aria-label="Lanzando a base de datos"
+                        className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(16,185,129,0.08)] p-2.5 overflow-hidden"
+                      >
+                        <div
+                          className="w-full h-full grid gap-1.5"
+                          style={{
+                            gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
+                            gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
+                          }}
+                        >
+                          {images.map((item) => {
+                            const status = uploadStatuses[item.id] ?? 'pending';
+                            const hasError = Boolean(failedIds[item.id]);
+
+                            return (
+                              <button
+                                key={`upload-right-tile-${item.id}`}
+                                type="button"
+                                onClick={() => setFullscreenImage(item)}
+                                aria-label={`Ver ${item.alt}`}
+                                className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+                              >
+                                {hasError ? (
+                                  <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
+                                    <ImageIcon className="w-4 h-4" aria-hidden="true" />
+                                  </div>
+                                ) : (
+                                  <img
+                                    src={item.url}
+                                    alt={item.alt}
+                                    referrerPolicy="no-referrer"
+                                    decoding="sync"
+                                    onError={() =>
+                                      setFailedIds((prev) => ({ ...prev, [item.id]: true }))
+                                    }
+                                    className="w-full h-full object-cover select-none"
+                                    draggable={false}
+                                  />
+                                )}
+
+                                {status === 'uploading' && (
+                                  <motion.div
+                                    initial={shouldReduceMotion ? false : { opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    transition={{ duration: 0.14 }}
+                                    aria-label={`Subiendo ${item.alt}`}
+                                    className="absolute inset-0 bg-slate-950/25 flex items-center justify-center"
+                                  >
+                                    <span className="w-6 h-6 rounded-full bg-white/95 shadow-sm flex items-center justify-center">
+                                      <span className="w-4 h-4 rounded-full border-2 border-emerald-200 border-t-emerald-500 animate-spin" />
+                                    </span>
+                                  </motion.div>
+                                )}
+
+                                {status === 'done' && (
+                                  <motion.div
+                                    initial={shouldReduceMotion ? false : { scale: 0.55, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                                    aria-label={`${item.alt} subida`}
+                                    className="absolute inset-0 bg-slate-950/10 flex items-center justify-center pointer-events-none"
+                                  >
+                                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-white ring-2 ring-white shadow-[0_2px_8px_rgba(16,185,129,0.45)] flex items-center justify-center">
+                                      <Check className="w-3.5 h-3.5 stroke-[2.75]" aria-hidden="true" />
+                                    </span>
+                                  </motion.div>
+                                )}
+
+                                {status === 'error' && (
+                                  <div
+                                    aria-label={`Error al subir ${item.alt}`}
+                                    className="absolute inset-0 bg-slate-950/20 flex items-center justify-center pointer-events-none"
+                                  >
+                                    <span className="w-6 h-6 rounded-full bg-rose-500 text-white ring-2 ring-white flex items-center justify-center">
+                                      <X className="w-3.5 h-3.5 stroke-[2.5]" aria-hidden="true" />
+                                    </span>
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    </motion.div>
+                  )}
+                </div>
+              </div>
+
+              {/* Dynamic 2-step or 3-step swipe indicator */}
+              <div
+                aria-hidden="true"
+                className="flex items-center justify-center gap-1.5 mt-0.5"
+              >
+                {(showUploadBox ? [0, 1, 2] : [0, 1]).map((step) => (
+                  <span
+                    key={step}
+                    className={`h-1.5 rounded-full transition-all duration-200 ${
+                      activeCompressionCard === step
+                        ? 'w-5 bg-slate-900'
+                        : 'w-1.5 bg-slate-300'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                Aquí verás tus imágenes
+              </h2>
+
+              <section
+                aria-label="Aquí verás tus imágenes"
+                className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.06)] p-2.5 overflow-hidden"
+              >
+                {isExtracting ? (
+                  <ExtractingPlaceholder />
+                ) : extractError && (!hasExtractedResults || images.length === 0) ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-center px-4">
+                    <ImageIcon className="w-7 h-7 text-slate-300 mb-2" aria-hidden="true" />
+                    <p className="text-xs text-slate-500 leading-relaxed">{extractError}</p>
+                  </div>
+                ) : (
+                  <div
+                    className="w-full h-full grid gap-1.5"
+                    style={{
+                      gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
+                      gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {images.map((item) => {
+                      const hasError = Boolean(failedIds[item.id]);
+
+                      return (
+                        <button
+                          key={`unified-thumb-${item.id}`}
+                          type="button"
+                          onClick={() => setFullscreenImage(item)}
+                          aria-label={`Ver ${item.alt}`}
+                          className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                        >
+                          {hasError ? (
+                            <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
+                              <ImageIcon className="w-4 h-4" aria-hidden="true" />
+                            </div>
+                          ) : (
+                            <img
+                              src={item.url}
+                              alt={item.alt}
+                              referrerPolicy="no-referrer"
+                              decoding="sync"
+                              onError={() =>
+                                setFailedIds((prev) => ({ ...prev, [item.id]: true }))
+                              }
+                              className="w-full h-full object-cover select-none"
+                              draggable={false}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+
+          {/* Clean unboxed metadata/URLs stacked vertically directly over the moving light background */}
           {!isExtracting && (hasExtractedResults || !extractError) && images.length > 0 && (
             <motion.section
               initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-              aria-label="Acá verás tu URL"
+              aria-label="Aquí puedes ver tus metadatos"
               className="mt-5 px-1 pb-4"
             >
               <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2">
-                Acá verás tu URL
+                Aquí puedes ver tus metadatos
               </h2>
 
               <ul className="divide-y divide-slate-900/[0.06]">
-                {images.map((item) => (
-                  <li
-                    key={`unified-url-${item.id}`}
-                    className="flex items-center gap-2.5 py-2.5 min-w-0 select-none"
-                  >
-                    <Eye
-                      className="w-3.5 h-3.5 text-blue-600/80 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
-                      {item.cleanUrl}
-                    </span>
-                  </li>
-                ))}
+                {images.map((item) => {
+                  const compressed = compressionResults[item.id];
+                  const displayUrl = compressed?.cleanUrl ?? item.cleanUrl;
+
+                  return (
+                    <li
+                      key={`unified-url-${item.id}`}
+                      className="flex items-center justify-between gap-2.5 py-2.5 min-w-0 select-none"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        <Eye
+                          className={`w-3.5 h-3.5 shrink-0 transition-colors ${
+                            compressed ? 'text-emerald-600' : 'text-blue-600/80'
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
+                          {displayUrl}
+                        </span>
+                      </div>
+
+                      {compressed && compressed.savedPercent > 0 && (
+                        <span className="text-[10.5px] font-semibold text-emerald-600 tabular-nums shrink-0">
+                          -{compressed.savedPercent}%
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </motion.section>
           )}

@@ -1,0 +1,225 @@
+import crypto from 'node:crypto';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+const ALLOWED_KEY_REGEX =
+  /^[a-z0-9][a-z0-9/_-]{2,180}\.(webp|jpe?g|png|gif|avif)$/i;
+
+const EXTENSION_CONTENT_TYPES: Record<string, string> = {
+  webp: 'image/webp',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  avif: 'image/avif',
+};
+
+let cachedClient: S3Client | null = null;
+let cachedSignature = '';
+
+function getR2Env() {
+  const endpoint = (process.env.R2_ENDPOINT || '').trim();
+  const accessKeyId = (process.env.R2_ACCESS_KEY_ID || '').trim();
+  const secretAccessKey = (process.env.R2_SECRET_ACCESS_KEY || '').trim();
+  const bucketName = (process.env.R2_BUCKET_NAME || 'searchlink-media').trim();
+  const publicBaseUrl = (process.env.R2_PUBLIC_BASE_URL || '')
+    .trim()
+    .replace(/\/+$/, '');
+
+  return {
+    endpoint,
+    accessKeyId,
+    secretAccessKey,
+    bucketName,
+    publicBaseUrl,
+  };
+}
+
+export function isR2Configured(): boolean {
+  const { endpoint, accessKeyId, secretAccessKey, bucketName } = getR2Env();
+  return Boolean(endpoint && accessKeyId && secretAccessKey && bucketName);
+}
+
+export function getR2BucketName(): string {
+  return getR2Env().bucketName;
+}
+
+export function getR2Client(): S3Client {
+  const { endpoint, accessKeyId, secretAccessKey } = getR2Env();
+  if (!endpoint || !accessKeyId || !secretAccessKey) {
+    throw new Error('El almacenamiento multimedia en la nube no está configurado.');
+  }
+
+  const signature = `${endpoint}:${accessKeyId}`;
+  if (!cachedClient || cachedSignature !== signature) {
+    cachedClient = new S3Client({
+      region: 'auto',
+      endpoint,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+    });
+    cachedSignature = signature;
+  }
+
+  return cachedClient;
+}
+
+export function isValidMediaKey(key: string): boolean {
+  if (!key || key.includes('..') || key.includes('//')) return false;
+  return ALLOWED_KEY_REGEX.test(key);
+}
+
+export function buildSafeObjectKey(options?: {
+  prefix?: string;
+  extension?: string;
+}): string {
+  const now = new Date();
+  const yearMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+  const rawPrefix = (options?.prefix || 'uploads')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '')
+    .slice(0, 32) || 'uploads';
+
+  const rawExt = (options?.extension || 'webp')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+  const safeExt = rawExt in EXTENSION_CONTENT_TYPES ? rawExt : 'webp';
+
+  const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+  return `${rawPrefix}/${yearMonth}/${id}.${safeExt}`;
+}
+
+export function resolveMediaUrl(key: string): string {
+  const { publicBaseUrl } = getR2Env();
+  if (publicBaseUrl) {
+    return `${publicBaseUrl}/${key}`;
+  }
+  return `/api/media?k=${encodeURIComponent(key)}`;
+}
+
+export interface UploadImageToR2Input {
+  key: string;
+  body: Buffer | Uint8Array;
+  contentType: string;
+  cacheControl?: string;
+}
+
+export interface UploadImageToR2Result {
+  key: string;
+  url: string;
+  sizeBytes: number;
+}
+
+export async function uploadImageToR2(
+  input: UploadImageToR2Input,
+): Promise<UploadImageToR2Result> {
+  if (!isValidMediaKey(input.key)) {
+    throw new Error('Ruta de archivo no válida para almacenamiento.');
+  }
+  if (!input.contentType.toLowerCase().startsWith('image/')) {
+    throw new Error('Solo se permite subir archivos de imagen.');
+  }
+
+  const client = getR2Client();
+  const bucketName = getR2BucketName();
+
+  await client.send(
+    new PutObjectCommand({
+      Bucket: bucketName,
+      Key: input.key,
+      Body: input.body,
+      ContentType: input.contentType,
+      CacheControl:
+        input.cacheControl || 'public, max-age=31536000, immutable',
+    }),
+  );
+
+  return {
+    key: input.key,
+    url: resolveMediaUrl(input.key),
+    sizeBytes: input.body.byteLength,
+  };
+}
+
+export interface StoredR2Image {
+  buffer: Buffer;
+  contentType: string;
+  etag?: string;
+}
+
+export async function readImageFromR2(key: string): Promise<StoredR2Image> {
+  if (!isValidMediaKey(key)) {
+    throw new Error('Clave de archivo no válida.');
+  }
+
+  const client = getR2Client();
+  const bucketName = getR2BucketName();
+
+  const result = await client.send(
+    new GetObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    }),
+  );
+
+  if (!result.Body) {
+    throw new Error('Archivo no encontrado.');
+  }
+
+  const bytes = await result.Body.transformToByteArray();
+  const ext = key.split('.').pop()?.toLowerCase() || 'webp';
+  const fallbackType = EXTENSION_CONTENT_TYPES[ext] || 'image/webp';
+  const rawType = (result.ContentType || fallbackType).toLowerCase();
+  const contentType = rawType.startsWith('image/') ? rawType : fallbackType;
+
+  return {
+    buffer: Buffer.from(bytes),
+    contentType,
+    etag: result.ETag,
+  };
+}
+
+export async function createPresignedPutUrl(options: {
+  key: string;
+  contentType: string;
+  expiresInSeconds?: number;
+}): Promise<string> {
+  if (!isValidMediaKey(options.key)) {
+    throw new Error('Clave de destino no válida.');
+  }
+  if (!options.contentType.toLowerCase().startsWith('image/')) {
+    throw new Error('Solo se permiten imágenes.');
+  }
+
+  const client = getR2Client();
+  const bucketName = getR2BucketName();
+
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: options.key,
+    ContentType: options.contentType,
+  });
+
+  return getSignedUrl(client, command, {
+    expiresIn: Math.min(Math.max(options.expiresInSeconds ?? 300, 60), 900),
+  });
+}
+
+export async function deleteImageFromR2(key: string): Promise<void> {
+  if (!isValidMediaKey(key)) return;
+  const client = getR2Client();
+  const bucketName = getR2BucketName();
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    }),
+  );
+}
