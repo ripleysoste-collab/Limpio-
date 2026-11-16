@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AnimatePresence,
   motion,
@@ -12,6 +12,7 @@ import {
   Eye,
   Image as ImageIcon,
   Link2,
+  Loader2,
   Smartphone,
   X,
   Zap,
@@ -20,6 +21,10 @@ import type { CatalogImageItem } from '../data/catalogSamples';
 
 interface MobileCatalogCarouselProps {
   images: CatalogImageItem[];
+  isUnified: boolean;
+  isExtracting: boolean;
+  extractError: string | null;
+  hasExtractedResults: boolean;
 }
 
 const SEARCH_LINK_BENEFITS = [
@@ -53,12 +58,42 @@ const SEARCH_LINK_BENEFITS = [
   },
 ] as const;
 
-export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
+export function MobileCatalogCarousel({
+  images,
+  isUnified,
+  isExtracting,
+  extractError,
+  hasExtractedResults,
+}: MobileCatalogCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState<0 | 1 | 2>(0);
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
+  const [mergeStage, setMergeStage] = useState<'idle' | 'merging' | 'unified'>('idle');
   const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!isUnified) {
+      setMergeStage('idle');
+      return;
+    }
+
+    if (shouldReduceMotion) {
+      setMergeStage('unified');
+      return;
+    }
+
+    if (scrollRef.current && scrollRef.current.scrollLeft > 0) {
+      scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+
+    setMergeStage('merging');
+    const timer = window.setTimeout(() => {
+      setMergeStage('unified');
+    }, 460);
+
+    return () => window.clearTimeout(timer);
+  }, [isUnified, shouldReduceMotion]);
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -74,150 +109,277 @@ export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
 
   return (
     <>
-      <div className="relative z-10 lg:hidden w-full flex flex-col mt-6">
-        <div
-          ref={scrollRef}
-          onScroll={handleScroll}
-          className="-mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] overflow-x-auto snap-x snap-mandatory scroll-pl-4 sm:scroll-pl-5 px-4 sm:px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          aria-label="Vista móvil de imágenes, URLs y beneficios"
-        >
-          <div className="flex items-start gap-3.5 w-max pr-4 sm:pr-5">
-            {/* Card 1: Instant fluid thumbnail gallery */}
-            <div className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col">
-              <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                Aquí verás tus imágenes
-              </h2>
-
-              <section
-                aria-label="Aquí verás tus imágenes"
-                className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] p-2"
+      {mergeStage !== 'unified' ? (
+        <div className="relative z-10 lg:hidden w-full flex flex-col mt-6">
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className={`-mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] snap-x snap-mandatory scroll-pl-4 sm:scroll-pl-5 px-4 sm:px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+              mergeStage === 'merging' ? 'overflow-hidden' : 'overflow-x-auto'
+            }`}
+            aria-label="Vista móvil de imágenes, URLs y beneficios"
+          >
+            <div className="flex items-start gap-3.5 w-max pr-4 sm:pr-5">
+              {/* Card 1: Expands cleanly to full visible mobile width during merge */}
+              <motion.div
+                animate={
+                  mergeStage === 'merging'
+                    ? { width: 'calc(100vw - 2rem)' }
+                    : undefined
+                }
+                transition={{ duration: 0.44, ease: [0.22, 1, 0.36, 1] }}
+                className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col"
               >
-                <div
-                  className="w-full h-full grid gap-1"
-                  style={{
-                    gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
-                    gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {images.map((item) => {
-                    const hasError = Boolean(failedIds[item.id]);
+                <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                  Aquí verás tus imágenes
+                </h2>
 
-                    return (
-                      <button
-                        key={`mobile-thumb-${item.id}`}
-                        type="button"
-                        onClick={() => setFullscreenImage(item)}
-                        aria-label={`Ver ${item.alt}`}
-                        className="relative w-full h-full overflow-hidden rounded-lg bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                <section
+                  aria-label="Aquí verás tus imágenes"
+                  className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] p-2 overflow-hidden"
+                >
+                  {isExtracting ? (
+                    <ExtractingPlaceholder />
+                  ) : (
+                    <div
+                      className="w-full h-full grid gap-1"
+                      style={{
+                        gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
+                        gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {images.map((item) => {
+                        const hasError = Boolean(failedIds[item.id]);
+
+                        return (
+                          <button
+                            key={`mobile-thumb-${item.id}`}
+                            type="button"
+                            onClick={() => setFullscreenImage(item)}
+                            aria-label={`Ver ${item.alt}`}
+                            className="relative w-full h-full overflow-hidden rounded-lg bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                          >
+                            {hasError ? (
+                              <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
+                                <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                              </div>
+                            ) : (
+                              <img
+                                src={item.url}
+                                alt={item.alt}
+                                referrerPolicy="no-referrer"
+                                decoding="sync"
+                                onError={() =>
+                                  setFailedIds((prev) => ({ ...prev, [item.id]: true }))
+                                }
+                                className="w-full h-full object-cover select-none"
+                                draggable={false}
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              </motion.div>
+
+              {/* Card 2: Slides smoothly leftward into Card 1 when merging */}
+              <motion.div
+                animate={
+                  mergeStage === 'merging'
+                    ? { x: -110, opacity: 0, scale: 0.94 }
+                    : { x: 0, opacity: 1, scale: 1 }
+                }
+                transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+                className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col"
+              >
+                <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                  Acá verás tu URL
+                </h2>
+
+                <section
+                  aria-label="Acá verás tu URL"
+                  className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] px-2.5 py-1.5"
+                >
+                  <div className="w-full h-full flex flex-col divide-y divide-slate-100/85 select-none overflow-hidden">
+                    {images.map((item) => (
+                      <div
+                        key={`mobile-url-${item.id}`}
+                        className="flex-1 max-h-7 flex items-center gap-1.5 px-0.5 min-w-0"
                       >
-                        {hasError ? (
-                          <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
-                            <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
-                          </div>
-                        ) : (
-                          <img
-                            src={item.url}
-                            alt={item.alt}
-                            referrerPolicy="no-referrer"
-                            decoding="sync"
-                            onError={() =>
-                              setFailedIds((prev) => ({ ...prev, [item.id]: true }))
-                            }
-                            className="w-full h-full object-cover select-none"
-                            draggable={false}
-                          />
-                        )}
-                      </button>
+                        <Eye
+                          className="w-2.5 h-2.5 text-blue-500/70 shrink-0"
+                          aria-hidden="true"
+                        />
+                        <span className="font-mono text-[9.5px] leading-none text-slate-700 truncate tabular-nums">
+                          {item.cleanUrl}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              </motion.div>
+
+              {/* Column 3: Slides leftward and fades out cleanly during merge */}
+              <motion.div
+                animate={
+                  mergeStage === 'merging'
+                    ? { x: -180, opacity: 0, scale: 0.94 }
+                    : { x: 0, opacity: 1, scale: 1 }
+                }
+                transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+                className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col"
+              >
+                <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                  ¿Por qué usarías Search Link?
+                </h2>
+
+                <section
+                  aria-label="Por qué usarías Search Link"
+                  className="h-[min(41dvh,300px)] min-h-[245px] w-full flex flex-col justify-between gap-2"
+                >
+                  {SEARCH_LINK_BENEFITS.map((benefit) => {
+                    const Icon = benefit.icon;
+                    return (
+                      <article
+                        key={benefit.id}
+                        className="flex-1 min-h-0 w-full rounded-[14px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_8px_22px_-10px_rgba(15,23,42,0.11),0_2px_8px_-3px_rgba(37,99,235,0.05)] px-2.5 py-1.5 flex items-center gap-2.5"
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${benefit.toneClass}`}
+                          aria-hidden="true"
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-[11px] font-semibold text-slate-950 leading-tight truncate">
+                            {benefit.title}
+                          </h3>
+                          <p className="mt-0.5 text-[9.5px] leading-[1.2] text-slate-500 line-clamp-2">
+                            {benefit.description}
+                          </p>
+                        </div>
+                      </article>
                     );
                   })}
-                </div>
-              </section>
+                </section>
+              </motion.div>
             </div>
+          </div>
 
-            {/* Card 2: Clean static URLs list (touching URLs does nothing) */}
-            <div className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col">
-              <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+          {/* Passive 3-step scroll progress cue (hidden as soon as merge begins) */}
+          <motion.div
+            aria-hidden="true"
+            animate={{ opacity: mergeStage === 'merging' ? 0 : 1 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center justify-center gap-1.5 mt-1"
+          >
+            {[0, 1, 2].map((step) => (
+              <span
+                key={step}
+                className={`h-1.5 rounded-full transition-all duration-200 ${
+                  activeCard === step ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300'
+                }`}
+              />
+            ))}
+          </motion.div>
+        </div>
+      ) : (
+        /* Unified single-width mobile view after merge: 1 centered white image box + unboxed URLs directly below */
+        <div className="relative z-10 lg:hidden w-full flex flex-col mt-6">
+          <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+            Aquí verás tus imágenes
+          </h2>
+
+          <section
+            aria-label="Aquí verás tus imágenes"
+            className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.06)] p-2.5 overflow-hidden"
+          >
+            {isExtracting ? (
+              <ExtractingPlaceholder />
+            ) : extractError && (!hasExtractedResults || images.length === 0) ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-center px-4">
+                <ImageIcon className="w-7 h-7 text-slate-300 mb-2" aria-hidden="true" />
+                <p className="text-xs text-slate-500 leading-relaxed">{extractError}</p>
+              </div>
+            ) : (
+              <div
+                className="w-full h-full grid gap-1.5"
+                style={{
+                  gridTemplateColumns: `repeat(${mobileCols}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${mobileRows}, minmax(0, 1fr))`,
+                }}
+              >
+                {images.map((item) => {
+                  const hasError = Boolean(failedIds[item.id]);
+
+                  return (
+                    <button
+                      key={`unified-thumb-${item.id}`}
+                      type="button"
+                      onClick={() => setFullscreenImage(item)}
+                      aria-label={`Ver ${item.alt}`}
+                      className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                    >
+                      {hasError ? (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400">
+                          <ImageIcon className="w-4 h-4" aria-hidden="true" />
+                        </div>
+                      ) : (
+                        <img
+                          src={item.url}
+                          alt={item.alt}
+                          referrerPolicy="no-referrer"
+                          decoding="sync"
+                          onError={() =>
+                            setFailedIds((prev) => ({ ...prev, [item.id]: true }))
+                          }
+                          className="w-full h-full object-cover select-none"
+                          draggable={false}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Clean unboxed URLs stacked vertically directly over the moving light background */}
+          {!isExtracting && (hasExtractedResults || !extractError) && images.length > 0 && (
+            <motion.section
+              initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              aria-label="Acá verás tu URL"
+              className="mt-5 px-1 pb-4"
+            >
+              <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2">
                 Acá verás tu URL
               </h2>
 
-              <section
-                aria-label="Acá verás tu URL"
-                className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] px-2.5 py-1.5"
-              >
-                <div className="w-full h-full flex flex-col divide-y divide-slate-100/85 select-none overflow-hidden">
-                  {images.map((item) => (
-                    <div
-                      key={`mobile-url-${item.id}`}
-                      className="flex-1 max-h-7 flex items-center gap-1.5 px-0.5 min-w-0"
-                    >
-                      <Eye
-                        className="w-2.5 h-2.5 text-blue-500/70 shrink-0"
-                        aria-hidden="true"
-                      />
-                      <span className="font-mono text-[9.5px] leading-none text-slate-700 truncate tabular-nums">
-                        {item.cleanUrl}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-
-            {/* Column 3: 4 stacked mini-cards sharing the exact same width and total height */}
-            <div className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col">
-              <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                ¿Por qué usarías Search Link?
-              </h2>
-
-              <section
-                aria-label="Por qué usarías Search Link"
-                className="h-[min(41dvh,300px)] min-h-[245px] w-full flex flex-col justify-between gap-2"
-              >
-                {SEARCH_LINK_BENEFITS.map((benefit) => {
-                  const Icon = benefit.icon;
-                  return (
-                    <article
-                      key={benefit.id}
-                      className="flex-1 min-h-0 w-full rounded-[14px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_8px_22px_-10px_rgba(15,23,42,0.11),0_2px_8px_-3px_rgba(37,99,235,0.05)] px-2.5 py-1.5 flex items-center gap-2.5"
-                    >
-                      <div
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${benefit.toneClass}`}
-                        aria-hidden="true"
-                      >
-                        <Icon className="w-3.5 h-3.5" />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-[11px] font-semibold text-slate-950 leading-tight truncate">
-                          {benefit.title}
-                        </h3>
-                        <p className="mt-0.5 text-[9.5px] leading-[1.2] text-slate-500 line-clamp-2">
-                          {benefit.description}
-                        </p>
-                      </div>
-                    </article>
-                  );
-                })}
-              </section>
-            </div>
-          </div>
+              <ul className="divide-y divide-slate-900/[0.06]">
+                {images.map((item) => (
+                  <li
+                    key={`unified-url-${item.id}`}
+                    className="flex items-center gap-2.5 py-2.5 min-w-0 select-none"
+                  >
+                    <Eye
+                      className="w-3.5 h-3.5 text-blue-600/80 shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span className="font-mono text-[11.5px] leading-snug text-slate-800 truncate tabular-nums">
+                      {item.cleanUrl}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </motion.section>
+          )}
         </div>
-
-        {/* Passive 3-step scroll progress cue (no buttons added) */}
-        <div
-          aria-hidden="true"
-          className="flex items-center justify-center gap-1.5 mt-1"
-        >
-          {[0, 1, 2].map((step) => (
-            <span
-              key={step}
-              className={`h-1.5 rounded-full transition-all duration-200 ${
-                activeCard === step ? 'w-5 bg-slate-900' : 'w-1.5 bg-slate-300'
-              }`}
-            />
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Mobile fullscreen image viewer with swipe-down to dismiss */}
       <AnimatePresence>
@@ -231,6 +393,28 @@ export function MobileCatalogCarousel({ images }: MobileCatalogCarouselProps) {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+function ExtractingPlaceholder() {
+  return (
+    <div className="relative w-full h-full flex items-center justify-center">
+      <div className="grid grid-cols-3 grid-rows-3 gap-1.5 w-full h-full opacity-55">
+        {Array.from({ length: 9 }).map((_, idx) => (
+          <div
+            key={idx}
+            className="rounded-lg bg-slate-100 animate-pulse"
+            style={{ animationDelay: `${idx * 70}ms` }}
+          />
+        ))}
+      </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/60 backdrop-blur-[2px]">
+        <Loader2 className="w-6 h-6 text-blue-600 animate-spin" aria-hidden="true" />
+        <span className="text-xs font-medium text-slate-700">
+          Buscando imágenes...
+        </span>
+      </div>
+    </div>
   );
 }
 

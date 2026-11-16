@@ -14,6 +14,7 @@ export default function App() {
     CATALOG_SAMPLE_IMAGES,
   );
   const [catalogVersion, setCatalogVersion] = useState(0);
+  const [hasSearched, setHasSearched] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
   const [activeBgImage, setActiveBgImage] = useState<CatalogImageItem | null>(null);
@@ -62,6 +63,7 @@ export default function App() {
 
     const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
     setUrl(normalized);
+    setHasSearched(true);
     setExtractError(null);
     setIsExtracting(true);
 
@@ -116,7 +118,7 @@ export default function App() {
   };
 
   return (
-    <main className="bg-white lg:bg-[#0e1013] relative min-h-dvh w-full overflow-hidden flex flex-col items-center px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 lg:pt-5 pb-6 lg:pb-8">
+    <main className="bg-white lg:bg-[#0e1013] relative min-h-dvh w-full overflow-x-hidden lg:overflow-hidden flex flex-col items-center px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 lg:pt-5 pb-6 lg:pb-8">
       {/* Mobile-only full-screen natural luminous backdrop with gentle living color movement */}
       <div
         aria-hidden="true"
@@ -380,10 +382,13 @@ export default function App() {
         suspendShortcuts={isAuthOpen}
       />
 
-      {/* Mobile-only swipeable side-by-side white boxes with right-edge peek */}
+      {/* Mobile-only swipeable boxes that merge into 1 unified image box + unboxed URLs below */}
       <MobileCatalogCarousel
-        key={`mobile-catalog-${catalogVersion}`}
         images={catalogImages}
+        isUnified={hasSearched}
+        isExtracting={isExtracting}
+        extractError={extractError}
+        hasExtractedResults={catalogVersion > 0}
       />
 
       {/* Responsive white dot-grid registration panel */}

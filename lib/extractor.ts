@@ -25,19 +25,19 @@ interface RawCandidate {
   priority: number;
 }
 
-const MIN_DIMENSION_PX = 250;
-const MAX_HTML_BYTES = 3 * 1024 * 1024;
-const MAX_PROBE_CANDIDATES = 42;
+const MIN_DIMENSION_PX = 200;
+const MAX_HTML_BYTES = 4 * 1024 * 1024;
+const MAX_PROBE_CANDIDATES = 65;
 const MAX_RESULTS = 15;
-const PROBE_CONCURRENCY = 7;
-const MAX_IMAGE_PROBE_BYTES = 96 * 1024;
+const PROBE_CONCURRENCY = 8;
+const MAX_IMAGE_PROBE_BYTES = 256 * 1024;
 
 const BROWSER_HEADER_PROFILES: Record<string, string>[] = [
   {
     'User-Agent':
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     Accept:
-      'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/png,image/jpeg,*/*;q=0.8',
     'Accept-Language': 'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7',
     'Cache-Control': 'no-cache',
     'Upgrade-Insecure-Requests': '1',
@@ -56,7 +56,8 @@ const BROWSER_HEADER_PROFILES: Record<string, string>[] = [
 
 const JUNK_EXTENSIONS = /\.(svg|ico|cur|woff2?|ttf|eot|mp4|webm|mov|pdf|css|js)(\?|#|$)/i;
 const JUNK_KEYWORDS =
-  /(^|[^a-z])(logo|icon|icono|favicon|sprite|spacer|pixel|1x1|tracking|analytics|telemetry|badge|spinner|loader|loading|placeholder|avatar|emoji|flag|arrow|chevron|doubleclick|adsense|blank|transparent)([^a-z]|$)/i;
+  /(^|[^a-z])(logo|icon|icono|favicon|sprite|spacer|pixel|1x1|tracking|analytics|telemetry|spinner|loader|loading|placeholder|emoji|doubleclick|adsense|blank|transparent)([^a-z]|$)/i;
+const IMAGE_EXT_REGEX = /\.(jpe?g|png|webp|gif)(\?|#|$)/i;
 
 const TRACKING_QUERY_PARAMS = new Set([
   'utm_source',
@@ -72,7 +73,12 @@ const TRACKING_QUERY_PARAMS = new Set([
 
 function resolveHttpUrl(raw: string | undefined, baseUrl: string): string | null {
   if (!raw) return null;
-  const trimmed = raw.trim().replace(/^['"]|['"]$/g, '');
+  const trimmed = raw
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .replace(/\\u002F/gi, '/')
+    .replace(/\\\//g, '/');
+
   if (
     !trimmed ||
     trimmed.startsWith('data:') ||
@@ -131,6 +137,19 @@ function extractCssUrlValues(cssText: string, baseUrl: string): string[] {
   while ((match = regex.exec(cssText)) !== null) {
     const resolved = resolveHttpUrl(match[2], baseUrl);
     if (resolved) results.push(resolved);
+  }
+  return results;
+}
+
+function extractScriptImageUrls(scriptText: string, baseUrl: string): string[] {
+  const results: string[] = [];
+  const regex =
+    /(?:https?:\\?\/\\?\/|\/)[^\s"'`<>()\\]{6,320}\.(?:jpe?g|png|webp)(?:\?[^\s"'`<>()\\]{0,120})?/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(scriptText)) !== null) {
+    const resolved = resolveHttpUrl(match[0], baseUrl);
+    if (resolved) results.push(resolved);
+    if (results.length >= 30) break;
   }
   return results;
 }
@@ -311,17 +330,23 @@ async function probeImageDimensions(
     const { response } = await safeFetch(candidateUrl, {
       headers: {
         'User-Agent': BROWSER_HEADER_PROFILES[0]['User-Agent'],
-        Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        // Prefer JPEG/WebP/PNG so binary header parsers read dimensions in the first few KB
+        Accept: 'image/webp,image/png,image/jpeg,image/*;q=0.8',
         Referer: refererUrl,
       },
-      timeoutMs: 3800,
+      timeoutMs: 4200,
     });
 
     if (!response.ok) return null;
 
     const contentType = (response.headers.get('content-type') || '').toLowerCase();
+    const isImageHeader = contentType.startsWith('image/');
+    const isBinaryFallback =
+      (!contentType || contentType.includes('octet-stream')) &&
+      IMAGE_EXT_REGEX.test(candidateUrl);
+
     if (
-      !contentType.startsWith('image/') ||
+      (!isImageHeader && !isBinaryFallback) ||
       contentType.includes('svg') ||
       contentType.includes('icon')
     ) {
@@ -391,21 +416,27 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
     const preferredUrls = [
       pickBestSrcsetCandidate($el.attr('data-srcset'), finalUrl),
       pickBestSrcsetCandidate($el.attr('srcset'), finalUrl),
+      resolveHttpUrl($el.attr('data-large_image'), finalUrl),
+      resolveHttpUrl($el.attr('data-zoom-image'), finalUrl),
       resolveHttpUrl($el.attr('data-hi-res-src'), finalUrl),
       resolveHttpUrl($el.attr('data-full-src'), finalUrl),
+      resolveHttpUrl($el.attr('data-src-retina'), finalUrl),
       resolveHttpUrl($el.attr('data-original'), finalUrl),
       resolveHttpUrl($el.attr('data-lazy-src'), finalUrl),
+      resolveHttpUrl($el.attr('data-lazy'), finalUrl),
       resolveHttpUrl($el.attr('data-src'), finalUrl),
+      resolveHttpUrl($el.attr('data-image'), finalUrl),
       resolveHttpUrl($el.attr('src'), finalUrl),
-    ].filter((u): u is string => Boolean(u));
+    ].filter((u): u is string => Boolean(u)).filter((u) => !isJunkCandidateUrl(u));
 
-    for (const candidateUrl of preferredUrls) {
-      rawCandidates.push({ url: candidateUrl, alt: label, priority: 1 });
-      break;
+    const nonAvif = preferredUrls.find((u) => !/\.avif(\?|#|$)/i.test(u));
+    const chosen = nonAvif ?? preferredUrls[0];
+    if (chosen) {
+      rawCandidates.push({ url: chosen, alt: label, priority: 1 });
     }
   });
 
-  // 2. <picture> <source>
+  // 2. <picture> <source> & background data attributes
   $('picture source').each((_, el) => {
     const $el = $(el);
     const best =
@@ -413,6 +444,16 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
       pickBestSrcsetCandidate($el.attr('srcset'), finalUrl);
     if (best) {
       rawCandidates.push({ url: best, alt: '', priority: 2 });
+    }
+  });
+
+  $('[data-bg], [data-background], [data-background-image]').each((_, el) => {
+    const $el = $(el);
+    const rawBg =
+      $el.attr('data-bg') || $el.attr('data-background') || $el.attr('data-background-image');
+    const resolved = resolveHttpUrl(rawBg, finalUrl);
+    if (resolved) {
+      rawCandidates.push({ url: resolved, alt: '', priority: 2 });
     }
   });
 
@@ -448,7 +489,7 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
     });
   }
 
-  // 5. Structured JSON-LD product/article imagery
+  // 5. Structured JSON-LD & Hydration Scripts (__NEXT_DATA__, Shopify, Nuxt, etc.)
   $('script[type="application/ld+json"]').each((_, el) => {
     const rawJson = $(el).contents().text().trim();
     if (!rawJson) return;
@@ -457,6 +498,16 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
       collectJsonLdImages(parsed, finalUrl, rawCandidates);
     } catch {
       // Ignore malformed JSON-LD blocks
+    }
+  });
+
+  $('script:not([src])').each((_, el) => {
+    const type = ($(el).attr('type') || '').toLowerCase();
+    if (type === 'application/ld+json') return;
+    const text = $(el).contents().text();
+    if (!text || text.length < 20) return;
+    for (const scriptUrl of extractScriptImageUrls(text.slice(0, 250_000), finalUrl)) {
+      rawCandidates.push({ url: scriptUrl, alt: '', priority: 3 });
     }
   });
 
