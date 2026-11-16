@@ -6,6 +6,7 @@ import { extractImagesFromUrl } from './lib/extractor.ts';
 import { fetchProxiedImage } from './lib/imageProxy.ts';
 import { isValidMediaKey, readImageFromR2 } from './lib/r2Storage.ts';
 import {
+  decodeBase64ImagePayload,
   getRequestOrigin,
   MAX_UPLOAD_BYTES,
   processAndStoreUploadedImage,
@@ -80,17 +81,22 @@ async function startServer() {
 
   app.post(
     '/api/upload',
+    express.json({ type: 'application/json', limit: '6mb' }),
     express.raw({ type: 'image/*', limit: MAX_UPLOAD_BYTES }),
     async (req, res) => {
       try {
-        if (!Buffer.isBuffer(req.body) || req.body.byteLength === 0) {
+        const buffer = Buffer.isBuffer(req.body)
+          ? req.body
+          : decodeBase64ImagePayload(req.body);
+
+        if (!buffer || buffer.byteLength === 0) {
           return res.status(400).json({
             error: 'No se recibió un archivo de imagen válido.',
           });
         }
 
         const result = await processAndStoreUploadedImage(
-          req.body,
+          buffer,
           getRequestOrigin(req.headers),
         );
         return res.json(result);

@@ -95,12 +95,48 @@ export function getRequestOrigin(headers: {
   return `${proto}://${hostValue}`;
 }
 
+export function decodeBase64ImagePayload(rawPayload: unknown): Buffer {
+  if (!rawPayload || typeof rawPayload !== 'object') {
+    throw new Error('Formato de carga inválido.');
+  }
+
+  const record = rawPayload as Record<string, unknown>;
+  const rawBase64 =
+    typeof record.dataBase64 === 'string'
+      ? record.dataBase64
+      : typeof record.base64 === 'string'
+        ? record.base64
+        : '';
+
+  const trimmed = rawBase64.trim();
+  if (!trimmed) {
+    throw new Error('La imagen enviada está vacía.');
+  }
+
+  const commaIndex = trimmed.indexOf(',');
+  const base64Body =
+    trimmed.startsWith('data:') && commaIndex !== -1
+      ? trimmed.slice(commaIndex + 1)
+      : trimmed;
+
+  const buffer = Buffer.from(base64Body, 'base64');
+  if (buffer.byteLength === 0) {
+    throw new Error('No se pudo decodificar la imagen.');
+  }
+  if (buffer.byteLength > MAX_UPLOAD_BYTES) {
+    throw new Error('La imagen supera el límite máximo permitido de 4 MB.');
+  }
+  return buffer;
+}
+
 export async function processAndStoreUploadedImage(
   buffer: Buffer,
   requestOrigin?: string,
 ): Promise<ImageUploadResponse> {
   if (!isR2Configured()) {
-    throw new Error('El almacenamiento en la nube aún no está configurado.');
+    throw new Error(
+      'Faltan variables de Cloudflare R2 en el servidor (recuerda hacer Redeploy en Vercel después de guardarlas).',
+    );
   }
 
   if (!buffer || buffer.byteLength === 0) {
@@ -121,17 +157,25 @@ export async function processAndStoreUploadedImage(
     extension: detected.extension,
   });
 
-  const stored = await uploadImageToR2({
-    key,
-    body: buffer,
-    contentType: detected.contentType,
-    requestOrigin,
-  });
+  try {
+    const stored = await uploadImageToR2({
+      key,
+      body: buffer,
+      contentType: detected.contentType,
+      requestOrigin,
+    });
 
-  return {
-    key: stored.key,
-    url: stored.url,
-    sizeBytes: stored.sizeBytes,
-    contentType: detected.contentType,
-  };
+    return {
+      key: stored.key,
+      url: stored.url,
+      sizeBytes: stored.sizeBytes,
+      contentType: detected.contentType,
+    };
+  } catch (err) {
+    const errName = err instanceof Error ? err.name : '';
+    const errMessage = err instanceof Error ? err.message : 'Error de conexión';
+    throw new Error(
+      `No se pudo guardar en R2 (${errName || 'S3Error'}: ${errMessage.slice(0, 120)})`,
+    );
+  }
 }

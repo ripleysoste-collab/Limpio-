@@ -22,14 +22,16 @@ const EXTENSION_CONTENT_TYPES: Record<string, string> = {
 let cachedClient: S3Client | null = null;
 let cachedSignature = '';
 
+function cleanEnv(value: string | undefined): string {
+  return (value || '').trim().replace(/^["']|["']$/g, '').trim();
+}
+
 function getR2Env() {
-  const endpoint = (process.env.R2_ENDPOINT || '').trim();
-  const accessKeyId = (process.env.R2_ACCESS_KEY_ID || '').trim();
-  const secretAccessKey = (process.env.R2_SECRET_ACCESS_KEY || '').trim();
-  const bucketName = (process.env.R2_BUCKET_NAME || 'searchlink-media').trim();
-  const publicBaseUrl = (process.env.R2_PUBLIC_BASE_URL || '')
-    .trim()
-    .replace(/\/+$/, '');
+  const endpoint = cleanEnv(process.env.R2_ENDPOINT).replace(/\/+$/, '');
+  const accessKeyId = cleanEnv(process.env.R2_ACCESS_KEY_ID);
+  const secretAccessKey = cleanEnv(process.env.R2_SECRET_ACCESS_KEY);
+  const bucketName = cleanEnv(process.env.R2_BUCKET_NAME) || 'searchlink-media';
+  const publicBaseUrl = cleanEnv(process.env.R2_PUBLIC_BASE_URL).replace(/\/+$/, '');
 
   return {
     endpoint,

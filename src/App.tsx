@@ -338,7 +338,7 @@ export default function App() {
 
         type UploadTaskResult =
           | { ok: true; data: UploadedCompressedImage }
-          | { ok: false; aborted: boolean };
+          | { ok: false; aborted: boolean; errorMessage?: string };
 
         const uploadResolvers: Array<(res: UploadTaskResult) => void> = [];
         const uploadPromises: Array<Promise<UploadTaskResult>> = compressedPayloads.map(
@@ -371,7 +371,9 @@ export default function App() {
                 const aborted =
                   controller.signal.aborted ||
                   (err instanceof DOMException && err.name === 'AbortError');
-                uploadResolvers[index]({ ok: false, aborted });
+                const errorMessage =
+                  err instanceof Error ? err.message : 'Error al subir la imagen.';
+                uploadResolvers[index]({ ok: false, aborted, errorMessage });
               }
             }
           })();
@@ -380,6 +382,7 @@ export default function App() {
         const uploadedPayloads: Array<UploadedCompressedImage | null> = new Array(
           uploadedItems.length,
         ).fill(null);
+        let firstUploadError: string | null = null;
 
         for (let i = 0; i < uploadedItems.length; i++) {
           if (controller.signal.aborted) return;
@@ -404,6 +407,10 @@ export default function App() {
               [item.id]: 'done',
             }));
           } else if (!result.aborted) {
+            if (!firstUploadError && result.errorMessage) {
+              firstUploadError = result.errorMessage;
+              setBatchNotice(result.errorMessage);
+            }
             setUploadStatuses((prev) => ({
               ...prev,
               [item.id]: 'error',

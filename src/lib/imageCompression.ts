@@ -163,29 +163,67 @@ export async function compressImageToWebp(
   }
 }
 
+const MAX_JSON_RAW_BYTES = 2.9 * 1024 * 1024;
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('No se pudo leer la imagen comprimida.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('No se pudo preparar la imagen para subir.'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export async function uploadCompressedImage(
   compressed: CompressedImageResult,
   signal?: AbortSignal,
 ): Promise<UploadedCompressedImage> {
-  const response = await fetch('/api/upload', {
-    method: 'POST',
-    headers: {
-      'Content-Type': compressed.mimeType,
-    },
-    body: compressed.blob,
-    signal,
-  });
+  const useJsonPayload = compressed.blob.size <= MAX_JSON_RAW_BYTES;
+  const response = useJsonPayload
+    ? await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mimeType: compressed.mimeType,
+          dataBase64: await blobToDataUrl(compressed.blob),
+        }),
+        signal,
+      })
+    : await fetch('/api/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': compressed.mimeType,
+        },
+        body: compressed.blob,
+        signal,
+      });
 
-  const payload = (await response.json().catch(() => ({}))) as {
+  const rawBody = await response.text();
+  let payload: {
     key?: string;
     url?: string;
     sizeBytes?: number;
     error?: string;
-  };
+  } = {};
+
+  try {
+    payload = JSON.parse(rawBody) as typeof payload;
+  } catch {
+    payload = {};
+  }
 
   if (!response.ok || !payload.key || !payload.url) {
     throw new Error(
-      payload.error || 'No se pudo subir la imagen comprimida a la nube.',
+      payload.error ||
+        `Error HTTP ${response.status} al guardar la imagen en la nube.`,
     );
   }
 
