@@ -111,10 +111,14 @@ export function MobileCatalogCarousel({
   const uploadCardRef = useRef<HTMLDivElement>(null);
   const receiveCardRef = useRef<HTMLDivElement>(null);
   const mapCardRef = useRef<HTMLDivElement>(null);
+  const lifecycleCardRef = useRef<HTMLDivElement>(null);
+  const viewApiCardRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState<0 | 1 | 2>(0);
   const [activeCompressionCard, setActiveCompressionCard] = useState<
-    0 | 1 | 2 | 3 | 4
+    0 | 1 | 2 | 3 | 4 | 5 | 6
   >(0);
+  const [showLifecycleBox, setShowLifecycleBox] = useState(false);
+  const [showViewApiBox, setShowViewApiBox] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
   const [expandedMappedIds, setExpandedMappedIds] = useState<Record<string, boolean>>({});
@@ -125,6 +129,8 @@ export function MobileCatalogCarousel({
 
   useEffect(() => {
     setExpandedMappedIds({});
+    setShowLifecycleBox(false);
+    setShowViewApiBox(false);
   }, [images]);
 
   useEffect(() => {
@@ -320,6 +326,8 @@ export function MobileCatalogCarousel({
       !showReceiveBox ||
       !showUploadBox ||
       !showCompressionBox ||
+      showLifecycleBox ||
+      showViewApiBox ||
       mergeStage !== 'unified'
     ) {
       return;
@@ -348,9 +356,99 @@ export function MobileCatalogCarousel({
     showReceiveBox,
     showUploadBox,
     showCompressionBox,
+    showLifecycleBox,
+    showViewApiBox,
     mergeStage,
     shouldReduceMotion,
   ]);
+
+  const allMappedComplete = Boolean(
+    showMapBox &&
+      images.length > 0 &&
+      images.every((img) => {
+        const status = mapStatuses[img.id];
+        return status === 'mapped' || status === 'error';
+      }) &&
+      images.some((img) => Boolean(mappedResults[img.id])),
+  );
+
+  const processedCount = images.filter((img) => Boolean(mappedResults[img.id])).length;
+
+  useEffect(() => {
+    if (!allMappedComplete) {
+      setShowLifecycleBox(false);
+      setShowViewApiBox(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowLifecycleBox(true);
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [allMappedComplete]);
+
+  useEffect(() => {
+    if (!showLifecycleBox || showViewApiBox || mergeStage !== 'unified') {
+      return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+      const container = compressionScrollRef.current;
+      const target = lifecycleCardRef.current;
+      if (!container || !target) return;
+
+      const paddingLeft = Number.parseFloat(
+        window.getComputedStyle(container).paddingLeft || '16',
+      );
+      const targetLeft = Math.max(0, target.offsetLeft - paddingLeft);
+
+      container.scrollTo({
+        left: targetLeft,
+        behavior: shouldReduceMotion ? 'auto' : 'smooth',
+      });
+      setActiveCompressionCard(5);
+    }, 90);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [showLifecycleBox, showViewApiBox, mergeStage, shouldReduceMotion]);
+
+  const scrollToViewApiCard = () => {
+    const container = compressionScrollRef.current;
+    const target = viewApiCardRef.current;
+    if (!container || !target) return;
+
+    const paddingLeft = Number.parseFloat(
+      window.getComputedStyle(container).paddingLeft || '16',
+    );
+    const targetLeft = Math.max(0, target.offsetLeft - paddingLeft);
+
+    container.scrollTo({
+      left: targetLeft,
+      behavior: shouldReduceMotion ? 'auto' : 'smooth',
+    });
+    setActiveCompressionCard(6);
+  };
+
+  useEffect(() => {
+    if (!showViewApiBox || mergeStage !== 'unified') {
+      return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+      scrollToViewApiCard();
+    }, 90);
+
+    return () => window.clearTimeout(scrollTimer);
+  }, [showViewApiBox, mergeStage, shouldReduceMotion]);
+
+  const handleOpenViewApi = () => {
+    if (showViewApiBox) {
+      scrollToViewApiCard();
+      return;
+    }
+    setShowViewApiBox(true);
+  };
 
   const handleScroll = () => {
     const el = scrollRef.current;
@@ -366,23 +464,23 @@ export function MobileCatalogCarousel({
     if (!el) return;
     const maxScroll = el.scrollWidth - el.clientWidth;
     if (maxScroll <= 0) return;
-    const totalSteps = showMapBox ? 4 : showReceiveBox ? 3 : showUploadBox ? 2 : 1;
+    const totalSteps = showViewApiBox
+      ? 6
+      : showLifecycleBox
+        ? 5
+        : showMapBox
+          ? 4
+          : showReceiveBox
+            ? 3
+            : showUploadBox
+              ? 2
+              : 1;
     const index = Math.min(
       totalSteps,
       Math.max(0, Math.round((el.scrollLeft / maxScroll) * totalSteps)),
     );
-    setActiveCompressionCard(index as 0 | 1 | 2 | 3 | 4);
+    setActiveCompressionCard(index as 0 | 1 | 2 | 3 | 4 | 5 | 6);
   };
-
-  const allMappedComplete = Boolean(
-    showMapBox &&
-      images.length > 0 &&
-      images.every((img) => {
-        const status = mapStatuses[img.id];
-        return status === 'mapped' || status === 'error';
-      }) &&
-      images.some((img) => Boolean(mappedResults[img.id])),
-  );
 
   const mobileCols = images.length <= 1 ? 1 : images.length <= 4 ? 2 : 3;
   const mobileRows = Math.max(1, Math.ceil(images.length / mobileCols));
@@ -1010,21 +1108,168 @@ export function MobileCatalogCarousel({
                       </section>
                     </motion.div>
                   )}
+
+                  {/* Card 6: Automatic "Ciclo de vida" box — 2s after mapping completes */}
+                  {showLifecycleBox && (
+                    <motion.div
+                      ref={lifecycleCardRef}
+                      initial={shouldReduceMotion ? false : { opacity: 0, x: 24, scale: 0.97 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                      className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
+                    >
+                      <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                        Ciclo de vida
+                      </h2>
+
+                      <section
+                        aria-label="Ciclo de vida"
+                        className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] p-4 flex flex-col justify-between overflow-hidden"
+                      >
+                        <p className="text-[13px] leading-relaxed text-slate-700">
+                          <span aria-hidden="true" className="mr-1.5">
+                            🎉
+                          </span>
+                          <span className="font-semibold text-slate-950">
+                            ¡Enhorabuena!
+                          </span>{' '}
+                          Ya tienes{' '}
+                          {processedCount === 1
+                            ? 'tu 1 imagen procesada y guardada'
+                            : `tus ${processedCount} imágenes procesadas y guardadas`}{' '}
+                          en nuestro R2, listas para conectar tu chatbot y página.
+                        </p>
+
+                        <div className="pt-3 border-t border-slate-200/75 flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={handleOpenViewApi}
+                            className="w-full py-1.5 text-left text-[13px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-75 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
+                          >
+                            Generar tu API
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleOpenViewApi}
+                            className="w-full py-1.5 text-left text-[13px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-75 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
+                          >
+                            Generar tu endpoint
+                          </button>
+                        </div>
+                      </section>
+                    </motion.div>
+                  )}
+
+                  {/* Card 7: "Ver tu API" box — opens when user taps Generar tu API or Generar tu endpoint */}
+                  {showViewApiBox && (
+                    <motion.div
+                      ref={viewApiCardRef}
+                      initial={shouldReduceMotion ? false : { opacity: 0, x: 24, scale: 0.97 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                      className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
+                    >
+                      <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                        Ver tu API
+                      </h2>
+
+                      <section
+                        aria-label="Ver tu API"
+                        className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] p-4 flex flex-col justify-between overflow-hidden"
+                      >
+                        <div>
+                          <p className="text-[12.5px] font-semibold text-slate-950">
+                            Tus credenciales listas
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                            Toca el ícono al final de cada fila para copiar tu API o endpoint.
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200/85 bg-slate-50/75 divide-y divide-slate-200/75">
+                          <div className="h-11 px-3 flex items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                aria-hidden="true"
+                                className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
+                              />
+                              <span className="font-mono text-xs font-medium text-slate-800 truncate">
+                                api/1245
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleCopyMetadataUrl('mobile-api', 'api/1245')
+                              }
+                              aria-label="Copiar API"
+                              className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer"
+                            >
+                              {copiedMetadataId === 'mobile-api' ? (
+                                <Check
+                                  className="w-4 h-4 text-emerald-600 stroke-[2.75]"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="h-11 px-3 flex items-center justify-between gap-2.5">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                aria-hidden="true"
+                                className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
+                              />
+                              <span className="font-mono text-xs font-medium text-slate-800 truncate">
+                                http/1245
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleCopyMetadataUrl('mobile-endpoint', 'http/1245')
+                              }
+                              aria-label="Copiar endpoint"
+                              className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer"
+                            >
+                              {copiedMetadataId === 'mobile-endpoint' ? (
+                                <Check
+                                  className="w-4 h-4 text-emerald-600 stroke-[2.75]"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </section>
+                    </motion.div>
+                  )}
                 </div>
               </div>
 
-              {/* Dynamic 2-step, 3-step, 4-step, or 5-step swipe indicator */}
+              {/* Dynamic step swipe indicator */}
               <div
                 aria-hidden="true"
                 className="flex items-center justify-center gap-1.5 mt-0.5"
               >
-                {(showMapBox
-                  ? [0, 1, 2, 3, 4]
-                  : showReceiveBox
-                    ? [0, 1, 2, 3]
-                    : showUploadBox
-                      ? [0, 1, 2]
-                      : [0, 1]
+                {(showViewApiBox
+                  ? [0, 1, 2, 3, 4, 5, 6]
+                  : showLifecycleBox
+                    ? [0, 1, 2, 3, 4, 5]
+                    : showMapBox
+                      ? [0, 1, 2, 3, 4]
+                      : showReceiveBox
+                        ? [0, 1, 2, 3]
+                        : showUploadBox
+                          ? [0, 1, 2]
+                          : [0, 1]
                 ).map((step) => (
                   <span
                     key={step}
