@@ -6,6 +6,7 @@ import desktopDesertBg from './assets/images/bg_desert_desktop_1794853953945.jpg
 import { AuthDrawer } from './components/AuthDrawer';
 import { DesktopAccountMenu } from './components/DesktopAccountMenu';
 import { DualCatalogShowcase } from './components/DualCatalogShowcase';
+import { MobileAccountMenu } from './components/MobileAccountMenu';
 import {
   MobileCatalogCarousel,
   type CompressedImageMeta,
@@ -63,6 +64,8 @@ export default function App() {
     typeof window !== 'undefined' && window.location.pathname === '/login',
   );
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileAccountModalOpen, setIsMobileAccountModalOpen] = useState(false);
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [isFileUploadFlow, setIsFileUploadFlow] = useState(false);
   const [showCompressionBox, setShowCompressionBox] = useState(false);
@@ -161,6 +164,8 @@ export default function App() {
           }
         } else {
           setIsDesktopMenuOpen(false);
+          setIsMobileMenuOpen(false);
+          setIsMobileAccountModalOpen(false);
         }
       }
     });
@@ -192,14 +197,29 @@ export default function App() {
     };
   }, []);
 
+  const handleSignOut = async () => {
+    if (supabase) {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    }
+    setAuthUser(null);
+    setIsDesktopMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    setIsMobileAccountModalOpen(false);
+  };
+
   useEffect(() => {
-    if (!isAuthOpen && !isDesktopMenuOpen) return;
+    if (!isAuthOpen && !isDesktopMenuOpen && !isMobileMenuOpen && !isMobileAccountModalOpen) {
+      return;
+    }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
         if (isAuthOpen) closeAuthFlow();
         if (isDesktopMenuOpen) setIsDesktopMenuOpen(false);
+        if (isMobileMenuOpen) setIsMobileMenuOpen(false);
+        if (isMobileAccountModalOpen) setIsMobileAccountModalOpen(false);
         return;
       }
 
@@ -217,7 +237,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAuthOpen, isDesktopMenuOpen]);
+  }, [isAuthOpen, isDesktopMenuOpen, isMobileMenuOpen, isMobileAccountModalOpen]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1019,13 +1039,20 @@ export default function App() {
             <SearchLinkLogo onDarkBackground="desktop" />
           </div>
 
-          {/* Mobile top-right guest sketch or authenticated avatar (no menu yet) */}
+          {/* Mobile top-right guest sketch or interactive authenticated avatar */}
           <div className="flex items-center justify-end lg:hidden">
             <GuestAvatarSketch
               variant="light"
-              expanded={isAuthOpen && !authUser}
+              expanded={authUser ? isMobileMenuOpen : isAuthOpen}
               user={authUser}
-              onClick={openAuthFlow}
+              interactiveWhenSignedIn
+              onClick={() => {
+                if (authUser) {
+                  setIsMobileMenuOpen((prev) => !prev);
+                } else {
+                  openAuthFlow();
+                }
+              }}
             />
           </div>
         </div>
@@ -1202,11 +1229,28 @@ export default function App() {
       />
       </div>
 
-      {/* Desktop-only 25% push-docked right menu (no backdrop dimming on left workspace) */}
-      <DesktopAccountMenu
-        open={isDesktopMenuOpen && Boolean(authUser)}
-        onClose={() => setIsDesktopMenuOpen(false)}
-      />
+      {/* Desktop-only push-docked right menu (expands 25% -> 50% rounded on account view) */}
+      {authUser && (
+        <DesktopAccountMenu
+          open={isDesktopMenuOpen}
+          user={authUser}
+          onClose={() => setIsDesktopMenuOpen(false)}
+          onSignOut={handleSignOut}
+        />
+      )}
+
+      {/* Mobile-only slim right menu + centered Google account modal */}
+      {authUser && (
+        <MobileAccountMenu
+          menuOpen={isMobileMenuOpen}
+          accountModalOpen={isMobileAccountModalOpen}
+          user={authUser}
+          onCloseMenu={() => setIsMobileMenuOpen(false)}
+          onOpenAccountModal={() => setIsMobileAccountModalOpen(true)}
+          onCloseAccountModal={() => setIsMobileAccountModalOpen(false)}
+          onSignOut={handleSignOut}
+        />
+      )}
 
       {/* Auth view: independent /login full-screen on mobile, right half drawer on desktop */}
       <AuthDrawer
