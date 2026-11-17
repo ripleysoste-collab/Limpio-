@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AnimatePresence,
   motion,
@@ -21,6 +21,11 @@ import {
 } from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
 import type { MappedImageMetadata } from '../lib/imageCompression';
+import {
+  generateAndDownloadCatalogPdf,
+  type CatalogPdfExportKind,
+} from '../lib/pdfExport';
+import { MobileJsonEditorModal } from './MobileJsonEditorModal';
 
 export type ImageCompressionStatus =
   | 'pending'
@@ -119,12 +124,15 @@ export function MobileCatalogCarousel({
   const viewApiCardRef = useRef<HTMLDivElement>(null);
   const [activeCard, setActiveCard] = useState<0 | 1 | 2>(0);
   const [activeCompressionCard, setActiveCompressionCard] = useState<
-    0 | 1 | 2 | 3 | 4 | 5 | 6
+    0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
   >(0);
   const [showLifecycleBox, setShowLifecycleBox] = useState(
     Boolean(isReadOnlyReplay),
   );
   const [showViewApiBox, setShowViewApiBox] = useState(Boolean(isReadOnlyReplay));
+  const [exportingPdfKind, setExportingPdfKind] =
+    useState<CatalogPdfExportKind | null>(null);
+  const [isJsonEditorOpen, setIsJsonEditorOpen] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
   const [expandedMappedIds, setExpandedMappedIds] = useState<Record<string, boolean>>({});
@@ -495,7 +503,7 @@ export function MobileCatalogCarousel({
     const maxScroll = el.scrollWidth - el.clientWidth;
     if (maxScroll <= 0) return;
     const totalSteps = showViewApiBox
-      ? 6
+      ? 7
       : showLifecycleBox
         ? 5
         : showMapBox
@@ -509,7 +517,43 @@ export function MobileCatalogCarousel({
       totalSteps,
       Math.max(0, Math.round((el.scrollLeft / maxScroll) * totalSteps)),
     );
-    setActiveCompressionCard(index as 0 | 1 | 2 | 3 | 4 | 5 | 6);
+    setActiveCompressionCard(index as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7);
+  };
+
+  const fullMappedJsonText = useMemo(() => {
+    const payload = images.map((item) => {
+      const mapped = mappedResults[item.id];
+      const compressed = compressionResults[item.id];
+      const bestUrl =
+        compressed?.url ||
+        mapped?.url ||
+        item.sourcePageUrl ||
+        (!item.url.startsWith('blob:') ? item.url : '') ||
+        item.cleanUrl ||
+        item.url;
+      return {
+        nombre: mapped?.nombre || item.alt || 'Producto',
+        categoria: mapped?.categoria || 'General',
+        descripcion: mapped?.descripcion || '',
+        url: bestUrl,
+      };
+    });
+    return JSON.stringify(payload, null, 2);
+  }, [images, mappedResults, compressionResults]);
+
+  const handleExportPdf = async (kind: CatalogPdfExportKind) => {
+    if (exportingPdfKind) return;
+    setExportingPdfKind(kind);
+    try {
+      await generateAndDownloadCatalogPdf({
+        kind,
+        images,
+        mappedResults,
+        compressionResults,
+      });
+    } finally {
+      setExportingPdfKind(null);
+    }
   };
 
   const mobileCols = images.length <= 1 ? 1 : images.length <= 4 ? 2 : 3;
@@ -1291,6 +1335,67 @@ export function MobileCatalogCarousel({
                       </section>
                     </motion.div>
                   )}
+
+                  {/* Card 8: "Productividad" box — sits right next to "Ver tu API" for swipe access (no auto-scroll) */}
+                  {showViewApiBox && (
+                    <motion.div
+                      initial={shouldReduceMotion ? false : { opacity: 0, x: 24, scale: 0.97 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                      className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
+                    >
+                      <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
+                        Productividad
+                      </h2>
+
+                      <section
+                        aria-label="Productividad"
+                        className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] px-4 py-3 flex flex-col justify-center overflow-y-auto"
+                      >
+                        <ul className="divide-y divide-slate-100/90">
+                          {(
+                            [
+                              { kind: 'json', label: 'Descargar mapeo JSON' },
+                              { kind: 'images', label: 'Descargar imágenes' },
+                              { kind: 'urls', label: 'Descargar URLs' },
+                              { kind: 'metadata', label: 'Descargar metadatos' },
+                              { kind: 'all', label: 'Descargar todo' },
+                            ] as const
+                          ).map((action) => {
+                            const isGenerating = exportingPdfKind === action.kind;
+                            return (
+                              <li key={action.kind}>
+                                <button
+                                  type="button"
+                                  disabled={exportingPdfKind !== null}
+                                  onClick={() => void handleExportPdf(action.kind)}
+                                  className="w-full py-2 text-left text-[13px] font-semibold text-rose-600 active:opacity-65 transition-opacity cursor-pointer flex items-center justify-between gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:underline"
+                                >
+                                  <span>{action.label}</span>
+                                  {isGenerating && (
+                                    <Loader2
+                                      className="w-3.5 h-3.5 animate-spin text-rose-500 shrink-0"
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                </button>
+                              </li>
+                            );
+                          })}
+
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() => setIsJsonEditorOpen(true)}
+                              className="w-full py-2 text-left text-[13px] font-semibold text-rose-600 active:opacity-65 transition-opacity cursor-pointer focus-visible:outline-none focus-visible:underline"
+                            >
+                              Ver en editor
+                            </button>
+                          </li>
+                        </ul>
+                      </section>
+                    </motion.div>
+                  )}
                 </div>
               </div>
 
@@ -1300,7 +1405,7 @@ export function MobileCatalogCarousel({
                 className="flex items-center justify-center gap-1.5 mt-0.5"
               >
                 {(showViewApiBox
-                  ? [0, 1, 2, 3, 4, 5, 6]
+                  ? [0, 1, 2, 3, 4, 5, 6, 7]
                   : showLifecycleBox
                     ? [0, 1, 2, 3, 4, 5]
                     : showMapBox
@@ -1634,6 +1739,16 @@ export function MobileCatalogCarousel({
             item={fullscreenImage}
             reduceMotion={Boolean(shouldReduceMotion)}
             onClose={() => setFullscreenImage(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Mobile fullscreen read-only syntax-highlighted JSON code editor */}
+      <AnimatePresence>
+        {isJsonEditorOpen && (
+          <MobileJsonEditorModal
+            jsonText={fullMappedJsonText}
+            onClose={() => setIsJsonEditorOpen(false)}
           />
         )}
       </AnimatePresence>
