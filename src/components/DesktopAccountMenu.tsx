@@ -10,7 +10,7 @@ interface DesktopAccountMenuProps {
   onSignOut: () => Promise<void>;
 }
 
-type DesktopMenuView = 'menu' | 'google-account';
+type DesktopMenuView = 'menu' | 'google-account' | 'panel';
 
 function formatCreationDateEs(isoDate?: string): string {
   if (!isoDate) return 'Fecha no disponible';
@@ -72,7 +72,13 @@ export function DesktopAccountMenu({
     }
   }, [open]);
 
-  const isExpandedAccount = view === 'google-account';
+  const isExpandedPanelView = view === 'google-account' || view === 'panel';
+  const topTitle =
+    view === 'google-account'
+      ? 'Tu cuenta de Google'
+      : view === 'panel'
+        ? 'Panel'
+        : 'Cuenta';
 
   const handleConfirmSignOut = async () => {
     if (signingOut) return;
@@ -90,7 +96,13 @@ export function DesktopAccountMenu({
     <AnimatePresence initial={false}>
       {open && (
         <motion.aside
-          aria-label={isExpandedAccount ? 'Detalles de tu cuenta de Google' : 'Menú de cuenta'}
+          aria-label={
+            view === 'google-account'
+              ? 'Detalles de tu cuenta de Google'
+              : view === 'panel'
+                ? 'Panel'
+                : 'Menú de cuenta'
+          }
           initial={
             shouldReduceMotion
               ? { opacity: 0 }
@@ -105,10 +117,10 @@ export function DesktopAccountMenu({
             shouldReduceMotion
               ? { opacity: 1 }
               : {
-                  width: isExpandedAccount ? '50%' : '25%',
+                  width: isExpandedPanelView ? '50%' : '25%',
                   opacity: 1,
-                  borderTopLeftRadius: isExpandedAccount ? 28 : 0,
-                  borderBottomLeftRadius: isExpandedAccount ? 28 : 0,
+                  borderTopLeftRadius: isExpandedPanelView ? 28 : 0,
+                  borderBottomLeftRadius: isExpandedPanelView ? 28 : 0,
                 }
           }
           exit={
@@ -132,7 +144,7 @@ export function DesktopAccountMenu({
             {/* Top bar */}
             <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-slate-200/75 shrink-0">
               <div className="flex items-center gap-2.5 min-w-0">
-                {isExpandedAccount && (
+                {isExpandedPanelView && (
                   <button
                     type="button"
                     onClick={() => {
@@ -147,7 +159,7 @@ export function DesktopAccountMenu({
                   </button>
                 )}
                 <span className="text-sm font-semibold tracking-tight text-slate-950 truncate">
-                  {isExpandedAccount ? 'Tu cuenta de Google' : 'Cuenta'}
+                  {topTitle}
                 </span>
               </div>
 
@@ -182,8 +194,30 @@ export function DesktopAccountMenu({
                         Tu cuenta de Google
                       </button>
                     </li>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => setView('panel')}
+                        className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors duration-150 focus-visible:outline-none focus-visible:text-slate-950 cursor-pointer"
+                      >
+                        Panel
+                      </button>
+                    </li>
                   </ul>
                 </motion.nav>
+              ) : view === 'panel' ? (
+                <motion.div
+                  key="desktop-panel-view"
+                  initial={shouldReduceMotion ? undefined : { opacity: 0, x: 14 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={shouldReduceMotion ? undefined : { opacity: 0, x: 14 }}
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex-1 flex items-center justify-center px-8 py-10"
+                >
+                  <p className="text-sm font-medium text-slate-400 tracking-tight">
+                    En creación
+                  </p>
+                </motion.div>
               ) : (
                 <motion.div
                   key="desktop-google-account-view"

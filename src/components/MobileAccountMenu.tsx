@@ -6,10 +6,13 @@ import { Calendar, Loader2, Mail, User as UserIcon, X } from 'lucide-react';
 interface MobileAccountMenuProps {
   menuOpen: boolean;
   accountModalOpen: boolean;
+  panelOpen: boolean;
   user: User;
   onCloseMenu: () => void;
   onOpenAccountModal: () => void;
   onCloseAccountModal: () => void;
+  onOpenPanel: () => void;
+  onClosePanel: () => void;
   onSignOut: () => Promise<void>;
 }
 
@@ -48,10 +51,13 @@ function getUserDisplayInfo(user: User) {
 export function MobileAccountMenu({
   menuOpen,
   accountModalOpen,
+  panelOpen,
   user,
   onCloseMenu,
   onOpenAccountModal,
   onCloseAccountModal,
+  onOpenPanel,
+  onClosePanel,
   onSignOut,
 }: MobileAccountMenuProps) {
   const shouldReduceMotion = useReducedMotion();
@@ -144,6 +150,18 @@ export function MobileAccountMenu({
                       className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors cursor-pointer"
                     >
                       Tu cuenta de Google
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onCloseMenu();
+                        onOpenPanel();
+                      }}
+                      className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors cursor-pointer"
+                    >
+                      Panel
                     </button>
                   </li>
                 </ul>
@@ -364,6 +382,42 @@ export function MobileAccountMenu({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* 3. Mobile full-screen Panel view with top-right X to exit */}
+      <AnimatePresence>
+        {panelOpen && (
+          <motion.section
+            role="dialog"
+            aria-modal="true"
+            aria-label="Panel"
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-50 lg:hidden bg-white flex flex-col"
+          >
+            <header className="flex items-center justify-between px-5 pt-4 pb-3.5 border-b border-slate-200/80 shrink-0">
+              <span className="text-base font-semibold tracking-tight text-slate-950">
+                Panel
+              </span>
+              <button
+                type="button"
+                onClick={onClosePanel}
+                aria-label="Cerrar panel"
+                className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100/90 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </header>
+
+            <div className="flex-1 flex items-center justify-center px-6 py-10">
+              <p className="text-sm font-medium text-slate-400 tracking-tight">
+                En creación
+              </p>
+            </div>
+          </motion.section>
         )}
       </AnimatePresence>
     </>

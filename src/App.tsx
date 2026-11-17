@@ -66,6 +66,7 @@ export default function App() {
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileAccountModalOpen, setIsMobileAccountModalOpen] = useState(false);
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [isFileUploadFlow, setIsFileUploadFlow] = useState(false);
   const [showCompressionBox, setShowCompressionBox] = useState(false);
@@ -166,6 +167,7 @@ export default function App() {
           setIsDesktopMenuOpen(false);
           setIsMobileMenuOpen(false);
           setIsMobileAccountModalOpen(false);
+          setIsMobilePanelOpen(false);
         }
       }
     });
@@ -206,10 +208,17 @@ export default function App() {
     setIsDesktopMenuOpen(false);
     setIsMobileMenuOpen(false);
     setIsMobileAccountModalOpen(false);
+    setIsMobilePanelOpen(false);
   };
 
   useEffect(() => {
-    if (!isAuthOpen && !isDesktopMenuOpen && !isMobileMenuOpen && !isMobileAccountModalOpen) {
+    if (
+      !isAuthOpen &&
+      !isDesktopMenuOpen &&
+      !isMobileMenuOpen &&
+      !isMobileAccountModalOpen &&
+      !isMobilePanelOpen
+    ) {
       return;
     }
 
@@ -220,6 +229,7 @@ export default function App() {
         if (isDesktopMenuOpen) setIsDesktopMenuOpen(false);
         if (isMobileMenuOpen) setIsMobileMenuOpen(false);
         if (isMobileAccountModalOpen) setIsMobileAccountModalOpen(false);
+        if (isMobilePanelOpen) setIsMobilePanelOpen(false);
         return;
       }
 
@@ -237,7 +247,13 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAuthOpen, isDesktopMenuOpen, isMobileMenuOpen, isMobileAccountModalOpen]);
+  }, [
+    isAuthOpen,
+    isDesktopMenuOpen,
+    isMobileMenuOpen,
+    isMobileAccountModalOpen,
+    isMobilePanelOpen,
+  ]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1239,15 +1255,18 @@ export default function App() {
         />
       )}
 
-      {/* Mobile-only slim right menu + centered Google account modal */}
+      {/* Mobile-only slim right menu + centered Google account modal + full-screen Panel */}
       {authUser && (
         <MobileAccountMenu
           menuOpen={isMobileMenuOpen}
           accountModalOpen={isMobileAccountModalOpen}
+          panelOpen={isMobilePanelOpen}
           user={authUser}
           onCloseMenu={() => setIsMobileMenuOpen(false)}
           onOpenAccountModal={() => setIsMobileAccountModalOpen(true)}
           onCloseAccountModal={() => setIsMobileAccountModalOpen(false)}
+          onOpenPanel={() => setIsMobilePanelOpen(true)}
+          onClosePanel={() => setIsMobilePanelOpen(false)}
           onSignOut={handleSignOut}
         />
       )}
