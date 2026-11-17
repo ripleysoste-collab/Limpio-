@@ -1,13 +1,24 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { User } from '@supabase/supabase-js';
-import { Calendar, Loader2, Mail, User as UserIcon, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Loader2, Mail, User as UserIcon, X } from 'lucide-react';
+import type {
+  OrganizationProfile,
+  OrganizationServiceItem,
+} from './DesktopOrganizationView';
+import { MobileOrganizationView } from './MobileOrganizationView';
+import { MobileStoreView } from './MobileStoreView';
 
 interface MobileAccountMenuProps {
   menuOpen: boolean;
   accountModalOpen: boolean;
   panelOpen: boolean;
   user: User;
+  orgProfile: OrganizationProfile;
+  services: OrganizationServiceItem[];
+  onSaveOrgProfile: (next: OrganizationProfile) => void;
+  onRenameService: (serviceId: string, nextName: string) => void;
+  onNewProduct: () => void;
   onCloseMenu: () => void;
   onOpenAccountModal: () => void;
   onCloseAccountModal: () => void;
@@ -53,6 +64,11 @@ export function MobileAccountMenu({
   accountModalOpen,
   panelOpen,
   user,
+  orgProfile,
+  services,
+  onSaveOrgProfile,
+  onRenameService,
+  onNewProduct,
   onCloseMenu,
   onOpenAccountModal,
   onCloseAccountModal,
@@ -65,12 +81,28 @@ export function MobileAccountMenu({
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
+  const [panelSubView, setPanelSubView] = useState<'organization' | 'store'>(
+    'organization',
+  );
+  const [selectedStoreServiceId, setSelectedStoreServiceId] = useState<string | null>(
+    null,
+  );
 
   const info = getUserDisplayInfo(user);
+
+  const selectedStoreService =
+    services.find((srv) => srv.id === selectedStoreServiceId) ?? services[0] ?? null;
 
   useEffect(() => {
     setImgFailed(false);
   }, [info.photoUrl]);
+
+  useEffect(() => {
+    if (!panelOpen) {
+      setPanelSubView('organization');
+      setSelectedStoreServiceId(null);
+    }
+  }, [panelOpen]);
 
   useEffect(() => {
     if (!accountModalOpen) {
@@ -385,38 +417,69 @@ export function MobileAccountMenu({
         )}
       </AnimatePresence>
 
-      {/* 3. Mobile full-screen Panel view with top-right X to exit */}
+      {/* 3. Mobile full-screen Organización & Mi tienda flow */}
       <AnimatePresence>
         {panelOpen && (
           <motion.section
             role="dialog"
             aria-modal="true"
-            aria-label="Organización"
+            aria-label={panelSubView === 'store' ? 'Mi tienda' : 'Organización'}
             initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-0 z-50 lg:hidden bg-white flex flex-col"
           >
-            <header className="flex items-center justify-between px-5 pt-4 pb-3.5 border-b border-slate-200/80 shrink-0">
-              <span className="text-base font-semibold tracking-tight text-slate-950">
-                Organización
-              </span>
+            <header className="flex items-center justify-between px-4 pt-3.5 pb-3 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm shrink-0 z-20">
+              <div className="flex items-center gap-2 min-w-0">
+                {panelSubView === 'store' && (
+                  <button
+                    type="button"
+                    onClick={() => setPanelSubView('organization')}
+                    aria-label="Volver a Organización"
+                    className="w-8 h-8 -ml-1 rounded-full flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100/90 transition-colors cursor-pointer shrink-0"
+                  >
+                    <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+                  </button>
+                )}
+                <span className="text-[15px] font-semibold tracking-tight text-slate-950 truncate">
+                  {panelSubView === 'store' ? 'Mi tienda' : 'Organización'}
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={onClosePanel}
-                aria-label="Cerrar organización"
-                className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100/90 transition-colors cursor-pointer"
+                aria-label={
+                  panelSubView === 'store' ? 'Cerrar tienda' : 'Cerrar organización'
+                }
+                className="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100/90 transition-colors cursor-pointer shrink-0"
               >
-                <X className="w-5 h-5" aria-hidden="true" />
+                <X className="w-4.5 h-4.5" aria-hidden="true" />
               </button>
             </header>
 
-            <div className="flex-1 flex items-center justify-center px-6 py-10">
-              <p className="text-sm font-medium text-slate-400 tracking-tight">
-                En creación
-              </p>
-            </div>
+            {panelSubView === 'store' && selectedStoreService ? (
+              <MobileStoreView
+                service={selectedStoreService}
+                organizationName={orgProfile.name}
+                organizationLogoUrl={orgProfile.logoUrl || info.photoUrl}
+              />
+            ) : (
+              <MobileOrganizationView
+                orgProfile={orgProfile}
+                googlePhotoUrl={info.photoUrl}
+                googleInitialLetter={info.initialLetter}
+                services={services}
+                onSaveOrgProfile={onSaveOrgProfile}
+                onRenameService={onRenameService}
+                onNewProduct={onNewProduct}
+                onOpenStore={(service) => {
+                  setSelectedStoreServiceId(service.id);
+                  setPanelSubView('store');
+                }}
+              />
+            )}
           </motion.section>
         )}
       </AnimatePresence>

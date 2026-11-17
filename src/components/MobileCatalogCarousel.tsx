@@ -55,6 +55,7 @@ interface MobileCatalogCarouselProps {
   mapStatuses?: Record<string, ImageMapStatus>;
   mappedResults?: Record<string, MappedImageMetadata>;
   compressionResults?: Record<string, CompressedImageMeta>;
+  onOpenOrganization?: () => void;
 }
 
 const SEARCH_LINK_BENEFITS = [
@@ -104,6 +105,7 @@ export function MobileCatalogCarousel({
   mapStatuses = {},
   mappedResults = {},
   compressionResults = {},
+  onOpenOrganization,
 }: MobileCatalogCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const compressionScrollRef = useRef<HTMLDivElement>(null);
@@ -412,6 +414,18 @@ export function MobileCatalogCarousel({
 
     return () => window.clearTimeout(scrollTimer);
   }, [showLifecycleBox, showViewApiBox, mergeStage, shouldReduceMotion]);
+
+  useEffect(() => {
+    if (!showLifecycleBox || showViewApiBox) {
+      return;
+    }
+
+    const autoAdvanceTimer = window.setTimeout(() => {
+      setShowViewApiBox(true);
+    }, 2000);
+
+    return () => window.clearTimeout(autoAdvanceTimer);
+  }, [showLifecycleBox, showViewApiBox]);
 
   const scrollToViewApiCard = () => {
     const container = compressionScrollRef.current;
@@ -1140,13 +1154,13 @@ export function MobileCatalogCarousel({
                           en nuestro R2, listas para conectar tu chatbot y página.
                         </p>
 
-                        <div className="pt-3 border-t border-slate-200/75 flex flex-col gap-2">
+                        <div className="pt-3 border-t border-slate-200/75 flex flex-col gap-1.5">
                           <button
                             type="button"
                             onClick={handleOpenViewApi}
                             className="w-full py-1.5 text-left text-[13px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-75 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
                           >
-                            Generar tu API
+                            APIs generadas
                           </button>
 
                           <button
@@ -1154,14 +1168,14 @@ export function MobileCatalogCarousel({
                             onClick={handleOpenViewApi}
                             className="w-full py-1.5 text-left text-[13px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-75 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
                           >
-                            Generar tu endpoint
+                            Endpoint generado
                           </button>
                         </div>
                       </section>
                     </motion.div>
                   )}
 
-                  {/* Card 7: "Ver tu API" box — opens when user taps Generar tu API or Generar tu endpoint */}
+                  {/* Card 7: "Ver tu API" box — opens automatically 2s after Ciclo de vida */}
                   {showViewApiBox && (
                     <motion.div
                       ref={viewApiCardRef}
@@ -1183,12 +1197,12 @@ export function MobileCatalogCarousel({
                             Tus credenciales listas
                           </p>
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                            Toca el ícono al final de cada fila para copiar tu API o endpoint.
+                            Toca el ícono al final para copiar tu API o endpoint.
                           </p>
                         </div>
 
                         <div className="rounded-2xl border border-slate-200/85 bg-slate-50/75 divide-y divide-slate-200/75">
-                          <div className="h-11 px-3 flex items-center justify-between gap-2.5">
+                          <div className="h-10 px-3 flex items-center justify-between gap-2.5">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <span
                                 aria-hidden="true"
@@ -1205,11 +1219,11 @@ export function MobileCatalogCarousel({
                                 void handleCopyMetadataUrl('mobile-api', 'api/1245')
                               }
                               aria-label="Copiar API"
-                              className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer"
+                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer"
                             >
                               {copiedMetadataId === 'mobile-api' ? (
                                 <Check
-                                  className="w-4 h-4 text-emerald-600 stroke-[2.75]"
+                                  className="w-3.5 h-3.5 text-emerald-600 stroke-[2.75]"
                                   aria-hidden="true"
                                 />
                               ) : (
@@ -1218,7 +1232,7 @@ export function MobileCatalogCarousel({
                             </button>
                           </div>
 
-                          <div className="h-11 px-3 flex items-center justify-between gap-2.5">
+                          <div className="h-10 px-3 flex items-center justify-between gap-2.5">
                             <div className="flex items-center gap-2.5 min-w-0">
                               <span
                                 aria-hidden="true"
@@ -1235,11 +1249,11 @@ export function MobileCatalogCarousel({
                                 void handleCopyMetadataUrl('mobile-endpoint', 'http/1245')
                               }
                               aria-label="Copiar endpoint"
-                              className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer"
+                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer"
                             >
                               {copiedMetadataId === 'mobile-endpoint' ? (
                                 <Check
-                                  className="w-4 h-4 text-emerald-600 stroke-[2.75]"
+                                  className="w-3.5 h-3.5 text-emerald-600 stroke-[2.75]"
                                   aria-hidden="true"
                                 />
                               ) : (
@@ -1248,6 +1262,16 @@ export function MobileCatalogCarousel({
                             </button>
                           </div>
                         </div>
+
+                        {onOpenOrganization && (
+                          <button
+                            type="button"
+                            onClick={onOpenOrganization}
+                            className="w-full pt-1 text-left text-[12.5px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-75 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
+                          >
+                            Ver tu organización
+                          </button>
+                        )}
                       </section>
                     </motion.div>
                   )}

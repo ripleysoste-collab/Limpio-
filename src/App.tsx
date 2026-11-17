@@ -210,6 +210,9 @@ export default function App() {
     extractAbortRef.current?.abort();
     cancelOngoingCompression();
     setIsDesktopMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    setIsMobileAccountModalOpen(false);
+    setIsMobilePanelOpen(false);
     setIsExtracting(false);
     setExtractError(null);
     setBatchNotice(null);
@@ -1396,6 +1399,13 @@ export default function App() {
         mapStatuses={mapStatuses}
         mappedResults={mappedResults}
         compressionResults={compressionResults}
+        onOpenOrganization={() => {
+          if (authUser) {
+            setIsMobilePanelOpen(true);
+          } else {
+            openAuthFlow();
+          }
+        }}
       />
       </div>
 
@@ -1414,13 +1424,18 @@ export default function App() {
         />
       )}
 
-      {/* Mobile-only slim right menu + centered Google account modal + full-screen Panel */}
+      {/* Mobile-only slim right menu + centered Google account modal + full-screen Organización & Mi tienda */}
       {authUser && (
         <MobileAccountMenu
           menuOpen={isMobileMenuOpen}
           accountModalOpen={isMobileAccountModalOpen}
           panelOpen={isMobilePanelOpen}
           user={authUser}
+          orgProfile={orgProfile}
+          services={orgServices}
+          onSaveOrgProfile={handleSaveOrgProfile}
+          onRenameService={handleRenameService}
+          onNewProduct={handleStartNewProduct}
           onCloseMenu={() => setIsMobileMenuOpen(false)}
           onOpenAccountModal={() => setIsMobileAccountModalOpen(true)}
           onCloseAccountModal={() => setIsMobileAccountModalOpen(false)}
