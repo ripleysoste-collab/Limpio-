@@ -161,7 +161,7 @@ export function MobileAccountMenu({
                       }}
                       className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors cursor-pointer"
                     >
-                      Panel
+                      Organización
                     </button>
                   </li>
                 </ul>
@@ -391,7 +391,7 @@ export function MobileAccountMenu({
           <motion.section
             role="dialog"
             aria-modal="true"
-            aria-label="Panel"
+            aria-label="Organización"
             initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
@@ -400,12 +400,12 @@ export function MobileAccountMenu({
           >
             <header className="flex items-center justify-between px-5 pt-4 pb-3.5 border-b border-slate-200/80 shrink-0">
               <span className="text-base font-semibold tracking-tight text-slate-950">
-                Panel
+                Organización
               </span>
               <button
                 type="button"
                 onClick={onClosePanel}
-                aria-label="Cerrar panel"
+                aria-label="Cerrar organización"
                 className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100/90 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" aria-hidden="true" />

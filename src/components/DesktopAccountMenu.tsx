@@ -3,14 +3,25 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { User } from '@supabase/supabase-js';
 import { ArrowLeft, Calendar, Loader2, Mail, User as UserIcon, X } from 'lucide-react';
 
+import {
+  DesktopOrganizationView,
+  type OrganizationProfile,
+  type OrganizationServiceItem,
+} from './DesktopOrganizationView';
+
 interface DesktopAccountMenuProps {
   open: boolean;
   user: User;
+  orgProfile: OrganizationProfile;
+  services: OrganizationServiceItem[];
+  onSaveOrgProfile: (next: OrganizationProfile) => void;
+  onRenameService: (serviceId: string, nextName: string) => void;
+  onNewProduct: () => void;
   onClose: () => void;
   onSignOut: () => Promise<void>;
 }
 
-type DesktopMenuView = 'menu' | 'google-account' | 'panel';
+type DesktopMenuView = 'menu' | 'google-account' | 'organization';
 
 function formatCreationDateEs(isoDate?: string): string {
   if (!isoDate) return 'Fecha no disponible';
@@ -47,6 +58,11 @@ function getUserDisplayInfo(user: User) {
 export function DesktopAccountMenu({
   open,
   user,
+  orgProfile,
+  services,
+  onSaveOrgProfile,
+  onRenameService,
+  onNewProduct,
   onClose,
   onSignOut,
 }: DesktopAccountMenuProps) {
@@ -72,12 +88,12 @@ export function DesktopAccountMenu({
     }
   }, [open]);
 
-  const isExpandedPanelView = view === 'google-account' || view === 'panel';
+  const isExpandedPanelView = view === 'google-account' || view === 'organization';
   const topTitle =
     view === 'google-account'
       ? 'Tu cuenta de Google'
-      : view === 'panel'
-        ? 'Panel'
+      : view === 'organization'
+        ? 'Organización'
         : 'Cuenta';
 
   const handleConfirmSignOut = async () => {
@@ -99,8 +115,8 @@ export function DesktopAccountMenu({
           aria-label={
             view === 'google-account'
               ? 'Detalles de tu cuenta de Google'
-              : view === 'panel'
-                ? 'Panel'
+              : view === 'organization'
+                ? 'Organización'
                 : 'Menú de cuenta'
           }
           initial={
@@ -197,26 +213,32 @@ export function DesktopAccountMenu({
                     <li>
                       <button
                         type="button"
-                        onClick={() => setView('panel')}
+                        onClick={() => setView('organization')}
                         className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors duration-150 focus-visible:outline-none focus-visible:text-slate-950 cursor-pointer"
                       >
-                        Panel
+                        Organización
                       </button>
                     </li>
                   </ul>
                 </motion.nav>
-              ) : view === 'panel' ? (
+              ) : view === 'organization' ? (
                 <motion.div
-                  key="desktop-panel-view"
+                  key="desktop-organization-view"
                   initial={shouldReduceMotion ? undefined : { opacity: 0, x: 14 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={shouldReduceMotion ? undefined : { opacity: 0, x: 14 }}
                   transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                  className="flex-1 flex items-center justify-center px-8 py-10"
+                  className="flex-1 min-h-0 flex flex-col"
                 >
-                  <p className="text-sm font-medium text-slate-400 tracking-tight">
-                    En creación
-                  </p>
+                  <DesktopOrganizationView
+                    orgProfile={orgProfile}
+                    googlePhotoUrl={info.photoUrl}
+                    googleInitialLetter={info.initialLetter}
+                    services={services}
+                    onSaveOrgProfile={onSaveOrgProfile}
+                    onRenameService={onRenameService}
+                    onNewProduct={onNewProduct}
+                  />
                 </motion.div>
               ) : (
                 <motion.div

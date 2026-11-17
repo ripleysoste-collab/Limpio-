@@ -5,6 +5,10 @@ import { Link2, Loader2, Upload, X } from 'lucide-react';
 import desktopDesertBg from './assets/images/bg_desert_desktop_1794853953945.jpg';
 import { AuthDrawer } from './components/AuthDrawer';
 import { DesktopAccountMenu } from './components/DesktopAccountMenu';
+import type {
+  OrganizationProfile,
+  OrganizationServiceItem,
+} from './components/DesktopOrganizationView';
 import { DualCatalogShowcase } from './components/DualCatalogShowcase';
 import { MobileAccountMenu } from './components/MobileAccountMenu';
 import {
@@ -94,6 +98,12 @@ export default function App() {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [pendingSaveBatch, setPendingSaveBatch] =
     useState<SaveCatalogBatchInput | null>(null);
+  const [orgProfile, setOrgProfile] = useState<OrganizationProfile>({
+    name: 'Sin nombre',
+    logoUrl: null,
+    hasCompletedSetup: false,
+  });
+  const [orgServices, setOrgServices] = useState<OrganizationServiceItem[]>([]);
   const authUserRef = useRef<User | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +125,113 @@ export default function App() {
   useEffect(() => {
     authUserRef.current = authUser;
   }, [authUser]);
+
+  useEffect(() => {
+    if (!authUser) {
+      setOrgProfile({
+        name: 'Sin nombre',
+        logoUrl: null,
+        hasCompletedSetup: false,
+      });
+      setOrgServices([]);
+      return;
+    }
+
+    try {
+      const savedOrg = window.localStorage.getItem(`searchlink_org_${authUser.id}`);
+      if (savedOrg) {
+        const parsed = JSON.parse(savedOrg) as Partial<OrganizationProfile>;
+        setOrgProfile({
+          name: typeof parsed.name === 'string' && parsed.name ? parsed.name : 'Sin nombre',
+          logoUrl: typeof parsed.logoUrl === 'string' ? parsed.logoUrl : null,
+          hasCompletedSetup: Boolean(parsed.hasCompletedSetup),
+        });
+      } else {
+        setOrgProfile({
+          name: 'Sin nombre',
+          logoUrl: null,
+          hasCompletedSetup: false,
+        });
+      }
+
+      const savedServices = window.localStorage.getItem(
+        `searchlink_services_${authUser.id}`,
+      );
+      if (savedServices) {
+        const parsedServices = JSON.parse(savedServices) as OrganizationServiceItem[];
+        setOrgServices(Array.isArray(parsedServices) ? parsedServices : []);
+      } else {
+        setOrgServices([]);
+      }
+    } catch {
+      setOrgProfile({
+        name: 'Sin nombre',
+        logoUrl: null,
+        hasCompletedSetup: false,
+      });
+      setOrgServices([]);
+    }
+  }, [authUser]);
+
+  const handleSaveOrgProfile = (next: OrganizationProfile) => {
+    setOrgProfile(next);
+    if (authUserRef.current) {
+      try {
+        window.localStorage.setItem(
+          `searchlink_org_${authUserRef.current.id}`,
+          JSON.stringify(next),
+        );
+      } catch {
+        // Ignore storage quota errors cleanly
+      }
+    }
+  };
+
+  const handleRenameService = (serviceId: string, nextName: string) => {
+    setOrgServices((prev) => {
+      const updated = prev.map((srv) =>
+        srv.id === serviceId ? { ...srv, name: nextName } : srv,
+      );
+      if (authUserRef.current) {
+        try {
+          window.localStorage.setItem(
+            `searchlink_services_${authUserRef.current.id}`,
+            JSON.stringify(updated),
+          );
+        } catch {
+          // Ignore storage quota errors
+        }
+      }
+      return updated;
+    });
+  };
+
+  const handleStartNewProduct = () => {
+    extractAbortRef.current?.abort();
+    cancelOngoingCompression();
+    setIsDesktopMenuOpen(false);
+    setIsExtracting(false);
+    setExtractError(null);
+    setBatchNotice(null);
+    setUrl('');
+    setHasSearched(false);
+    setIsFileUploadFlow(false);
+    setShowCompressionBox(false);
+    setShowUploadBox(false);
+    setShowReceiveBox(false);
+    setShowMapBox(false);
+    setCompressionStatuses({});
+    setUploadStatuses({});
+    setReceiveStatuses({});
+    setMapStatuses({});
+    setMappedResults({});
+    setCompressionResults({});
+    setCatalogImages(CATALOG_SAMPLE_IMAGES);
+    setCatalogVersion((prev) => prev + 1);
+    window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 180);
+  };
 
   const openAuthFlow = () => {
     if (authUserRef.current) return;
@@ -747,6 +864,36 @@ export default function App() {
         }
 
         if (collectedMappedItems.length > 0 && !controller.signal.aborted) {
+          const firstProductName =
+            collectedMappedItems[0]?.nombre?.trim() || 'Producto';
+          const defaultServiceName = /^servicio\s+/i.test(firstProductName)
+            ? firstProductName
+            : `Servicio ${firstProductName}`;
+
+          const newService: OrganizationServiceItem = {
+            id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            name: defaultServiceName,
+            apiKey: 'api/1245',
+            endpointUrl: 'http/1245',
+            itemCount: collectedMappedItems.length,
+            createdAt: new Date().toISOString(),
+          };
+
+          setOrgServices((prev) => {
+            const updated = [newService, ...prev];
+            if (authUserRef.current) {
+              try {
+                window.localStorage.setItem(
+                  `searchlink_services_${authUserRef.current.id}`,
+                  JSON.stringify(updated),
+                );
+              } catch {
+                // Ignore storage quota errors
+              }
+            }
+            return updated;
+          });
+
           let batchTitle = `Catálogo (${collectedMappedItems.length} imágenes)`;
           if (originPageUrl) {
             try {
@@ -1245,11 +1392,16 @@ export default function App() {
       />
       </div>
 
-      {/* Desktop-only push-docked right menu (expands 25% -> 50% rounded on account view) */}
+      {/* Desktop-only push-docked right menu (expands 25% -> 50% rounded on account / organization views) */}
       {authUser && (
         <DesktopAccountMenu
           open={isDesktopMenuOpen}
           user={authUser}
+          orgProfile={orgProfile}
+          services={orgServices}
+          onSaveOrgProfile={handleSaveOrgProfile}
+          onRenameService={handleRenameService}
+          onNewProduct={handleStartNewProduct}
           onClose={() => setIsDesktopMenuOpen(false)}
           onSignOut={handleSignOut}
         />
