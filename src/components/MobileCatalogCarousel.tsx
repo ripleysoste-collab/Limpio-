@@ -1369,12 +1369,12 @@ export function MobileCatalogCarousel({
                                   type="button"
                                   disabled={exportingPdfKind !== null}
                                   onClick={() => void handleExportPdf(action.kind)}
-                                  className="w-full py-2 text-left text-[13px] font-semibold text-rose-600 active:opacity-65 transition-opacity cursor-pointer flex items-center justify-between gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:underline"
+                                  className="w-full py-2 text-left text-[13px] font-normal text-blue-600 active:opacity-65 transition-opacity cursor-pointer flex items-center justify-between gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:underline"
                                 >
                                   <span>{action.label}</span>
                                   {isGenerating && (
                                     <Loader2
-                                      className="w-3.5 h-3.5 animate-spin text-rose-500 shrink-0"
+                                      className="w-3.5 h-3.5 animate-spin text-blue-500 shrink-0"
                                       aria-hidden="true"
                                     />
                                   )}
@@ -1387,7 +1387,7 @@ export function MobileCatalogCarousel({
                             <button
                               type="button"
                               onClick={() => setIsJsonEditorOpen(true)}
-                              className="w-full py-2 text-left text-[13px] font-semibold text-rose-600 active:opacity-65 transition-opacity cursor-pointer focus-visible:outline-none focus-visible:underline"
+                              className="w-full py-2 text-left text-[13px] font-normal text-blue-600 active:opacity-65 transition-opacity cursor-pointer focus-visible:outline-none focus-visible:underline"
                             >
                               Ver en editor
                             </button>
