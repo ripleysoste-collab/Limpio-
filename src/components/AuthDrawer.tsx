@@ -48,6 +48,8 @@ export function AuthDrawer({
   onPendingBatchSaved,
 }: AuthDrawerProps) {
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsHighlight, setTermsHighlight] = useState(false);
   const [oauthFallbackUrl, setOauthFallbackUrl] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState<string | null>(null);
@@ -209,6 +211,15 @@ export function AuthDrawer({
   }, []);
 
   useEffect(() => {
+    if (!open) {
+      setAcceptedTerms(false);
+      setTermsHighlight(false);
+      setAuthError(null);
+      setAuthSuccess(null);
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (user) {
       setGoogleLoading(false);
       setOauthFallbackUrl(null);
@@ -216,6 +227,14 @@ export function AuthDrawer({
   }, [user]);
 
   const handleGoogleSignIn = async () => {
+    if (!acceptedTerms) {
+      setTermsHighlight(true);
+      setAuthError(
+        'Debes aceptar los Términos y Condiciones y la Política de Privacidad antes de continuar.',
+      );
+      return;
+    }
+
     if (!supabase) {
       setAuthError('Supabase no está configurado en el entorno.');
       return;
@@ -386,25 +405,25 @@ export function AuthDrawer({
     ? { opacity: 0 }
     : isDesktop
       ? { x: '100%' }
-      : { y: '100%' };
+      : { opacity: 0, y: 18 };
 
   const panelAnimate = shouldReduceMotion
     ? { opacity: 1 }
     : isDesktop
       ? { x: 0 }
-      : { y: 0 };
+      : { opacity: 1, y: 0 };
 
   const panelExit = shouldReduceMotion
     ? { opacity: 0 }
     : isDesktop
       ? { x: '100%' }
-      : { y: '100%' };
+      : { opacity: 0, y: 14 };
 
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-end lg:items-stretch lg:justify-end">
-          {/* Blurred backdrop covering the left half on desktop and top strip on mobile */}
+        <div className="fixed inset-0 z-50 flex items-stretch lg:justify-end">
+          {/* Desktop blurred backdrop covering left half; mobile uses full-screen /login */}
           <motion.div
             aria-hidden="true"
             initial={{ opacity: 0 }}
@@ -412,29 +431,54 @@ export function AuthDrawer({
             exit={{ opacity: 0 }}
             transition={{ duration: shouldReduceMotion ? 0 : 0.25 }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-950/40 backdrop-blur-md"
+            className="hidden lg:block fixed inset-0 bg-slate-950/40 backdrop-blur-md"
           />
 
-          {/* Responsive white drawer: bottom sheet on mobile, right half-screen on desktop */}
+          {/* Full-screen /login on mobile (same luminous phone background), right half-screen drawer on desktop */}
           <motion.section
-            key={isDesktop ? 'desktop-auth-panel' : 'mobile-auth-sheet'}
+            key={isDesktop ? 'desktop-auth-panel' : 'mobile-login-route'}
             role="dialog"
             aria-modal="true"
-            aria-label={user ? 'Tu espacio en Search Link' : 'Crea tu cuenta en Search Link'}
+            aria-label={user ? 'Tu espacio en Search Link' : 'Iniciar sesión en Search Link'}
             initial={panelInitial}
             animate={panelAnimate}
             exit={panelExit}
             transition={
               shouldReduceMotion
                 ? { duration: 0 }
-                : { duration: 0.36, ease: [0.22, 1, 0.36, 1] }
+                : { duration: isDesktop ? 0.36 : 0.26, ease: [0.22, 1, 0.36, 1] }
             }
-            className="relative z-10 w-full h-[90dvh] rounded-t-[28px] lg:rounded-none lg:w-1/2 lg:h-full bg-white shadow-[0_-18px_60px_-12px_rgba(15,23,42,0.38)] lg:shadow-[-24px_0_80px_-16px_rgba(15,23,42,0.35)] border-t border-slate-200/80 lg:border-t-0 lg:border-l flex flex-col overflow-hidden"
+            className="relative z-10 w-full h-dvh lg:w-1/2 lg:h-full bg-[#f8fbff] lg:bg-white lg:shadow-[-24px_0_80px_-16px_rgba(15,23,42,0.35)] lg:border-l lg:border-slate-200/80 flex flex-col overflow-hidden"
           >
-            {/* Subtle architectural dot pattern behind the white panel */}
+            {/* Mobile-only matching phone background (same soft gradient & luminous atmosphere as Search Link) */}
             <div
               aria-hidden="true"
-              className="pointer-events-none select-none absolute inset-0"
+              className="pointer-events-none select-none absolute inset-0 lg:hidden overflow-hidden"
+              style={{
+                background:
+                  'linear-gradient(160deg, #eef6ff 0%, #f8fbff 42%, #ffffff 70%, #f2fbf6 100%)',
+              }}
+            >
+              <div
+                className="absolute -top-24 -left-20 w-[92vw] h-[46vh] rounded-full blur-3xl"
+                style={{
+                  background:
+                    'radial-gradient(circle, rgba(59, 130, 246, 0.24) 0%, rgba(96, 165, 250, 0.12) 55%, transparent 76%)',
+                }}
+              />
+              <div
+                className="absolute -bottom-24 -right-16 w-[96vw] h-[48vh] rounded-full blur-3xl"
+                style={{
+                  background:
+                    'radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(59, 130, 246, 0.12) 52%, transparent 76%)',
+                }}
+              />
+            </div>
+
+            {/* Desktop-only subtle architectural dot pattern */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none select-none absolute inset-0 hidden lg:block"
               style={{
                 backgroundImage:
                   'radial-gradient(rgba(15, 23, 42, 0.11) 1px, transparent 1px)',
@@ -446,13 +490,8 @@ export function AuthDrawer({
               }}
             />
 
-            {/* Mobile sheet handle */}
-            <div className="relative z-10 flex justify-center pt-3 pb-1 lg:hidden shrink-0">
-              <div className="w-10 h-1 rounded-full bg-slate-200" aria-hidden="true" />
-            </div>
-
             {/* Top bar */}
-            <div className="relative z-10 flex items-center justify-between px-6 sm:px-8 lg:px-10 pt-3 lg:pt-6 pb-3 shrink-0">
+            <div className="relative z-10 flex items-center justify-between px-5 sm:px-8 lg:px-10 pt-4 lg:pt-6 pb-3 shrink-0">
               <SearchLinkLogo size="sm" onDarkBackground={false} />
 
               <div className="flex items-center gap-2">
@@ -913,23 +952,55 @@ export function AuthDrawer({
                 </div>
               </div>
             ) : (
-              /* GOOGLE-ONLY AUTHENTICATION: Elevated single-provider access */
+              /* GOOGLE-ONLY AUTHENTICATION: Direct on mobile background (/login), framed card on desktop */
               <div className="relative z-10 flex-1 overflow-y-auto flex items-center justify-center px-6 sm:px-10 lg:px-12 py-8">
-                <div className="w-full max-w-[400px] rounded-[28px] border border-slate-200/85 bg-white/95 backdrop-blur-sm p-7 sm:p-8 shadow-[0_24px_60px_-24px_rgba(15,23,42,0.16)]">
+                <div className="w-full max-w-[400px] lg:rounded-[28px] lg:border lg:border-slate-200/85 lg:bg-white/95 lg:backdrop-blur-sm lg:p-8 lg:shadow-[0_24px_60px_-24px_rgba(15,23,42,0.16)]">
                   <div className="mb-7">
-                    <h2 className="text-[24px] sm:text-[28px] font-semibold tracking-tight text-slate-950 leading-[1.15] text-balance">
+                    <h2 className="text-[26px] sm:text-[28px] font-semibold tracking-tight text-slate-950 leading-[1.15] text-balance">
                       Tu cuenta de Search Link
                     </h2>
-                    <p className="mt-2.5 text-sm text-slate-500 leading-relaxed">
+                    <p className="mt-2.5 text-sm text-slate-600 lg:text-slate-500 leading-relaxed">
                       Inicia sesión en un toque con Google para guardar tus catálogos procesados y conectar tu API.
                     </p>
                   </div>
+
+                  <label
+                    htmlFor="accept-legal-terms"
+                    className={`mb-4 flex items-start gap-2.5 cursor-pointer select-none rounded-xl transition-colors ${
+                      termsHighlight ? 'ring-2 ring-rose-400/70 bg-rose-50/40 p-2 -mx-2' : 'py-1'
+                    }`}
+                  >
+                    <input
+                      id="accept-legal-terms"
+                      type="checkbox"
+                      checked={acceptedTerms}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setAcceptedTerms(checked);
+                        if (checked) {
+                          setTermsHighlight(false);
+                          setAuthError((prev) =>
+                            prev?.includes('Términos y Condiciones') ? null : prev,
+                          );
+                        }
+                      }}
+                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-slate-900 accent-slate-900 focus:ring-slate-400 shrink-0 cursor-pointer"
+                    />
+                    <span className="text-[13px] font-normal text-slate-700 leading-snug">
+                      Aceptar Términos y Condiciones y Política de Privacidad
+                    </span>
+                  </label>
 
                   <button
                     type="button"
                     onClick={() => void handleGoogleSignIn()}
                     disabled={googleLoading}
-                    className="w-full h-13 rounded-full bg-white border border-slate-200/95 shadow-[0_2px_12px_-4px_rgba(15,23,42,0.09)] hover:border-slate-300 hover:bg-slate-50/85 text-slate-800 px-5 flex items-center justify-center gap-3 text-[15px] font-medium transition-all duration-150 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:opacity-65 cursor-pointer"
+                    aria-disabled={!acceptedTerms}
+                    className={`w-full h-13 rounded-full bg-white border border-slate-200/95 shadow-[0_2px_12px_-4px_rgba(15,23,42,0.09)] px-5 flex items-center justify-center gap-3 text-[15px] font-medium text-slate-800 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer ${
+                      acceptedTerms
+                        ? 'hover:border-slate-300 hover:bg-slate-50/85 active:scale-[0.99] opacity-100'
+                        : 'opacity-60'
+                    }`}
                   >
                     {googleLoading ? (
                       <Loader2 className="w-4.5 h-4.5 animate-spin text-slate-600 shrink-0" />

@@ -9,6 +9,7 @@ import {
 } from 'motion/react';
 import {
   Check,
+  ChevronDown,
   Copy,
   Eye,
   Image as ImageIcon,
@@ -116,10 +117,15 @@ export function MobileCatalogCarousel({
   >(0);
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
+  const [expandedMappedIds, setExpandedMappedIds] = useState<Record<string, boolean>>({});
   const [copiedMetadataId, setCopiedMetadataId] = useState<string | null>(null);
   const copyTimerRef = useRef<number | null>(null);
   const [mergeStage, setMergeStage] = useState<'idle' | 'merging' | 'unified'>('idle');
   const shouldReduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    setExpandedMappedIds({});
+  }, [images]);
 
   useEffect(() => {
     return () => {
@@ -1114,15 +1120,25 @@ export function MobileCatalogCarousel({
               </h2>
 
               {allMappedComplete ? (
-                <ul className="divide-y divide-slate-900/15">
+                <ul className="divide-y divide-slate-900/12">
                   {images.map((item) => {
                     const mapped = mappedResults[item.id];
+                    const isExpanded = Boolean(expandedMappedIds[item.id]);
                     const isCopied = copiedMetadataId === `json-${item.id}`;
 
                     if (!mapped) {
                       return (
-                        <li key={`mapped-error-${item.id}`} className="py-3.5 min-w-0">
-                          <span className="text-xs text-rose-600/90">
+                        <li
+                          key={`mapped-error-${item.id}`}
+                          className="py-3 flex items-center gap-2.5 min-w-0"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="w-4 h-4 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0"
+                          >
+                            <X className="w-2.5 h-2.5 stroke-[2.75]" />
+                          </span>
+                          <span className="text-xs text-rose-600/90 truncate">
                             No se pudo mapear esta imagen.
                           </span>
                         </li>
@@ -1145,26 +1161,93 @@ export function MobileCatalogCarousel({
                         <button
                           type="button"
                           onClick={() =>
-                            handleCopyMetadataUrl(`json-${item.id}`, jsonText)
+                            setExpandedMappedIds((prev) => ({
+                              ...prev,
+                              [item.id]: !prev[item.id],
+                            }))
                           }
-                          aria-label={`Copiar JSON de ${mapped.nombre}`}
-                          className="w-full py-3.5 text-left active:opacity-70 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-md"
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? 'Ocultar' : 'Ver'} JSON de ${mapped.nombre}`}
+                          className="w-full py-3 flex items-center justify-between gap-2.5 text-left active:opacity-70 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-md"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <pre className="flex-1 min-w-0 font-mono text-[11px] leading-[1.55] text-slate-800 whitespace-pre-wrap break-all">
-                              {jsonText}
-                            </pre>
-                            {isCopied && (
-                              <span className="shrink-0 inline-flex items-center gap-1 text-[10.5px] font-medium text-emerald-600 pt-0.5">
-                                <Check
-                                  className="w-3 h-3 stroke-[2.75]"
-                                  aria-hidden="true"
-                                />
-                                Copiado
-                              </span>
-                            )}
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span
+                              aria-hidden="true"
+                              className="w-4 h-4 rounded-full bg-emerald-500 text-white shadow-[0_1px_4px_rgba(16,185,129,0.3)] flex items-center justify-center shrink-0"
+                            >
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </span>
+                            <span className="text-[13px] font-medium text-slate-900 truncate">
+                              {mapped.nombre}
+                            </span>
                           </div>
+
+                          <ChevronDown
+                            aria-hidden="true"
+                            className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
+                              isExpanded ? 'rotate-180 text-slate-700' : ''
+                            }`}
+                          />
                         </button>
+
+                        <AnimatePresence initial={false}>
+                          {isExpanded && (
+                            <motion.div
+                              initial={
+                                shouldReduceMotion
+                                  ? false
+                                  : { height: 0, opacity: 0 }
+                              }
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={
+                                shouldReduceMotion
+                                  ? { opacity: 0 }
+                                  : { height: 0, opacity: 0 }
+                              }
+                              transition={{
+                                duration: shouldReduceMotion ? 0 : 0.22,
+                                ease: [0.22, 1, 0.36, 1],
+                              }}
+                              className="overflow-hidden"
+                            >
+                              <div className="pb-3.5 pl-6.5 pr-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleCopyMetadataUrl(`json-${item.id}`, jsonText)
+                                  }
+                                  aria-label={`Copiar JSON de ${mapped.nombre}`}
+                                  className="w-full rounded-xl bg-white/75 border border-slate-900/10 p-3 text-left active:opacity-75 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+                                >
+                                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                                    <span className="text-[10.5px] font-medium text-slate-500">
+                                      JSON del producto
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-slate-600">
+                                      {isCopied ? (
+                                        <>
+                                          <Check
+                                            className="w-3 h-3 text-emerald-600 stroke-[2.75]"
+                                            aria-hidden="true"
+                                          />
+                                          <span className="text-emerald-600">Copiado</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3" aria-hidden="true" />
+                                          <span>Copiar</span>
+                                        </>
+                                      )}
+                                    </span>
+                                  </div>
+                                  <pre className="font-mono text-[11px] leading-[1.55] text-slate-800 whitespace-pre-wrap break-all">
+                                    {jsonText}
+                                  </pre>
+                                </button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </li>
                     );
                   })}

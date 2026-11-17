@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import { Link2, Loader2, Upload, X } from 'lucide-react';
 import desktopDesertBg from './assets/images/bg_desert_desktop_1794853953945.jpg';
 import { AuthDrawer } from './components/AuthDrawer';
+import { DesktopAccountMenu } from './components/DesktopAccountMenu';
 import { DualCatalogShowcase } from './components/DualCatalogShowcase';
 import {
   MobileCatalogCarousel,
@@ -58,7 +59,10 @@ export default function App() {
   const [activeBgImage, setActiveBgImage] = useState<CatalogImageItem | null>(null);
   const [hasAnimatedFirstBg, setHasAnimatedFirstBg] = useState(false);
   const [shouldAnimateBgEntry, setShouldAnimateBgEntry] = useState(false);
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(() =>
+    typeof window !== 'undefined' && window.location.pathname === '/login',
+  );
+  const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [isFileUploadFlow, setIsFileUploadFlow] = useState(false);
   const [showCompressionBox, setShowCompressionBox] = useState(false);
@@ -108,13 +112,39 @@ export default function App() {
     authUserRef.current = authUser;
   }, [authUser]);
 
+  const openAuthFlow = () => {
+    if (authUserRef.current) return;
+    if (
+      typeof window !== 'undefined' &&
+      window.innerWidth < 1024 &&
+      window.location.pathname !== '/login'
+    ) {
+      window.history.pushState({ authRoute: true }, '', '/login');
+    }
+    setIsAuthOpen(true);
+  };
+
+  const closeAuthFlow = () => {
+    setIsAuthOpen(false);
+    if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+      window.history.replaceState(null, '', '/');
+    }
+  };
+
   useEffect(() => {
     if (!supabase) return;
     let active = true;
 
     void supabase.auth.getSession().then(({ data }) => {
       if (active) {
-        setAuthUser(data.session?.user ?? null);
+        const sessionUser = data.session?.user ?? null;
+        setAuthUser(sessionUser);
+        if (sessionUser) {
+          setIsAuthOpen(false);
+          if (window.location.pathname === '/login') {
+            window.history.replaceState(null, '', '/');
+          }
+        }
       }
     });
 
@@ -126,6 +156,11 @@ export default function App() {
         setAuthUser(nextUser);
         if (nextUser) {
           setIsAuthOpen(false);
+          if (window.location.pathname === '/login') {
+            window.history.replaceState(null, '', '/');
+          }
+        } else {
+          setIsDesktopMenuOpen(false);
         }
       }
     });
@@ -137,6 +172,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname === '/login' && !authUserRef.current) {
+        setIsAuthOpen(true);
+      } else {
+        setIsAuthOpen(false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
     return () => {
       extractAbortRef.current?.abort();
       cancelOngoingCompression();
@@ -145,29 +193,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthOpen) return;
+    if (!isAuthOpen && !isDesktopMenuOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        setIsAuthOpen(false);
+        if (isAuthOpen) closeAuthFlow();
+        if (isDesktopMenuOpen) setIsDesktopMenuOpen(false);
         return;
       }
 
       if (
+        isAuthOpen &&
         event.ctrlKey &&
         !event.altKey &&
         !event.metaKey &&
         event.key.toLowerCase() === 'x'
       ) {
         event.preventDefault();
-        setIsAuthOpen(false);
+        closeAuthFlow();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isAuthOpen]);
+  }, [isAuthOpen, isDesktopMenuOpen]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -781,7 +831,7 @@ export default function App() {
 
   return (
     <main
-      className={`bg-white lg:bg-[#0e1013] relative min-h-dvh w-full overflow-x-hidden lg:overflow-hidden flex flex-col items-center px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 lg:pt-5 pb-6 lg:pb-8 ${
+      className={`bg-white lg:bg-[#0e1013] relative min-h-dvh w-full overflow-x-hidden lg:overflow-hidden flex flex-row items-stretch ${
         isDesktopSplitActive ? 'lg:h-dvh' : ''
       }`}
     >
@@ -949,14 +999,20 @@ export default function App() {
         </motion.div>
       )}
 
-      {/* Top header: corners hug edges; URL bar shifts compactly left when split Stage 5 is active on desktop */}
-      <header
-        className={`relative z-30 w-full shrink-0 flex flex-col gap-2.5 lg:items-center lg:gap-4 transition-all duration-500 ${
-          isDesktopSplitActive
-            ? 'lg:grid lg:grid-cols-[auto_minmax(0,360px)_1fr]'
-            : 'lg:grid lg:grid-cols-[1fr_minmax(0,768px)_1fr] lg:gap-6'
+      {/* Primary workspace column: shifts smoothly left when the 25% desktop menu docks on the right */}
+      <div
+        className={`relative z-10 flex-1 min-w-0 flex flex-col items-center px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 lg:pt-5 pb-6 lg:pb-8 ${
+          isDesktopSplitActive ? 'lg:h-dvh lg:overflow-hidden' : 'min-h-dvh'
         }`}
       >
+        {/* Top header: corners hug edges; URL bar shifts compactly left when split Stage 5 is active on desktop */}
+        <header
+          className={`relative z-30 w-full shrink-0 flex flex-col gap-2.5 lg:items-center lg:gap-4 transition-all duration-500 ${
+            isDesktopSplitActive
+              ? 'lg:grid lg:grid-cols-[auto_minmax(0,360px)_1fr]'
+              : 'lg:grid lg:grid-cols-[1fr_minmax(0,768px)_1fr] lg:gap-6'
+          }`}
+        >
         {/* Top row on mobile (Logo left + Guest icon right); split into outer grid tracks on desktop */}
         <div className="flex items-center justify-between lg:contents">
           <div className="flex items-center justify-start lg:justify-self-start shrink-0">
@@ -969,9 +1025,7 @@ export default function App() {
               variant="light"
               expanded={isAuthOpen && !authUser}
               user={authUser}
-              onClick={() => {
-                if (!authUser) setIsAuthOpen(true);
-              }}
+              onClick={openAuthFlow}
             />
           </div>
         </div>
@@ -1088,14 +1142,19 @@ export default function App() {
           )}
         </motion.div>
 
-        {/* Desktop top-right guest sketch or authenticated avatar (no menu yet) */}
+        {/* Desktop top-right guest sketch or interactive Google avatar */}
         <div className="hidden lg:flex lg:justify-self-end items-center justify-end">
           <GuestAvatarSketch
             variant="dark"
-            expanded={isAuthOpen && !authUser}
+            expanded={authUser ? isDesktopMenuOpen : isAuthOpen}
             user={authUser}
+            interactiveWhenSignedIn
             onClick={() => {
-              if (!authUser) setIsAuthOpen(true);
+              if (authUser) {
+                setIsDesktopMenuOpen((prev) => !prev);
+              } else {
+                openAuthFlow();
+              }
             }}
           />
         </div>
@@ -1107,7 +1166,9 @@ export default function App() {
         images={catalogImages}
         activeBackgroundId={activeBgImage?.id ?? null}
         onSelectBackground={handleSelectBackground}
-        suspendShortcuts={isAuthOpen && !authUser}
+        suspendShortcuts={
+          (isAuthOpen && !authUser) || (isDesktopMenuOpen && Boolean(authUser))
+        }
         isFileUploadFlow={isFileUploadFlow}
         showCompressionBox={showCompressionBox}
         compressionStatuses={compressionStatuses}
@@ -1139,11 +1200,18 @@ export default function App() {
         mappedResults={mappedResults}
         compressionResults={compressionResults}
       />
+      </div>
 
-      {/* Auth sheet only shown while logged out (logged-in menu deferred until authorized) */}
+      {/* Desktop-only 25% push-docked right menu (no backdrop dimming on left workspace) */}
+      <DesktopAccountMenu
+        open={isDesktopMenuOpen && Boolean(authUser)}
+        onClose={() => setIsDesktopMenuOpen(false)}
+      />
+
+      {/* Auth view: independent /login full-screen on mobile, right half drawer on desktop */}
       <AuthDrawer
         open={isAuthOpen && !authUser}
-        onClose={() => setIsAuthOpen(false)}
+        onClose={closeAuthFlow}
         user={authUser}
         pendingBatch={pendingSaveBatch}
         onPendingBatchSaved={() => setPendingSaveBatch(null)}
@@ -1156,6 +1224,7 @@ interface GuestAvatarSketchProps {
   variant: 'light' | 'dark';
   expanded: boolean;
   user: User | null;
+  interactiveWhenSignedIn?: boolean;
   onClick: () => void;
 }
 
@@ -1163,6 +1232,7 @@ function GuestAvatarSketch({
   variant,
   expanded,
   user,
+  interactiveWhenSignedIn = false,
   onClick,
 }: GuestAvatarSketchProps) {
   const [imgFailed, setImgFailed] = useState(false);
@@ -1203,6 +1273,38 @@ function GuestAvatarSketch({
         ? 'bg-slate-900 text-white'
         : 'bg-white text-slate-950';
 
+    const avatarContent =
+      showGooglePhoto && rawGooglePhoto ? (
+        <img
+          src={rawGooglePhoto}
+          alt={rawName}
+          referrerPolicy="no-referrer"
+          onError={() => setImgFailed(true)}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <span className="text-xs sm:text-sm font-semibold leading-none tracking-tight">
+          {initialLetter}
+        </span>
+      );
+
+    if (interactiveWhenSignedIn) {
+      return (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-expanded={expanded}
+          aria-label={`Abrir menú de cuenta (${rawName})`}
+          title={rawName}
+          className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border overflow-hidden flex items-center justify-center select-none cursor-pointer transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/85 shrink-0 ${ringClass} ${
+            showGooglePhoto ? 'bg-slate-100' : letterBgClass
+          }`}
+        >
+          {avatarContent}
+        </button>
+      );
+    }
+
     return (
       <div
         aria-label={`Cuenta conectada (${rawName})`}
@@ -1211,19 +1313,7 @@ function GuestAvatarSketch({
           showGooglePhoto ? 'bg-slate-100' : letterBgClass
         }`}
       >
-        {showGooglePhoto && rawGooglePhoto ? (
-          <img
-            src={rawGooglePhoto}
-            alt={rawName}
-            referrerPolicy="no-referrer"
-            onError={() => setImgFailed(true)}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <span className="text-xs sm:text-sm font-semibold leading-none tracking-tight">
-            {initialLetter}
-          </span>
-        )}
+        {avatarContent}
       </div>
     );
   }
