@@ -8,6 +8,7 @@ import {
   type OrganizationProfile,
   type OrganizationServiceItem,
 } from './DesktopOrganizationView';
+import { DesktopStoreView } from './DesktopStoreView';
 
 interface DesktopAccountMenuProps {
   open: boolean;
@@ -21,7 +22,7 @@ interface DesktopAccountMenuProps {
   onSignOut: () => Promise<void>;
 }
 
-type DesktopMenuView = 'menu' | 'google-account' | 'organization';
+type DesktopMenuView = 'menu' | 'google-account' | 'organization' | 'store';
 
 function formatCreationDateEs(isoDate?: string): string {
   if (!isoDate) return 'Fecha no disponible';
@@ -68,6 +69,9 @@ export function DesktopAccountMenu({
 }: DesktopAccountMenuProps) {
   const shouldReduceMotion = useReducedMotion();
   const [view, setView] = useState<DesktopMenuView>('menu');
+  const [selectedStoreServiceId, setSelectedStoreServiceId] = useState<string | null>(
+    null,
+  );
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -82,19 +86,26 @@ export function DesktopAccountMenu({
   useEffect(() => {
     if (!open) {
       setView('menu');
+      setSelectedStoreServiceId(null);
       setConfirmSignOut(false);
       setSigningOut(false);
       setSignOutError(null);
     }
   }, [open]);
 
-  const isExpandedPanelView = view === 'google-account' || view === 'organization';
+  const selectedStoreService =
+    services.find((srv) => srv.id === selectedStoreServiceId) ?? services[0] ?? null;
+
+  const isExpandedPanelView =
+    view === 'google-account' || view === 'organization' || view === 'store';
   const topTitle =
     view === 'google-account'
       ? 'Tu cuenta de Google'
       : view === 'organization'
         ? 'Organización'
-        : 'Cuenta';
+        : view === 'store'
+          ? 'Mi tienda'
+          : 'Cuenta';
 
   const handleConfirmSignOut = async () => {
     if (signingOut) return;
@@ -117,7 +128,9 @@ export function DesktopAccountMenu({
               ? 'Detalles de tu cuenta de Google'
               : view === 'organization'
                 ? 'Organización'
-                : 'Menú de cuenta'
+                : view === 'store'
+                  ? 'Mi tienda'
+                  : 'Menú de cuenta'
           }
           initial={
             shouldReduceMotion
@@ -166,9 +179,11 @@ export function DesktopAccountMenu({
                     onClick={() => {
                       setConfirmSignOut(false);
                       setSignOutError(null);
-                      setView('menu');
+                      setView(view === 'store' ? 'organization' : 'menu');
                     }}
-                    aria-label="Volver al menú"
+                    aria-label={
+                      view === 'store' ? 'Volver a Organización' : 'Volver al menú'
+                    }
                     className="w-7 h-7 -ml-1 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100/90 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer shrink-0"
                   >
                     <ArrowLeft className="w-4 h-4" aria-hidden="true" />
@@ -238,6 +253,25 @@ export function DesktopAccountMenu({
                     onSaveOrgProfile={onSaveOrgProfile}
                     onRenameService={onRenameService}
                     onNewProduct={onNewProduct}
+                    onOpenStore={(service) => {
+                      setSelectedStoreServiceId(service.id);
+                      setView('store');
+                    }}
+                  />
+                </motion.div>
+              ) : view === 'store' && selectedStoreService ? (
+                <motion.div
+                  key="desktop-store-view"
+                  initial={shouldReduceMotion ? undefined : { opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={shouldReduceMotion ? undefined : { opacity: 0, x: 16 }}
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex-1 min-h-0 flex flex-col"
+                >
+                  <DesktopStoreView
+                    service={selectedStoreService}
+                    organizationName={orgProfile.name}
+                    organizationLogoUrl={orgProfile.logoUrl || info.photoUrl}
                   />
                 </motion.div>
               ) : (

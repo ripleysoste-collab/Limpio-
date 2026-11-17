@@ -877,6 +877,13 @@ export default function App() {
             endpointUrl: 'http/1245',
             itemCount: collectedMappedItems.length,
             createdAt: new Date().toISOString(),
+            products: collectedMappedItems.map((item, idx) => ({
+              id: `prod-${Date.now()}-${idx}`,
+              nombre: item.nombre,
+              categoria: item.categoria,
+              descripcion: item.descripcion,
+              url: item.url,
+            })),
           };
 
           setOrgServices((prev) => {

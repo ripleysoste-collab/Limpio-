@@ -16,6 +16,14 @@ export interface OrganizationProfile {
   hasCompletedSetup: boolean;
 }
 
+export interface OrganizationServiceProduct {
+  id: string;
+  nombre: string;
+  categoria: string;
+  descripcion: string;
+  url: string;
+}
+
 export interface OrganizationServiceItem {
   id: string;
   name: string;
@@ -23,6 +31,7 @@ export interface OrganizationServiceItem {
   endpointUrl: string;
   itemCount: number;
   createdAt: string;
+  products?: OrganizationServiceProduct[];
 }
 
 interface DesktopOrganizationViewProps {
@@ -33,6 +42,7 @@ interface DesktopOrganizationViewProps {
   onSaveOrgProfile: (next: OrganizationProfile) => void;
   onRenameService: (serviceId: string, nextName: string) => void;
   onNewProduct: () => void;
+  onOpenStore: (service: OrganizationServiceItem) => void;
 }
 
 type OnboardingStage = 'welcome' | 'congrats';
@@ -66,10 +76,12 @@ export function DesktopOrganizationView({
   onSaveOrgProfile,
   onRenameService,
   onNewProduct,
+  onOpenStore,
 }: DesktopOrganizationViewProps) {
   const shouldReduceMotion = useReducedMotion();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const dashboardLogoInputRef = useRef<HTMLInputElement>(null);
+  const storeMenuRef = useRef<HTMLDivElement>(null);
 
   // First-time onboarding state
   const [onboardingStage, setOnboardingStage] = useState<OnboardingStage>('welcome');
@@ -84,6 +96,7 @@ export function DesktopOrganizationView({
   const [credentialBox, setCredentialBox] = useState<CredentialModalState | null>(null);
   const [copiedCredential, setCopiedCredential] = useState(false);
   const [logoImgFailed, setLogoImgFailed] = useState(false);
+  const [storePickerOpen, setStorePickerOpen] = useState(false);
 
   useEffect(() => {
     setOrgNameInput(orgProfile.name);
@@ -92,6 +105,20 @@ export function DesktopOrganizationView({
   useEffect(() => {
     setLogoImgFailed(false);
   }, [orgProfile.logoUrl, draftLogoUrl, googlePhotoUrl]);
+
+  useEffect(() => {
+    if (!storePickerOpen) return;
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        storeMenuRef.current &&
+        !storeMenuRef.current.contains(event.target as Node)
+      ) {
+        setStorePickerOpen(false);
+      }
+    };
+    window.addEventListener('mousedown', handleOutsideClick);
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, [storePickerOpen]);
 
   const handleOnboardingLogoChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -497,15 +524,79 @@ export function DesktopOrganizationView({
           </div>
         </div>
 
-        {/* Store icon at top-right corner (placeholder interaction for next step) */}
-        <button
-          type="button"
-          aria-label="Tienda"
-          title="Tienda"
-          className="w-9 h-9 rounded-xl border border-slate-200/85 bg-slate-50/75 flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-        >
-          <Store className="w-4 h-4" aria-hidden="true" />
-        </button>
+        {/* Store icon at top-right corner + compact service selector popover */}
+        <div ref={storeMenuRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setStorePickerOpen((prev) => !prev)}
+            aria-expanded={storePickerOpen}
+            aria-haspopup="menu"
+            aria-label="Abrir tienda de tus servicios"
+            title="Ver tienda"
+            className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
+              storePickerOpen
+                ? 'border-slate-300 bg-slate-100 text-slate-950'
+                : 'border-slate-200/85 bg-slate-50/75 text-slate-600 hover:text-slate-950 hover:bg-slate-100'
+            }`}
+          >
+            <Store className="w-4 h-4" aria-hidden="true" />
+          </button>
+
+          <AnimatePresence>
+            {storePickerOpen && (
+              <motion.div
+                role="menu"
+                aria-label="Selecciona un servicio para ver en tu tienda"
+                initial={
+                  shouldReduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, scale: 0.96, y: -4 }
+                }
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={
+                  shouldReduceMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, scale: 0.96, y: -4 }
+                }
+                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                className="absolute right-0 top-full mt-2 w-60 rounded-2xl border border-slate-200/95 bg-white shadow-[0_18px_44px_-12px_rgba(15,23,42,0.24)] p-1.5 z-30"
+              >
+                <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-slate-400">
+                  Ver tienda de
+                </p>
+
+                {services.length === 0 ? (
+                  <p className="px-2.5 py-2 text-xs text-slate-500">
+                    Aún no tienes servicios disponibles.
+                  </p>
+                ) : (
+                  <ul className="max-h-56 overflow-y-auto divide-y divide-slate-100">
+                    {services.map((service) => (
+                      <li key={`store-pick-${service.id}`}>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setStorePickerOpen(false);
+                            onOpenStore(service);
+                          }}
+                          className="w-full px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+                        >
+                          <span className="text-xs font-medium text-slate-800 truncate">
+                            {service.name}
+                          </span>
+                          <span className="text-[10px] font-medium text-slate-400 tabular-nums shrink-0">
+                            {service.itemCount}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Mis servicios header + Nuevo producto CTA */}
