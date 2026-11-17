@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Check, Copy, Eye, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Copy, Eye, Image as ImageIcon, X } from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
 import type { MappedImageMetadata } from '../lib/imageCompression';
 import { DesktopUploadSequence } from './DesktopUploadSequence';
@@ -207,6 +207,30 @@ export function DualCatalogShowcase({
       }) &&
       images.some((img) => Boolean(mappedResults[img.id])),
   );
+
+  const [hasLifecycleUnlocked, setHasLifecycleUnlocked] = useState(false);
+  const [rightCardView, setRightCardView] = useState<'mapped' | 'lifecycle'>('mapped');
+
+  useEffect(() => {
+    if (!allMappedComplete) {
+      setHasLifecycleUnlocked(false);
+      setRightCardView('mapped');
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setHasLifecycleUnlocked(true);
+      setRightCardView('lifecycle');
+    }, 2000);
+
+    return () => window.clearTimeout(timerId);
+  }, [allMappedComplete]);
+
+  const processedImages = useMemo(
+    () => images.filter((img) => Boolean(mappedResults[img.id])),
+    [images, mappedResults],
+  );
+  const processedCount = processedImages.length;
 
   // Fullscreen edge-to-edge image viewer state
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
@@ -929,84 +953,241 @@ export function DualCatalogShowcase({
           >
             <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
               {allMappedComplete
-                ? 'Renderizado y mapeado'
+                ? rightCardView === 'lifecycle'
+                  ? 'Ciclo de vida, API y endpoint'
+                  : 'Renderizado y mapeado'
                 : 'Renderizar y mapear'}
             </h2>
 
             <section
               aria-label={
                 allMappedComplete
-                  ? 'Renderizado y mapeado'
+                  ? rightCardView === 'lifecycle'
+                    ? 'Ciclo de vida, API y endpoint'
+                    : 'Renderizado y mapeado'
                   : 'Renderizar y mapear'
               }
               className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] p-4 overflow-y-auto overscroll-contain"
             >
               {allMappedComplete ? (
-                <ul className="divide-y divide-slate-900/15">
-                  {images.map((item) => {
-                    const mapped = mappedResults[item.id];
-                    const isCopied = copiedId === `split-json-${item.id}`;
-
-                    if (!mapped) {
-                      return (
-                        <li
-                          key={`split-mapped-err-${item.id}`}
-                          className="py-3.5 min-w-0"
-                        >
-                          <span className="text-xs text-rose-600/90">
-                            No se pudo mapear esta imagen.
+                <AnimatePresence mode="wait" initial={false}>
+                  {rightCardView === 'lifecycle' ? (
+                    <motion.div
+                      key="desktop-lifecycle-view"
+                      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+                      animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+                      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                      className="flex flex-col gap-5"
+                    >
+                      {/* Top congratulations text + small top-right arrow back to Renderizado y mapeado */}
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="flex-1 min-w-0 text-[13.5px] leading-relaxed text-slate-700">
+                          <span aria-hidden="true" className="mr-1.5">
+                            🎉
                           </span>
-                        </li>
-                      );
-                    }
+                          <span className="font-semibold text-slate-950">
+                            ¡Felicidades!
+                          </span>{' '}
+                          Ya tienes{' '}
+                          {processedCount === 1
+                            ? 'tu 1 imagen procesada y guardada'
+                            : `tus ${processedCount} imágenes procesadas y guardadas`}{' '}
+                          en nuestro R2. Tu endpoint y tu API te servirán para conectar tu
+                          chatbot y la página de tu emprendimiento.
+                        </p>
 
-                    const jsonText = JSON.stringify(
-                      {
-                        nombre: mapped.nombre,
-                        categoria: mapped.categoria,
-                        descripcion: mapped.descripcion,
-                        url: mapped.url,
-                      },
-                      null,
-                      2,
-                    );
-
-                    return (
-                      <li
-                        key={`split-mapped-json-${item.id}`}
-                        className="min-w-0"
-                      >
                         <button
                           type="button"
-                          onClick={() =>
-                            void handleCopyText(`split-json-${item.id}`, jsonText)
-                          }
-                          aria-label={`Copiar JSON de ${mapped.nombre}`}
-                          className="w-full py-3.5 px-2 text-left hover:bg-slate-50/80 active:opacity-75 transition-colors rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+                          onClick={() => setRightCardView('mapped')}
+                          aria-label="Volver a Renderizado y mapeado"
+                          title="Volver a Renderizado y mapeado"
+                          className="w-7 h-7 shrink-0 rounded-full border border-slate-200/85 bg-slate-50/70 flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <pre className="flex-1 min-w-0 font-mono text-[12px] leading-[1.6] text-slate-800 whitespace-pre-wrap break-all">
-                              {jsonText}
-                            </pre>
-                            <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium pt-0.5 text-slate-400">
-                              {isCopied ? (
-                                <span className="inline-flex items-center gap-1 text-emerald-600">
-                                  <Check
-                                    className="w-3.5 h-3.5 stroke-[2.75]"
-                                    aria-hidden="true"
-                                  />
-                                  Copiado
-                                </span>
+                          <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                        </button>
+                      </div>
+
+                      {/* Generado tu API y endpoint */}
+                      <div className="space-y-2">
+                        <h3 className="text-xs font-semibold tracking-tight text-slate-900">
+                          Generado tu API y endpoint
+                        </h3>
+
+                        <div className="rounded-2xl border border-slate-200/85 bg-slate-50/70 divide-y divide-slate-200/75">
+                          <div className="h-10 px-3.5 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                aria-hidden="true"
+                                className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
+                              />
+                              <span className="font-mono text-xs font-medium text-slate-800 truncate">
+                                api/1245
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => void handleCopyText('lifecycle-api', 'api/1245')}
+                              aria-label="Copiar API"
+                              title="Copiar API"
+                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+                            >
+                              {copiedId === 'lifecycle-api' ? (
+                                <Check
+                                  className="w-3.5 h-3.5 text-emerald-600 stroke-[2.75]"
+                                  aria-hidden="true"
+                                />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" aria-hidden="true" />
                               )}
-                            </span>
+                            </button>
                           </div>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+
+                          <div className="h-10 px-3.5 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                aria-hidden="true"
+                                className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
+                              />
+                              <span className="font-mono text-xs font-medium text-slate-800 truncate">
+                                http/1245
+                              </span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleCopyText('lifecycle-endpoint', 'http/1245')
+                              }
+                              aria-label="Copiar endpoint"
+                              title="Copiar endpoint"
+                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+                            >
+                              {copiedId === 'lifecycle-endpoint' ? (
+                                <Check
+                                  className="w-3.5 h-3.5 text-emerald-600 stroke-[2.75]"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Small thumbnail boxes side by side (3-4 per row) */}
+                      <div className="grid grid-cols-4 gap-2.5">
+                        {processedImages.map((item) => (
+                          <button
+                            key={`lifecycle-thumb-${item.id}`}
+                            type="button"
+                            onClick={() => setFullscreenImage(item)}
+                            aria-label={`Ver ${mappedResults[item.id]?.nombre || item.alt}`}
+                            title={mappedResults[item.id]?.nombre || item.alt}
+                            className="relative aspect-square w-full overflow-hidden rounded-xl bg-slate-50 border border-slate-200/85 hover:brightness-95 active:scale-[0.97] transition-all duration-150 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                          >
+                            <TileImage
+                              item={item}
+                              hasError={Boolean(failedIds[item.id])}
+                              onError={() =>
+                                setFailedIds((prev) => ({ ...prev, [item.id]: true }))
+                              }
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="desktop-mapped-json-view"
+                      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      {hasLifecycleUnlocked && (
+                        <div className="flex justify-end mb-1">
+                          <button
+                            type="button"
+                            onClick={() => setRightCardView('lifecycle')}
+                            aria-label="Ir a Ciclo de vida, API y endpoint"
+                            title="Ir a Ciclo de vida, API y endpoint"
+                            className="w-7 h-7 rounded-full border border-slate-200/85 bg-slate-50/70 flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
+                      )}
+                      <ul className="divide-y divide-slate-900/15">
+                        {images.map((item) => {
+                          const mapped = mappedResults[item.id];
+                          const isCopied = copiedId === `split-json-${item.id}`;
+
+                          if (!mapped) {
+                            return (
+                              <li
+                                key={`split-mapped-err-${item.id}`}
+                                className="py-3.5 min-w-0"
+                              >
+                                <span className="text-xs text-rose-600/90">
+                                  No se pudo mapear esta imagen.
+                                </span>
+                              </li>
+                            );
+                          }
+
+                          const jsonText = JSON.stringify(
+                            {
+                              nombre: mapped.nombre,
+                              categoria: mapped.categoria,
+                              descripcion: mapped.descripcion,
+                              url: mapped.url,
+                            },
+                            null,
+                            2,
+                          );
+
+                          return (
+                            <li
+                              key={`split-mapped-json-${item.id}`}
+                              className="min-w-0"
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleCopyText(`split-json-${item.id}`, jsonText)
+                                }
+                                aria-label={`Copiar JSON de ${mapped.nombre}`}
+                                className="w-full py-3.5 px-2 text-left hover:bg-slate-50/80 active:opacity-75 transition-colors rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <pre className="flex-1 min-w-0 font-mono text-[12px] leading-[1.6] text-slate-800 whitespace-pre-wrap break-all">
+                                    {jsonText}
+                                  </pre>
+                                  <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-medium pt-0.5 text-slate-400">
+                                    {isCopied ? (
+                                      <span className="inline-flex items-center gap-1 text-emerald-600">
+                                        <Check
+                                          className="w-3.5 h-3.5 stroke-[2.75]"
+                                          aria-hidden="true"
+                                        />
+                                        Copiado
+                                      </span>
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                                    )}
+                                  </span>
+                                </div>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               ) : (
                 <ul className="flex flex-col gap-2">
                   {images.slice(0, 10).map((item) => {
