@@ -19,6 +19,7 @@ interface MobileAccountMenuProps {
   onSaveOrgProfile: (next: OrganizationProfile) => void;
   onRenameService: (serviceId: string, nextName: string) => void;
   onNewProduct: () => void;
+  onViewServiceHistory: (service: OrganizationServiceItem) => void;
   onCloseMenu: () => void;
   onOpenAccountModal: () => void;
   onCloseAccountModal: () => void;
@@ -69,6 +70,7 @@ export function MobileAccountMenu({
   onSaveOrgProfile,
   onRenameService,
   onNewProduct,
+  onViewServiceHistory,
   onCloseMenu,
   onOpenAccountModal,
   onCloseAccountModal,
@@ -478,6 +480,7 @@ export function MobileAccountMenu({
                   setSelectedStoreServiceId(service.id);
                   setPanelSubView('store');
                 }}
+                onViewServiceHistory={onViewServiceHistory}
               />
             )}
           </motion.section>

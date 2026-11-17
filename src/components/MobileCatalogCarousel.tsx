@@ -56,6 +56,7 @@ interface MobileCatalogCarouselProps {
   mappedResults?: Record<string, MappedImageMetadata>;
   compressionResults?: Record<string, CompressedImageMeta>;
   onOpenOrganization?: () => void;
+  isReadOnlyReplay?: boolean;
 }
 
 const SEARCH_LINK_BENEFITS = [
@@ -106,6 +107,7 @@ export function MobileCatalogCarousel({
   mappedResults = {},
   compressionResults = {},
   onOpenOrganization,
+  isReadOnlyReplay = false,
 }: MobileCatalogCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const compressionScrollRef = useRef<HTMLDivElement>(null);
@@ -119,21 +121,27 @@ export function MobileCatalogCarousel({
   const [activeCompressionCard, setActiveCompressionCard] = useState<
     0 | 1 | 2 | 3 | 4 | 5 | 6
   >(0);
-  const [showLifecycleBox, setShowLifecycleBox] = useState(false);
-  const [showViewApiBox, setShowViewApiBox] = useState(false);
+  const [showLifecycleBox, setShowLifecycleBox] = useState(
+    Boolean(isReadOnlyReplay),
+  );
+  const [showViewApiBox, setShowViewApiBox] = useState(Boolean(isReadOnlyReplay));
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
   const [failedIds, setFailedIds] = useState<Record<string, boolean>>({});
   const [expandedMappedIds, setExpandedMappedIds] = useState<Record<string, boolean>>({});
   const [copiedMetadataId, setCopiedMetadataId] = useState<string | null>(null);
   const copyTimerRef = useRef<number | null>(null);
-  const [mergeStage, setMergeStage] = useState<'idle' | 'merging' | 'unified'>('idle');
+  const [mergeStage, setMergeStage] = useState<'idle' | 'merging' | 'unified'>(
+    isReadOnlyReplay ? 'unified' : 'idle',
+  );
   const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     setExpandedMappedIds({});
-    setShowLifecycleBox(false);
-    setShowViewApiBox(false);
-  }, [images]);
+    if (!isReadOnlyReplay) {
+      setShowLifecycleBox(false);
+      setShowViewApiBox(false);
+    }
+  }, [images, isReadOnlyReplay]);
 
   useEffect(() => {
     return () => {
@@ -190,7 +198,7 @@ export function MobileCatalogCarousel({
       return;
     }
 
-    if (shouldReduceMotion) {
+    if (shouldReduceMotion || isReadOnlyReplay) {
       setMergeStage('unified');
       return;
     }
@@ -205,7 +213,7 @@ export function MobileCatalogCarousel({
     }, 460);
 
     return () => window.clearTimeout(timer);
-  }, [isUnified, shouldReduceMotion]);
+  }, [isUnified, shouldReduceMotion, isReadOnlyReplay]);
 
   useEffect(() => {
     if (
@@ -377,6 +385,14 @@ export function MobileCatalogCarousel({
   const processedCount = images.filter((img) => Boolean(mappedResults[img.id])).length;
 
   useEffect(() => {
+    if (isReadOnlyReplay) {
+      if (allMappedComplete) {
+        setShowLifecycleBox(true);
+        setShowViewApiBox(true);
+      }
+      return;
+    }
+
     if (!allMappedComplete) {
       setShowLifecycleBox(false);
       setShowViewApiBox(false);
@@ -388,7 +404,7 @@ export function MobileCatalogCarousel({
     }, 2000);
 
     return () => window.clearTimeout(timer);
-  }, [allMappedComplete]);
+  }, [allMappedComplete, isReadOnlyReplay]);
 
   useEffect(() => {
     if (!showLifecycleBox || showViewApiBox || mergeStage !== 'unified') {

@@ -8,6 +8,7 @@ import { DesktopAccountMenu } from './components/DesktopAccountMenu';
 import type {
   OrganizationProfile,
   OrganizationServiceItem,
+  OrganizationServiceSnapshot,
 } from './components/DesktopOrganizationView';
 import { DualCatalogShowcase } from './components/DualCatalogShowcase';
 import { MobileAccountMenu } from './components/MobileAccountMenu';
@@ -73,6 +74,7 @@ export default function App() {
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [isFileUploadFlow, setIsFileUploadFlow] = useState(false);
+  const [isReadOnlyReplay, setIsReadOnlyReplay] = useState(false);
   const [showCompressionBox, setShowCompressionBox] = useState(false);
   const [compressionStatuses, setCompressionStatuses] = useState<
     Record<string, ImageCompressionStatus>
@@ -219,6 +221,7 @@ export default function App() {
     setUrl('');
     setHasSearched(false);
     setIsFileUploadFlow(false);
+    setIsReadOnlyReplay(false);
     setShowCompressionBox(false);
     setShowUploadBox(false);
     setShowReceiveBox(false);
@@ -234,6 +237,90 @@ export default function App() {
     window.setTimeout(() => {
       inputRef.current?.focus();
     }, 180);
+  };
+
+  const buildFallbackServiceSnapshot = (
+    service: OrganizationServiceItem,
+  ): OrganizationServiceSnapshot => {
+    const products = service.products ?? [];
+    const images: CatalogImageItem[] = products.map((prod, idx) => ({
+      id: prod.id || `replay-${service.id}-${idx}`,
+      url: prod.url,
+      cleanUrl: prod.url,
+      alt: prod.nombre || `Producto ${idx + 1}`,
+    }));
+
+    const nextCompressionStatuses: Record<string, ImageCompressionStatus> = {};
+    const nextUploadStatuses: Record<string, ImageUploadStatus> = {};
+    const nextReceiveStatuses: Record<string, ImageReceiveStatus> = {};
+    const nextMapStatuses: Record<string, ImageMapStatus> = {};
+    const nextMappedResults: Record<string, MappedImageMetadata> = {};
+    const nextCompressionResults: Record<string, CompressedImageMeta> = {};
+
+    products.forEach((prod, idx) => {
+      const item = images[idx];
+      nextCompressionStatuses[item.id] = 'done';
+      nextUploadStatuses[item.id] = 'done';
+      nextReceiveStatuses[item.id] = 'received';
+      nextMapStatuses[item.id] = 'mapped';
+      nextMappedResults[item.id] = {
+        nombre: prod.nombre,
+        categoria: prod.categoria,
+        descripcion: prod.descripcion,
+        url: prod.url,
+      };
+      nextCompressionResults[item.id] = {
+        url: prod.url,
+        cleanUrl: prod.url,
+        savedPercent: 0,
+        compressedBytes: 0,
+      };
+    });
+
+    return {
+      images,
+      compressionStatuses: nextCompressionStatuses,
+      uploadStatuses: nextUploadStatuses,
+      receiveStatuses: nextReceiveStatuses,
+      mapStatuses: nextMapStatuses,
+      mappedResults: nextMappedResults,
+      compressionResults: nextCompressionResults,
+    };
+  };
+
+  const handleViewServiceHistory = (service: OrganizationServiceItem) => {
+    extractAbortRef.current?.abort();
+    cancelOngoingCompression();
+
+    const snapshot =
+      service.snapshot && service.snapshot.images.length > 0
+        ? service.snapshot
+        : buildFallbackServiceSnapshot(service);
+
+    setIsDesktopMenuOpen(false);
+    setIsMobileMenuOpen(false);
+    setIsMobileAccountModalOpen(false);
+    setIsMobilePanelOpen(false);
+    setIsExtracting(false);
+    setExtractError(null);
+    setBatchNotice(null);
+    setIsReadOnlyReplay(true);
+    setHasSearched(true);
+    setIsFileUploadFlow(true);
+    setShowCompressionBox(true);
+    setShowUploadBox(true);
+    setShowReceiveBox(true);
+    setShowMapBox(true);
+    setCompressionStatuses(snapshot.compressionStatuses);
+    setUploadStatuses(snapshot.uploadStatuses);
+    setReceiveStatuses(snapshot.receiveStatuses);
+    setMapStatuses(snapshot.mapStatuses);
+    setMappedResults(snapshot.mappedResults);
+    setCompressionResults(snapshot.compressionResults);
+    setCatalogImages(
+      snapshot.images.length > 0 ? snapshot.images : CATALOG_SAMPLE_IMAGES,
+    );
+    setCatalogVersion((prev) => prev + 1);
   };
 
   const openAuthFlow = () => {
@@ -384,6 +471,7 @@ export default function App() {
     cancelOngoingCompression();
     setBatchNotice(null);
     setIsFileUploadFlow(false);
+    setIsReadOnlyReplay(false);
     setShowCompressionBox(false);
     setCompressionStatuses({});
     setShowUploadBox(false);
@@ -469,6 +557,7 @@ export default function App() {
 
     setBatchNotice(initialNotice);
     setIsFileUploadFlow(true);
+    setIsReadOnlyReplay(false);
     setShowCompressionBox(false);
     setShowUploadBox(false);
     setShowReceiveBox(false);
@@ -823,6 +912,9 @@ export default function App() {
 
         let firstMapError: string | null = null;
         const collectedMappedItems: SaveCatalogBatchInput['items'] = [];
+        const mappedPayloads: Array<MappedImageMetadata | null> = new Array(
+          items.length,
+        ).fill(null);
 
         for (let i = 0; i < items.length; i++) {
           if (controller.signal.aborted) return;
@@ -841,6 +933,7 @@ export default function App() {
           if (controller.signal.aborted) return;
 
           if (mapResult.ok) {
+            mappedPayloads[i] = mapResult.data;
             collectedMappedItems.push({
               ...mapResult.data,
               r2Key: uploadedPayloads[i]?.key,
@@ -873,6 +966,58 @@ export default function App() {
             ? firstProductName
             : `Servicio ${firstProductName}`;
 
+          const snapshotImages: CatalogImageItem[] = items.map((item, idx) => {
+            const uploaded = uploadedPayloads[idx];
+            const permanentUrl =
+              uploaded?.url || (!item.url.startsWith('blob:') ? item.url : '');
+            return {
+              ...item,
+              url: permanentUrl || item.url,
+              cleanUrl: uploaded?.url ?? item.cleanUrl,
+            };
+          });
+
+          const snapshotCompressionStatuses: Record<string, ImageCompressionStatus> = {};
+          const snapshotUploadStatuses: Record<string, ImageUploadStatus> = {};
+          const snapshotReceiveStatuses: Record<string, ImageReceiveStatus> = {};
+          const snapshotMapStatuses: Record<string, ImageMapStatus> = {};
+          const snapshotMappedResults: Record<string, MappedImageMetadata> = {};
+          const snapshotCompressionResults: Record<string, CompressedImageMeta> = {};
+
+          items.forEach((item, idx) => {
+            const compressed = compressedPayloads[idx];
+            const uploaded = uploadedPayloads[idx];
+            const mapped = mappedPayloads[idx];
+
+            snapshotCompressionStatuses[item.id] = compressed ? 'done' : 'error';
+            snapshotUploadStatuses[item.id] = uploaded ? 'done' : 'error';
+            snapshotReceiveStatuses[item.id] = uploaded ? 'received' : 'error';
+            snapshotMapStatuses[item.id] = mapped ? 'mapped' : 'error';
+
+            if (uploaded) {
+              snapshotCompressionResults[item.id] = {
+                url: uploaded.url,
+                cleanUrl: uploaded.url,
+                savedPercent: uploaded.savedPercent,
+                compressedBytes: uploaded.compressedBytes,
+              };
+            }
+
+            if (mapped) {
+              snapshotMappedResults[item.id] = mapped;
+            }
+          });
+
+          const serviceSnapshot: OrganizationServiceSnapshot = {
+            images: snapshotImages,
+            compressionStatuses: snapshotCompressionStatuses,
+            uploadStatuses: snapshotUploadStatuses,
+            receiveStatuses: snapshotReceiveStatuses,
+            mapStatuses: snapshotMapStatuses,
+            mappedResults: snapshotMappedResults,
+            compressionResults: snapshotCompressionResults,
+          };
+
           const newService: OrganizationServiceItem = {
             id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
             name: defaultServiceName,
@@ -887,6 +1032,7 @@ export default function App() {
               descripcion: item.descripcion,
               url: item.url,
             })),
+            snapshot: serviceSnapshot,
           };
 
           setOrgServices((prev) => {
@@ -1380,10 +1526,12 @@ export default function App() {
         mapStatuses={mapStatuses}
         mappedResults={mappedResults}
         compressionResults={compressionResults}
+        isReadOnlyReplay={isReadOnlyReplay}
       />
 
       {/* Mobile-only swipeable boxes with Stage 2–5 auto-pan + unboxed metadata / JSON below */}
       <MobileCatalogCarousel
+        key={isReadOnlyReplay ? `mobile-replay-${catalogVersion}` : 'mobile-live'}
         images={catalogImages}
         isUnified={hasSearched}
         isExtracting={isExtracting}
@@ -1399,6 +1547,7 @@ export default function App() {
         mapStatuses={mapStatuses}
         mappedResults={mappedResults}
         compressionResults={compressionResults}
+        isReadOnlyReplay={isReadOnlyReplay}
         onOpenOrganization={() => {
           if (authUser) {
             setIsMobilePanelOpen(true);
@@ -1419,6 +1568,7 @@ export default function App() {
           onSaveOrgProfile={handleSaveOrgProfile}
           onRenameService={handleRenameService}
           onNewProduct={handleStartNewProduct}
+          onViewServiceHistory={handleViewServiceHistory}
           onClose={() => setIsDesktopMenuOpen(false)}
           onSignOut={handleSignOut}
         />
@@ -1436,6 +1586,7 @@ export default function App() {
           onSaveOrgProfile={handleSaveOrgProfile}
           onRenameService={handleRenameService}
           onNewProduct={handleStartNewProduct}
+          onViewServiceHistory={handleViewServiceHistory}
           onCloseMenu={() => setIsMobileMenuOpen(false)}
           onOpenAccountModal={() => setIsMobileAccountModalOpen(true)}
           onCloseAccountModal={() => setIsMobileAccountModalOpen(false)}

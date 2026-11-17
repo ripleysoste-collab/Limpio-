@@ -124,7 +124,7 @@ export function MobileStoreView({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 pb-4">
+          <div className="grid grid-cols-2 gap-3.5 pb-6">
             {products.map((product) => {
               const isNameExpanded = expandedProductId === product.id;
               const imgBroken = Boolean(failedImageIds[product.id]);
@@ -132,9 +132,10 @@ export function MobileStoreView({
               return (
                 <article
                   key={`mob-store-prod-${product.id}`}
-                  className="rounded-2xl bg-white/88 backdrop-blur-md border border-white/95 ring-1 ring-slate-900/[0.04] shadow-[0_8px_22px_-10px_rgba(15,23,42,0.12)] p-2 flex flex-col"
+                  className="flex flex-col min-w-0"
                 >
-                  <div className="aspect-square w-full overflow-hidden rounded-xl bg-slate-100/80">
+                  {/* Rounded edges directly on the product image — no white frame */}
+                  <div className="aspect-square w-full overflow-hidden rounded-2xl bg-slate-100/60 shadow-[0_12px_28px_-12px_rgba(15,23,42,0.24)] ring-1 ring-slate-900/[0.05]">
                     {!imgBroken && product.url ? (
                       <img
                         src={product.url}
@@ -155,7 +156,8 @@ export function MobileStoreView({
                     )}
                   </div>
 
-                  <div className="pt-2 px-0.5 space-y-0.5 min-w-0">
+                  {/* Product name aligned from left edge to right edge of image; tap to expand downward */}
+                  <div className="pt-2 w-full min-w-0 space-y-0.5">
                     <button
                       type="button"
                       onClick={() =>
@@ -163,10 +165,11 @@ export function MobileStoreView({
                           prev === product.id ? null : product.id,
                         )
                       }
-                      className="w-full text-left focus-visible:outline-none cursor-pointer"
+                      aria-expanded={isNameExpanded}
+                      className="w-full text-left focus-visible:outline-none cursor-pointer block"
                     >
                       <p
-                        className={`text-[12px] font-semibold text-slate-900 leading-snug ${
+                        className={`w-full text-[12.5px] font-semibold text-slate-900 leading-snug ${
                           isNameExpanded ? 'whitespace-normal break-words' : 'truncate'
                         }`}
                       >
@@ -174,7 +177,7 @@ export function MobileStoreView({
                       </p>
                     </button>
 
-                    <p className="text-[10.5px] font-medium text-slate-500 truncate">
+                    <p className="w-full text-[10.5px] font-medium text-slate-600/85 truncate">
                       {product.categoria || 'General'}
                     </p>
                   </div>

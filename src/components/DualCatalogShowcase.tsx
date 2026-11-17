@@ -28,6 +28,7 @@ interface DualCatalogShowcaseProps {
   mapStatuses?: Record<string, ImageMapStatus>;
   mappedResults?: Record<string, MappedImageMetadata>;
   compressionResults?: Record<string, CompressedImageMeta>;
+  isReadOnlyReplay?: boolean;
 }
 
 interface BoxRect {
@@ -161,6 +162,7 @@ export function DualCatalogShowcase({
   mapStatuses = {},
   mappedResults = {},
   compressionResults = {},
+  isReadOnlyReplay = false,
 }: DualCatalogShowcaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const leftCardRef = useRef<HTMLElement>(null);
@@ -174,7 +176,9 @@ export function DualCatalogShowcase({
     right: { x: 0, y: 0, width: 0, height: 0 },
   });
 
-  const [uploadSequenceCompleted, setUploadSequenceCompleted] = useState(false);
+  const [uploadSequenceCompleted, setUploadSequenceCompleted] = useState(
+    Boolean(isReadOnlyReplay),
+  );
   const [phase, setPhase] = useState<AnimationPhase>(
     isFileUploadFlow ? 'COMPLETED' : 'FILL_IMAGES',
   );
@@ -208,10 +212,22 @@ export function DualCatalogShowcase({
       images.some((img) => Boolean(mappedResults[img.id])),
   );
 
-  const [hasLifecycleUnlocked, setHasLifecycleUnlocked] = useState(false);
-  const [rightCardView, setRightCardView] = useState<'mapped' | 'lifecycle'>('mapped');
+  const [hasLifecycleUnlocked, setHasLifecycleUnlocked] = useState(
+    Boolean(isReadOnlyReplay),
+  );
+  const [rightCardView, setRightCardView] = useState<'mapped' | 'lifecycle'>(
+    isReadOnlyReplay ? 'lifecycle' : 'mapped',
+  );
 
   useEffect(() => {
+    if (isReadOnlyReplay) {
+      if (allMappedComplete) {
+        setHasLifecycleUnlocked(true);
+        setRightCardView('lifecycle');
+      }
+      return;
+    }
+
     if (!allMappedComplete) {
       setHasLifecycleUnlocked(false);
       setRightCardView('mapped');
@@ -224,7 +240,7 @@ export function DualCatalogShowcase({
     }, 2000);
 
     return () => window.clearTimeout(timerId);
-  }, [allMappedComplete]);
+  }, [allMappedComplete, isReadOnlyReplay]);
 
   const processedImages = useMemo(
     () => images.filter((img) => Boolean(mappedResults[img.id])),
@@ -859,7 +875,7 @@ export function DualCatalogShowcase({
             {/* Bottom-left card: Aquí puedes ver tus metadatos (animates down & across from right column) */}
             <motion.div
               initial={
-                shouldReduceMotion
+                shouldReduceMotion || isReadOnlyReplay
                   ? false
                   : { x: '52%', y: '-54%', opacity: 0.7 }
               }
@@ -946,7 +962,9 @@ export function DualCatalogShowcase({
 
           {/* RIGHT HALF: Only the rounded white card over the background; title outside with exact same top/bottom alignment & fixed height with internal mouse scroll */}
           <motion.div
-            initial={shouldReduceMotion ? false : { opacity: 0, x: 24 }}
+            initial={
+              shouldReduceMotion || isReadOnlyReplay ? false : { opacity: 0, x: 24 }
+            }
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col h-full min-h-0 pt-1 pb-5 px-6 overflow-hidden"

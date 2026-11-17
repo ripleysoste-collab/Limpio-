@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Camera, Check, Copy, Pencil, Plus, Store, X } from 'lucide-react';
+import { Camera, Check, Copy, History, Pencil, Plus, Store, X } from 'lucide-react';
 import type {
   OrganizationProfile,
   OrganizationServiceItem,
@@ -15,6 +15,7 @@ interface MobileOrganizationViewProps {
   onRenameService: (serviceId: string, nextName: string) => void;
   onNewProduct: () => void;
   onOpenStore: (service: OrganizationServiceItem) => void;
+  onViewServiceHistory: (service: OrganizationServiceItem) => void;
 }
 
 type OnboardingStage = 'welcome' | 'congrats';
@@ -49,6 +50,7 @@ export function MobileOrganizationView({
   onRenameService,
   onNewProduct,
   onOpenStore,
+  onViewServiceHistory,
 }: MobileOrganizationViewProps) {
   const shouldReduceMotion = useReducedMotion();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -613,44 +615,56 @@ export function MobileOrganizationView({
                     </span>
                   </div>
 
-                  {/* Clean separated dot items */}
-                  <div className="flex flex-col gap-1.5 pl-0.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCopiedCredential(false);
-                        setCredentialBox({
-                          serviceName: service.name,
-                          kind: 'api',
-                          value: service.apiKey,
-                        });
-                      }}
-                      className="flex items-center gap-2 text-left text-[11.5px] font-medium text-slate-600 active:text-slate-950 py-0.5 cursor-pointer"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
-                      />
-                      <span>API del servicio</span>
-                    </button>
+                  {/* Bottom row: Left = dot items | Bottom-right = small red history icon */}
+                  <div className="flex items-end justify-between gap-2">
+                    <div className="flex flex-col gap-1.5 pl-0.5 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCopiedCredential(false);
+                          setCredentialBox({
+                            serviceName: service.name,
+                            kind: 'api',
+                            value: service.apiKey,
+                          });
+                        }}
+                        className="flex items-center gap-2 text-left text-[11.5px] font-medium text-slate-600 active:text-slate-950 py-0.5 cursor-pointer"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
+                        />
+                        <span>API del servicio</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCopiedCredential(false);
+                          setCredentialBox({
+                            serviceName: service.name,
+                            kind: 'endpoint',
+                            value: service.endpointUrl,
+                          });
+                        }}
+                        className="flex items-center gap-2 text-left text-[11.5px] font-medium text-slate-600 active:text-slate-950 py-0.5 cursor-pointer"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
+                        />
+                        <span>Endpoint de este servicio</span>
+                      </button>
+                    </div>
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setCopiedCredential(false);
-                        setCredentialBox({
-                          serviceName: service.name,
-                          kind: 'endpoint',
-                          value: service.endpointUrl,
-                        });
-                      }}
-                      className="flex items-center gap-2 text-left text-[11.5px] font-medium text-slate-600 active:text-slate-950 py-0.5 cursor-pointer"
+                      onClick={() => onViewServiceHistory(service)}
+                      aria-label={`Ver historial del proceso de ${service.name}`}
+                      title="Ver proceso de automatización"
+                      className="w-7 h-7 rounded-lg flex items-center justify-center text-rose-500 hover:text-rose-600 active:bg-rose-50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
                     >
-                      <span
-                        aria-hidden="true"
-                        className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
-                      />
-                      <span>Endpoint de este servicio</span>
+                      <History className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                   </div>
                 </li>
