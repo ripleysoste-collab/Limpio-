@@ -6,8 +6,8 @@ import {
 } from './supabaseServer.ts';
 
 export const SEARCH_LINK_CHAT_GROQ_MODELS = [
-  'openai/gpt-oss-20b',
   'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
 ];
 export const SEARCH_LINK_IA_DAILY_LIMIT = 1;
 export const SEARCH_LINK_IA_COOKIE_NAME = 'sl_ia_daily';
@@ -190,132 +190,6 @@ export function consumeDailyLimit(
   return { day, cookieHeader };
 }
 
-const SPANISH_STOPWORDS = new Set([
-  'que',
-  'qué',
-  'hay',
-  'de',
-  'del',
-  'la',
-  'el',
-  'los',
-  'las',
-  'un',
-  'una',
-  'unos',
-  'unas',
-  'para',
-  'por',
-  'con',
-  'sin',
-  'sobre',
-  'como',
-  'cómo',
-  'cual',
-  'cuál',
-  'cuales',
-  'cuáles',
-  'tienen',
-  'tienes',
-  'tiene',
-  'tengo',
-  'quiero',
-  'busco',
-  'ver',
-  'mostrar',
-  'muestrame',
-  'muéstrame',
-  'dame',
-  'dime',
-  'hola',
-  'buenas',
-  'buenos',
-  'dias',
-  'días',
-  'tardes',
-  'noches',
-  'algo',
-  'comer',
-  'tomar',
-  'comprar',
-  'productos',
-  'producto',
-  'catalogo',
-  'catálogo',
-  'menu',
-  'menú',
-  'opciones',
-  'todo',
-  'todos',
-  'me',
-  'te',
-  'se',
-  'es',
-  'son',
-  'en',
-  'al',
-  'lo',
-  'le',
-  'y',
-  'o',
-  'a',
-]);
-
-function normalizeText(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-export function selectInstantMatchingProducts(
-  query: string,
-  catalog: SearchLinkCoreProduct[],
-  maxItems = 6,
-): SearchLinkCoreProduct[] {
-  if (catalog.length === 0) return [];
-  const normalizedQuery = normalizeText(query);
-  const tokens = normalizedQuery
-    .split(' ')
-    .filter((t) => t.length >= 2 && !SPANISH_STOPWORDS.has(t));
-
-  if (tokens.length === 0) {
-    return catalog.slice(0, maxItems);
-  }
-
-  const scored = catalog.map((item, idx) => {
-    const normName = normalizeText(item.nombre);
-    const normCat = normalizeText(item.categoria);
-    const normDesc = normalizeText(item.descripcion);
-    let score = 0;
-
-    for (const token of tokens) {
-      if (normName.includes(token)) score += 6;
-      if (normCat.includes(token)) score += 4;
-      if (normDesc.includes(token)) score += 2;
-      if (token.length >= 4 && token.endsWith('s')) {
-        const singular = token.slice(0, -1);
-        if (normName.includes(singular)) score += 5;
-        if (normCat.includes(singular)) score += 3;
-        if (normDesc.includes(singular)) score += 1.5;
-      }
-    }
-
-    return { item, score, idx };
-  });
-
-  const matched = scored
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || a.idx - b.idx)
-    .slice(0, maxItems)
-    .map((entry) => entry.item);
-
-  return matched.length > 0 ? matched : catalog.slice(0, maxItems);
-}
-
 async function resolveCatalogForChat(input: SearchLinkChatInput): Promise<
   | {
       ok: true;
@@ -368,33 +242,61 @@ async function resolveCatalogForChat(input: SearchLinkChatInput): Promise<
   return { ok: true, orgName, serviceName, products, coreSource };
 }
 
-function buildConciseSystemInstruction(options: {
+interface GroqSelectionOutcome {
+  selectedProducts: SearchLinkCoreProduct[];
+  reply: string;
+}
+
+async function resolveWithGroqReasoning(options: {
+  apiKey: string;
   orgName: string;
   serviceName: string;
-  selectedProducts: SearchLinkCoreProduct[];
-  allProductsCount: number;
-}): string {
-  const compactItems = options.selectedProducts.map((p) => ({
+  products: SearchLinkCoreProduct[];
+  history: SearchLinkChatTurn[];
+  message: string;
+}): Promise<GroqSelectionOutcome> {
+  if (options.products.length === 0) {
+    return {
+      selectedProducts: [],
+      reply:
+        'Este servicio aún no tiene productos publicados en su catálogo.',
+    };
+  }
+
+  // Use short numeric keys ("1", "2", ...) so the model never drops or mistypes a UUID
+  const indexedCatalog = options.products.map((p, idx) => ({
+    id: String(idx + 1),
     nombre: p.nombre,
     categoria: p.categoria,
     descripcion: p.descripcion,
   }));
-
-  return (
-    `Eres Search Link IA, asistente amable de "${options.orgName}" (${options.serviceName}). ` +
-    `Las imágenes de estos productos ya se muestran arriba al cliente: ${JSON.stringify(compactItems)} ` +
-    `(catálogo total: ${options.allProductsCount}). ` +
-    `Responde en español con 1 o 2 frases muy cortas, naturales y amables (máximo 35 palabras) comentando las opciones mostradas arriba o preguntando cuál prefiere. ` +
-    `No hagas listas largas ni inventes precios o productos que no estén arriba.`
+  const productByShortId = new Map(
+    options.products.map((p, idx) => [String(idx + 1), p]),
   );
-}
 
-async function* streamWithGroq(options: {
-  apiKey: string;
-  systemInstruction: string;
-  history: SearchLinkChatTurn[];
-  message: string;
-}): AsyncGenerator<string> {
+  const systemInstruction =
+    `Eres Search Link IA, asesor experto y amable de "${options.orgName}" (${options.serviceName}).\n` +
+    `Catálogo real del negocio: ${JSON.stringify(indexedCatalog)}\n\n` +
+    `Reglas estrictas para elegir "product_ids":\n` +
+    `1) Analiza con cuidado la intención real del cliente antes de responder.\n` +
+    `2) Si pide un producto específico (ej. "crema de tomate", "ramen", "paella"), incluye ÚNICAMENTE el id exacto que corresponde a ese plato o artículo. NUNCA incluyas otros productos distintos solo porque compartan una palabra o ingrediente menor en su descripción.\n` +
+    `3) Si pide por característica o categoría (ej. "algo ligero y saludable", "algo con camarones", "sopas"), incluye SOLO los ids que realmente cumplan con eso.\n` +
+    `4) Si pregunta de forma general ("qué hay", "qué hay de comer", "qué venden", "menú", "muéstrame todo"), incluye una muestra amplia y variada del catálogo (hasta 6 ids).\n` +
+    `5) Si pide algo que NO existe en el catálogo (ej. "pizza", "hamburguesa" cuando no están), devuelve product_ids: [] y díselo con amabilidad sugiriendo 1 o 2 opciones que sí existan.\n` +
+    `6) Si es solo un saludo ("hola", "buenas"), devuelve product_ids: [] y saluda brevemente preguntando qué busca.\n\n` +
+    `Reglas para "reply":\n` +
+    `- Español natural, cálido y breve (1 o 2 frases cortas, máximo 35 palabras).\n` +
+    `- Cuando product_ids no esté vacío, recuerda que las imágenes de esos productos se mostrarán justo arriba del texto, así que no hagas listas largas.`;
+
+  const messages = [
+    { role: 'system', content: systemInstruction },
+    ...options.history.slice(-6).map((t) => ({
+      role: t.role,
+      content: t.text.trim().slice(0, 600),
+    })),
+    { role: 'user', content: options.message },
+  ];
+
   const preferredModel = cleanEnv(process.env.GROQ_MODEL);
   const modelsToTry = preferredModel
     ? [
@@ -403,73 +305,105 @@ async function* streamWithGroq(options: {
       ]
     : SEARCH_LINK_CHAT_GROQ_MODELS;
 
-  const messages = [
-    { role: 'system', content: options.systemInstruction },
-    ...options.history.slice(-6).map((t) => ({
-      role: t.role,
-      content: t.text.trim().slice(0, 800),
-    })),
-    { role: 'user', content: options.message },
-  ];
-
   let lastError = 'Error consultando Groq';
 
   for (const model of modelsToTry) {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${options.apiKey}`,
+    const response = await fetch(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${options.apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          reasoning_effort: 'medium',
+          max_completion_tokens: 750,
+          temperature: 0.2,
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'search_link_catalog_selection',
+              strict: true,
+              schema: {
+                type: 'object',
+                properties: {
+                  product_ids: {
+                    type: 'array',
+                    items: { type: 'string' },
+                  },
+                  reply: {
+                    type: 'string',
+                  },
+                },
+                required: ['product_ids', 'reply'],
+                additionalProperties: false,
+              },
+            },
+          },
+        }),
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        reasoning_effort: 'low',
-        max_completion_tokens: 300,
-        temperature: 0.5,
-      }),
-    });
+    );
 
-    if (!response.ok || !response.body) {
+    if (!response.ok) {
       const errText = await response.text().catch(() => '');
-      lastError = `Groq (${response.status}): ${errText.slice(0, 140)}`;
-      if (response.status === 404 || errText.includes('model')) {
+      lastError = `Groq (${response.status}): ${errText.slice(0, 160)}`;
+      if (
+        response.status === 404 ||
+        response.status === 400 ||
+        errText.includes('model') ||
+        errText.includes('json_validate_failed')
+      ) {
         continue;
       }
       throw new Error(lastError);
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const rawContent = (data.choices?.[0]?.message?.content || '').trim();
+    if (!rawContent) {
+      lastError = 'Groq devolvió una respuesta vacía.';
+      continue;
+    }
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+    try {
+      const parsed = JSON.parse(rawContent) as {
+        product_ids?: unknown;
+        reply?: unknown;
+      };
 
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line.startsWith('data:')) continue;
-        const payload = line.slice(5).trim();
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          const parsed = JSON.parse(payload) as {
-            choices?: Array<{ delta?: { content?: string } }>;
-          };
-          const chunkText = parsed.choices?.[0]?.delta?.content;
-          if (typeof chunkText === 'string' && chunkText.length > 0) {
-            yield chunkText;
+      const seen = new Set<string>();
+      const selectedProducts: SearchLinkCoreProduct[] = [];
+      if (Array.isArray(parsed.product_ids)) {
+        for (const rawId of parsed.product_ids) {
+          if (typeof rawId !== 'string') continue;
+          const cleanId = rawId.trim();
+          if (!cleanId || seen.has(cleanId)) continue;
+          const matched = productByShortId.get(cleanId);
+          if (matched) {
+            seen.add(cleanId);
+            selectedProducts.push(matched);
+            if (selectedProducts.length >= 6) break;
           }
-        } catch {
-          // Ignore malformed SSE keepalive frames
         }
       }
+
+      const reply =
+        typeof parsed.reply === 'string' && parsed.reply.trim()
+          ? parsed.reply.trim()
+          : selectedProducts.length > 0
+            ? 'Aquí tienes lo que coincide con tu búsqueda. ¿Te gustaría más detalles?'
+            : 'No encontré ese producto exacto en el catálogo. ¿Te muestro otras opciones?';
+
+      return { selectedProducts, reply };
+    } catch {
+      lastError = 'No se pudo interpretar la respuesta estructurada de Groq.';
+      continue;
     }
-    return;
   }
 
   throw new Error(lastError);
@@ -509,26 +443,6 @@ export async function* streamSearchLinkChat(
     return;
   }
 
-  const selectedProducts = selectInstantMatchingProducts(
-    cleanMessage,
-    catalog.products,
-    6,
-  );
-
-  yield {
-    type: 'products',
-    products: selectedProducts,
-    totalCatalogProducts: catalog.products.length,
-    coreSource: catalog.coreSource,
-  };
-
-  const systemInstruction = buildConciseSystemInstruction({
-    orgName: catalog.orgName,
-    serviceName: catalog.serviceName,
-    selectedProducts,
-    allProductsCount: catalog.products.length,
-  });
-
   const history = Array.isArray(input.history)
     ? input.history.filter(
         (t) =>
@@ -538,25 +452,29 @@ export async function* streamSearchLinkChat(
       )
     : [];
 
-  let yieldedAny = false;
-
   try {
-    for await (const piece of streamWithGroq({
+    const outcome = await resolveWithGroqReasoning({
       apiKey: groqKey,
-      systemInstruction,
+      orgName: catalog.orgName,
+      serviceName: catalog.serviceName,
+      products: catalog.products,
       history,
       message: cleanMessage,
-    })) {
-      yieldedAny = true;
-      yield { type: 'delta', text: piece };
-    }
+    });
 
-    if (!yieldedAny) {
-      yield {
-        type: 'delta',
-        text: 'Aquí tienes las opciones principales del catálogo. ¿Cuál te gustaría ver más de cerca?',
-      };
-    }
+    // Emit the reasoned, accurate product images FIRST above the text
+    yield {
+      type: 'products',
+      products: outcome.selectedProducts,
+      totalCatalogProducts: catalog.products.length,
+      coreSource: catalog.coreSource,
+    };
+
+    // Emit the short friendly reply cleanly below the images
+    yield {
+      type: 'delta',
+      text: outcome.reply,
+    };
 
     yield {
       type: 'done',
