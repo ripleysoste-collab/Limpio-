@@ -7,14 +7,20 @@ interface MobileJsonEditorModalProps {
   onClose: () => void;
 }
 
-type JsonTokenType = 'key' | 'string' | 'number' | 'boolean' | 'null' | 'punctuation';
+export type JsonTokenType =
+  | 'key'
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'null'
+  | 'punctuation';
 
-interface JsonToken {
+export interface JsonToken {
   type: JsonTokenType;
   text: string;
 }
 
-function tokenizeJsonLine(line: string): JsonToken[] {
+export function tokenizeJsonLine(line: string): JsonToken[] {
   const tokens: JsonToken[] = [];
   const regex =
     /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(?:\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?|[{}[\],:])/g;
@@ -59,7 +65,7 @@ function tokenizeJsonLine(line: string): JsonToken[] {
   return tokens;
 }
 
-const LIGHT_TOKEN_CLASSES: Record<JsonTokenType, string> = {
+export const LIGHT_TOKEN_CLASSES: Record<JsonTokenType, string> = {
   key: 'text-[#0550ae]',
   string: 'text-[#116329]',
   number: 'text-[#953800]',

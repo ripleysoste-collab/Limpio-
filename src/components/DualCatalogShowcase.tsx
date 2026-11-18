@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ArrowLeft, ArrowRight, Check, Copy, Eye, Image as ImageIcon, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Copy,
+  Eye,
+  Image as ImageIcon,
+  Loader2,
+  X,
+} from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
 import type { MappedImageMetadata } from '../lib/imageCompression';
+import {
+  generateAndDownloadCatalogPdf,
+  type CatalogPdfExportKind,
+} from '../lib/pdfExport';
 import { DesktopUploadSequence } from './DesktopUploadSequence';
 import type {
   CompressedImageMeta,
@@ -11,6 +24,7 @@ import type {
   ImageReceiveStatus,
   ImageUploadStatus,
 } from './MobileCatalogCarousel';
+import { LIGHT_TOKEN_CLASSES, tokenizeJsonLine } from './MobileJsonEditorModal';
 
 interface DualCatalogShowcaseProps {
   images: CatalogImageItem[];
@@ -215,9 +229,11 @@ export function DualCatalogShowcase({
   const [hasLifecycleUnlocked, setHasLifecycleUnlocked] = useState(
     Boolean(isReadOnlyReplay),
   );
-  const [rightCardView, setRightCardView] = useState<'mapped' | 'lifecycle'>(
+  const [rightCardView, setRightCardView] = useState<'mapped' | 'lifecycle' | 'editor'>(
     isReadOnlyReplay ? 'lifecycle' : 'mapped',
   );
+  const [exportingPdfKind, setExportingPdfKind] =
+    useState<CatalogPdfExportKind | null>(null);
 
   useEffect(() => {
     if (isReadOnlyReplay) {
@@ -247,6 +263,47 @@ export function DualCatalogShowcase({
     [images, mappedResults],
   );
   const processedCount = processedImages.length;
+
+  const fullMappedJsonText = useMemo(() => {
+    const payload = images.map((item) => {
+      const mapped = mappedResults[item.id];
+      const compressed = compressionResults[item.id];
+      const bestUrl =
+        compressed?.url ||
+        mapped?.url ||
+        item.sourcePageUrl ||
+        (!item.url.startsWith('blob:') ? item.url : '') ||
+        item.cleanUrl ||
+        item.url;
+      return {
+        nombre: mapped?.nombre || item.alt || 'Producto',
+        categoria: mapped?.categoria || 'General',
+        descripcion: mapped?.descripcion || '',
+        url: bestUrl,
+      };
+    });
+    return JSON.stringify(payload, null, 2);
+  }, [images, mappedResults, compressionResults]);
+
+  const tokenizedJsonLines = useMemo(
+    () => fullMappedJsonText.split('\n').map((line) => tokenizeJsonLine(line)),
+    [fullMappedJsonText],
+  );
+
+  const handleExportPdf = async (kind: CatalogPdfExportKind) => {
+    if (exportingPdfKind) return;
+    setExportingPdfKind(kind);
+    try {
+      await generateAndDownloadCatalogPdf({
+        kind,
+        images,
+        mappedResults,
+        compressionResults,
+      });
+    } finally {
+      setExportingPdfKind(null);
+    }
+  };
 
   // Fullscreen edge-to-edge image viewer state
   const [fullscreenImage, setFullscreenImage] = useState<CatalogImageItem | null>(null);
@@ -588,6 +645,11 @@ export function DualCatalogShowcase({
           setFullscreenImage(null);
           return;
         }
+        if (isSplitWorkspaceActive && rightCardView === 'editor') {
+          event.preventDefault();
+          setRightCardView('lifecycle');
+          return;
+        }
         if (expandedMode !== null) {
           event.preventDefault();
           closeExpanded();
@@ -675,6 +737,7 @@ export function DualCatalogShowcase({
   }, [
     suspendShortcuts,
     isSplitWorkspaceActive,
+    rightCardView,
     fullscreenImage,
     expandedMode,
     expandStage,
@@ -832,10 +895,10 @@ export function DualCatalogShowcase({
             className="pointer-events-none absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px bg-white/35 z-20"
           />
 
-          {/* LEFT HALF: Images on top + Links animated down & leftward below */}
-          <div className="flex flex-col gap-3.5 px-6 pt-1 pb-5 h-full min-h-0 overflow-hidden">
+          {/* LEFT HALF: Images + Metadatos fill initial height cleanly; scroll down to access Productividad below */}
+          <div className="flex flex-col gap-3.5 px-6 pt-1 pb-5 h-full min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* Top-left card: Aquí verás tus imágenes */}
-            <div className="flex-1 min-h-0 flex flex-col">
+            <div className="h-[calc((100%-0.875rem)/2)] min-h-[180px] shrink-0 flex flex-col">
               <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
                 Aquí verás tus imágenes
               </h2>
@@ -872,7 +935,7 @@ export function DualCatalogShowcase({
               </section>
             </div>
 
-            {/* Bottom-left card: Aquí puedes ver tus metadatos (animates down & across from right column) */}
+            {/* Middle-left card: Aquí puedes ver tus metadatos */}
             <motion.div
               initial={
                 shouldReduceMotion || isReadOnlyReplay
@@ -881,7 +944,7 @@ export function DualCatalogShowcase({
               }
               animate={{ x: 0, y: 0, opacity: 1 }}
               transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 min-h-0 flex flex-col"
+              className="h-[calc((100%-0.875rem)/2)] min-h-[180px] shrink-0 flex flex-col"
             >
               <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
                 Aquí puedes ver tus metadatos
@@ -958,6 +1021,70 @@ export function DualCatalogShowcase({
                 </div>
               </section>
             </motion.div>
+
+            {/* Third left card below Metadatos: Productividad (appears when lifecycle unlocks; scroll down to access) */}
+            {hasLifecycleUnlocked && (
+              <motion.div
+                initial={
+                  shouldReduceMotion || isReadOnlyReplay
+                    ? false
+                    : { opacity: 0, y: 12 }
+                }
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className="shrink-0 flex flex-col pt-0.5"
+              >
+                <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
+                  Productividad
+                </h2>
+                <section
+                  aria-label="Productividad"
+                  className="w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] px-5 py-3"
+                >
+                  <ul className="divide-y divide-slate-100/90">
+                    {(
+                      [
+                        { kind: 'json', label: 'Descargar mapeo JSON' },
+                        { kind: 'images', label: 'Descargar imágenes' },
+                        { kind: 'urls', label: 'Descargar URLs' },
+                        { kind: 'metadata', label: 'Descargar metadatos' },
+                        { kind: 'all', label: 'Descargar todo' },
+                      ] as const
+                    ).map((action) => {
+                      const isGenerating = exportingPdfKind === action.kind;
+                      return (
+                        <li key={`desktop-pdf-${action.kind}`}>
+                          <button
+                            type="button"
+                            disabled={exportingPdfKind !== null}
+                            onClick={() => void handleExportPdf(action.kind)}
+                            className="w-full py-2.5 text-left text-[13.5px] font-normal text-blue-600 hover:text-blue-700 active:opacity-70 transition-colors cursor-pointer flex items-center justify-between gap-2 disabled:opacity-50 focus-visible:outline-none focus-visible:underline"
+                          >
+                            <span>{action.label}</span>
+                            {isGenerating && (
+                              <Loader2
+                                className="w-3.5 h-3.5 animate-spin text-blue-500 shrink-0"
+                                aria-hidden="true"
+                              />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => setRightCardView('editor')}
+                        className="w-full py-2.5 text-left text-[13.5px] font-normal text-blue-600 hover:text-blue-700 active:opacity-70 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
+                      >
+                        Ver en editor
+                      </button>
+                    </li>
+                  </ul>
+                </section>
+              </motion.div>
+            )}
           </div>
 
           {/* RIGHT HALF: Only the rounded white card over the background; title outside with exact same top/bottom alignment & fixed height with internal mouse scroll */}
@@ -971,25 +1098,109 @@ export function DualCatalogShowcase({
           >
             <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
               {allMappedComplete
-                ? rightCardView === 'lifecycle'
-                  ? 'Ciclo de vida, API y endpoint'
-                  : 'Renderizado y mapeado'
+                ? rightCardView === 'editor'
+                  ? 'Editor JSON'
+                  : rightCardView === 'lifecycle'
+                    ? 'Ciclo de vida, API y endpoint'
+                    : 'Renderizado y mapeado'
                 : 'Renderizar y mapear'}
             </h2>
 
             <section
               aria-label={
                 allMappedComplete
-                  ? rightCardView === 'lifecycle'
-                    ? 'Ciclo de vida, API y endpoint'
-                    : 'Renderizado y mapeado'
+                  ? rightCardView === 'editor'
+                    ? 'Editor JSON'
+                    : rightCardView === 'lifecycle'
+                      ? 'Ciclo de vida, API y endpoint'
+                      : 'Renderizado y mapeado'
                   : 'Renderizar y mapear'
               }
-              className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] p-4 overflow-y-auto overscroll-contain"
+              className={`relative flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] ${
+                rightCardView === 'editor'
+                  ? 'overflow-hidden p-0'
+                  : 'p-4 overflow-y-auto overscroll-contain'
+              }`}
             >
               {allMappedComplete ? (
                 <AnimatePresence mode="wait" initial={false}>
-                  {rightCardView === 'lifecycle' ? (
+                  {rightCardView === 'editor' ? (
+                    <motion.div
+                      key="desktop-json-editor-view"
+                      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="relative w-full h-full bg-white text-slate-900"
+                    >
+                      {/* Bare Copy & X icons floating cleanly top-right without any box or bar */}
+                      <div className="absolute top-4 right-5 z-10 flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCopyText('editor-json-all', fullMappedJsonText)
+                          }
+                          aria-label="Copiar todo el JSON"
+                          title="Copiar JSON"
+                          className="p-1 text-slate-400 hover:text-slate-800 active:opacity-60 transition-colors cursor-pointer"
+                        >
+                          {copiedId === 'editor-json-all' ? (
+                            <Check
+                              className="w-4 h-4 text-emerald-600 stroke-[2.5]"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <Copy className="w-4 h-4" aria-hidden="true" />
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setRightCardView('lifecycle')}
+                          aria-label="Cerrar editor y volver a Ciclo de vida"
+                          title="Cerrar editor"
+                          className="p-1 text-slate-500 hover:text-slate-950 active:opacity-60 transition-colors cursor-pointer"
+                        >
+                          <X className="w-5 h-5" aria-hidden="true" />
+                        </button>
+                      </div>
+
+                      <div
+                        aria-readonly="true"
+                        className="w-full h-full overflow-auto pt-4 pb-6 px-3 pr-16 font-mono text-[12px] leading-[1.65] select-text"
+                      >
+                        <div className="min-w-max">
+                          {tokenizedJsonLines.map((tokens, idx) => (
+                            <div
+                              key={`desktop-code-line-${idx}`}
+                              className="flex items-start px-1.5"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="w-8 pr-3 text-right text-[11px] text-slate-300 select-none shrink-0 tabular-nums"
+                              >
+                                {idx + 1}
+                              </span>
+                              <pre className="whitespace-pre font-mono">
+                                {tokens.length === 0 ? (
+                                  <span>{' '}</span>
+                                ) : (
+                                  tokens.map((tok, tIdx) => (
+                                    <span
+                                      key={`desktop-tok-${idx}-${tIdx}`}
+                                      className={LIGHT_TOKEN_CLASSES[tok.type]}
+                                    >
+                                      {tok.text}
+                                    </span>
+                                  ))
+                                )}
+                              </pre>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : rightCardView === 'lifecycle' ? (
                     <motion.div
                       key="desktop-lifecycle-view"
                       initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
