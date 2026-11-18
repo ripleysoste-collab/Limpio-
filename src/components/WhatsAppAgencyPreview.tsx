@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useI18n, type SupportedLocale } from '../lib/i18n';
+import { AgencyDesktopHome } from './AgencyDesktopHome';
 
 interface WhatsAppAgencyPreviewProps {
   open: boolean;
@@ -302,25 +303,39 @@ export function WhatsAppAgencyPreview({
           </nav>
         </aside>
 
-        <main className="relative flex-1 min-w-0 h-full overflow-y-auto bg-white px-8 pt-7 pb-10">
+        <main
+          className={`relative flex-1 min-w-0 h-full ${
+            activeTab === 'home'
+              ? 'overflow-hidden bg-[#0A0E14]'
+              : 'overflow-y-auto bg-white px-8 pt-7 pb-10'
+          }`}
+        >
           <button
             type="button"
             onClick={onClose}
             aria-label={t.sourceCode.closePreviewAria}
             title={t.sourceCode.closePreviewAria}
-            className="absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+            className={`absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 cursor-pointer ${
+              activeTab === 'home'
+                ? 'text-white/75 hover:text-white hover:bg-white/10 focus-visible:ring-white/50'
+                : 'text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:ring-slate-400'
+            }`}
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
 
-          <div className="max-w-4xl pr-12">
-            <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
-              {currentTab.label}
-            </h1>
-            <p className="mt-1 text-[13px] text-slate-500">
-              {currentTab.description}
-            </p>
-          </div>
+          {activeTab === 'home' ? (
+            <AgencyDesktopHome locale={locale} onNavigate={setActiveTab} />
+          ) : (
+            <div className="max-w-4xl pr-12">
+              <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
+                {currentTab.label}
+              </h1>
+              <p className="mt-1 text-[13px] text-slate-500">
+                {currentTab.description}
+              </p>
+            </div>
+          )}
         </main>
       </div>
 
