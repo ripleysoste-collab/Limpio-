@@ -26,13 +26,15 @@ interface AgencyTabItem {
 const PREVIEW_COPY: Record<
   SupportedLocale,
   {
-    brandTitle: string;
+    mobileBrandTitle: string;
+    desktopBrandTitle: string;
     tabsAria: string;
     tabs: AgencyTabItem[];
   }
 > = {
   es: {
-    brandTitle: 'Agencia de WhatsApp',
+    mobileBrandTitle: 'Agencia de WhatsApp',
+    desktopBrandTitle: 'Agencia de automatizado WhatsApp Bot',
     tabsAria: 'Secciones de Agencia de WhatsApp',
     tabs: [
       {
@@ -78,7 +80,8 @@ const PREVIEW_COPY: Record<
     ],
   },
   en: {
-    brandTitle: 'WhatsApp Agency',
+    mobileBrandTitle: 'WhatsApp Agency',
+    desktopBrandTitle: 'WhatsApp Bot Automation Agency',
     tabsAria: 'WhatsApp Agency sections',
     tabs: [
       {
@@ -124,7 +127,8 @@ const PREVIEW_COPY: Record<
     ],
   },
   pt: {
-    brandTitle: 'Agência de WhatsApp',
+    mobileBrandTitle: 'Agência de WhatsApp',
+    desktopBrandTitle: 'Agência de Automação WhatsApp Bot',
     tabsAria: 'Seções da Agência de WhatsApp',
     tabs: [
       {
@@ -191,17 +195,69 @@ export function WhatsAppAgencyPreview({
       aria-label={t.sourceCode.previewAria}
       className="fixed inset-0 z-50 w-full h-dvh bg-white text-slate-950 flex flex-col overflow-hidden"
     >
-      {/* Desktop shell: pure white full-screen + top-right close X */}
-      <div className="hidden lg:block w-full h-full relative bg-white">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label={t.sourceCode.closePreviewAria}
-          title={t.sourceCode.closePreviewAria}
-          className="fixed top-5 right-6 z-20 w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+      {/* Desktop shell: 90% main workspace on the left + 10% right sidebar with brand and stacked menu */}
+      <div className="hidden lg:flex w-full h-full bg-white">
+        <main className="relative flex-1 min-w-0 h-full overflow-y-auto bg-white px-8 pt-7 pb-10">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t.sourceCode.closePreviewAria}
+            title={t.sourceCode.closePreviewAria}
+            className="absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
+
+          <div className="max-w-4xl pr-12">
+            <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
+              {currentTab.label}
+            </h1>
+            <p className="mt-1 text-[13px] text-slate-500">
+              {currentTab.description}
+            </p>
+          </div>
+        </main>
+
+        <aside
+          aria-label={copy.tabsAria}
+          className="w-[10%] min-w-[152px] shrink-0 h-full border-l border-slate-200/90 bg-white flex flex-col overflow-hidden"
         >
-          <X className="w-5 h-5" aria-hidden="true" />
-        </button>
+          <div className="px-3 pt-4 pb-3.5 border-b border-slate-200/80 shrink-0 flex items-start gap-2 min-w-0">
+            <div
+              aria-hidden="true"
+              className="w-6 h-6 rounded-md bg-[#25D366]/12 flex items-center justify-center shrink-0 mt-0.5"
+            >
+              <WhatsAppBrandIcon className="w-3.5 h-3.5" />
+            </div>
+
+            <span className="text-[11.5px] font-semibold leading-[1.25] text-slate-950 tracking-tight break-words min-w-0">
+              {copy.desktopBrandTitle}
+            </span>
+          </div>
+
+          <nav
+            aria-label={copy.tabsAria}
+            className="flex-1 min-h-0 overflow-y-auto px-2 pt-3 pb-6 flex flex-col gap-0.5"
+          >
+            {copy.tabs.map((tab) => {
+              const isActive = tab.id === activeTab;
+              return (
+                <button
+                  key={`desk-${tab.id}`}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full py-1.5 pl-2.5 pr-1.5 text-left text-[12.5px] leading-snug border-l-2 truncate cursor-pointer focus-visible:outline-none ${
+                    isActive
+                      ? 'border-slate-950 text-slate-950 font-semibold'
+                      : 'border-transparent text-slate-500 font-medium hover:text-slate-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
       </div>
 
       {/* Mobile shell: pure white agency layout with swipeable single-purpose tabs */}
@@ -216,7 +272,7 @@ export function WhatsAppAgencyPreview({
             </div>
 
             <span className="text-[14.5px] font-semibold text-slate-950 tracking-tight truncate">
-              {copy.brandTitle}
+              {copy.mobileBrandTitle}
             </span>
           </div>
 
@@ -239,7 +295,7 @@ export function WhatsAppAgencyPreview({
             const isActive = tab.id === activeTab;
             return (
               <button
-                key={tab.id}
+                key={`mob-${tab.id}`}
                 type="button"
                 onClick={(event) => {
                   setActiveTab(tab.id);
