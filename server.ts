@@ -10,6 +10,10 @@ import {
   streamSearchLinkChat,
   type SearchLinkChatTurn,
 } from './lib/searchLinkChat.ts';
+import {
+  detectLocaleFromRequest,
+  type SupportedLocale,
+} from './lib/localeDetection.ts';
 import { fetchProxiedImage } from './lib/imageProxy.ts';
 import { isValidMediaKey, readImageFromR2 } from './lib/r2Storage.ts';
 import {
@@ -189,6 +193,10 @@ async function startServer() {
           ? body.organizationName
           : undefined;
       const userId = typeof body.userId === 'string' ? body.userId : undefined;
+      const locale: SupportedLocale =
+        body.locale === 'en' || body.locale === 'pt' || body.locale === 'es'
+          ? body.locale
+          : 'es';
       const history = Array.isArray(body.history)
         ? (body.history as SearchLinkChatTurn[])
         : undefined;
@@ -213,7 +221,11 @@ async function startServer() {
           ok: false,
           dailyLimitReached: true,
           error:
-            'Límite diario alcanzado: tienes 1 consulta al día en Search Link IA para probar tu API. Vuelve mañana.',
+            locale === 'en'
+              ? 'Daily limit reached: you have 1 Search Link IA query per day to test your API. Try again tomorrow.'
+              : locale === 'pt'
+                ? 'Limite diário atingido: você tem 1 consulta por dia no Search Link IA para testar sua API. Tente amanhã.'
+                : 'Límite diario alcanzado: tienes 1 consulta al día en Search Link IA para probar tu API. Vuelve mañana.',
         });
       }
 
@@ -227,6 +239,7 @@ async function startServer() {
         serviceName,
         organizationName,
         userId,
+        locale,
         fallbackProducts,
       })) {
         if (evt.type === 'error' && !headersSentAsStream) {
@@ -258,6 +271,27 @@ async function startServer() {
       return res.status(500).json({ ok: false, error: 'Sin respuesta del servidor.' });
     },
   );
+
+  app.get('/api/locale', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const detected = await detectLocaleFromRequest(
+        req.headers,
+        req.socket?.remoteAddress,
+      );
+      return res.json({
+        ok: true,
+        ...detected,
+      });
+    } catch {
+      return res.json({
+        ok: true,
+        locale: 'es',
+        countryCode: null,
+        source: 'default',
+      });
+    }
+  });
 
   app.options(['/api/v1/core', '/api/v1/catalog', '/api/v1/services/:slug'], (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');

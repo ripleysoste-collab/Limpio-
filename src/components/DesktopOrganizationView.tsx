@@ -25,6 +25,7 @@ import {
   testCoreServiceEndpoint,
   type CoreEndpointTestResult,
 } from '../lib/searchLinkCore';
+import { useI18n } from '../lib/i18n';
 import type {
   CompressedImageMeta,
   ImageCompressionStatus,
@@ -109,6 +110,7 @@ export function DesktopOrganizationView({
   onRotateServiceKey,
   onToggleServiceActive,
 }: DesktopOrganizationViewProps) {
+  const { t } = useI18n();
   const shouldReduceMotion = useReducedMotion();
   const logoInputRef = useRef<HTMLInputElement>(null);
   const dashboardLogoInputRef = useRef<HTMLInputElement>(null);
@@ -174,7 +176,7 @@ export function DesktopOrganizationView({
       setDraftLogoR2Key(uploaded.key);
     } catch (err) {
       setLogoUploadError(
-        err instanceof Error ? err.message : 'No se pudo subir el logo.',
+        err instanceof Error ? err.message : t.org.logoUploadError,
       );
     } finally {
       setIsUploadingLogo(false);
@@ -196,7 +198,7 @@ export function DesktopOrganizationView({
       });
     } catch (err) {
       setLogoUploadError(
-        err instanceof Error ? err.message : 'No se pudo subir el logo.',
+        err instanceof Error ? err.message : t.org.logoUploadError,
       );
     } finally {
       setIsUploadingLogo(false);
@@ -287,10 +289,10 @@ export function DesktopOrganizationView({
               <div className="space-y-7">
                 <div className="text-center pt-2">
                   <h2 className="text-lg font-semibold tracking-tight text-slate-950">
-                    Bienvenido a tu organización
+                    {t.org.welcomeTitle}
                   </h2>
                   <p className="text-sm text-slate-500 mt-1">
-                    Vamos a crearla
+                    {t.org.welcomeSubtitle}
                   </p>
                 </div>
 
@@ -321,8 +323,8 @@ export function DesktopOrganizationView({
                       type="button"
                       disabled={isUploadingLogo}
                       onClick={() => logoInputRef.current?.click()}
-                      aria-label="Subir logo de tu organización"
-                      title="Subir logo de tu organización"
+                      aria-label={t.org.uploadLogoAria}
+                      title={t.org.uploadLogoTitle}
                       className="group relative w-14 h-14 rounded-full border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                     >
                       {isUploadingLogo ? (
@@ -334,7 +336,7 @@ export function DesktopOrganizationView({
                         <>
                           <img
                             src={draftLogoUrl}
-                            alt="Logo de tu organización"
+                            alt={t.org.uploadLogoTitle}
                             className="w-full h-full object-cover"
                           />
                           <span className="absolute inset-0 bg-slate-950/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
@@ -354,8 +356,8 @@ export function DesktopOrganizationView({
                         type="text"
                         value={draftName}
                         onChange={(e) => setDraftName(e.target.value)}
-                        placeholder="Pon el nombre de tu empresa"
-                        aria-label="Pon el nombre de tu empresa"
+                        placeholder={t.org.companyPlaceholder}
+                        aria-label={t.org.companyPlaceholder}
                         maxLength={60}
                         className="w-full rounded-xl border border-slate-200/90 bg-slate-50/70 px-3.5 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-blue-500/70 focus:outline-none transition-colors"
                       />
@@ -390,7 +392,7 @@ export function DesktopOrganizationView({
                       />
                     </svg>
                     <p className="text-xs font-medium text-slate-600 leading-relaxed pt-1">
-                      Pon el logo de tu organización y tu nombre
+                      {t.org.helperArrowPrompt}
                     </p>
                   </motion.div>
                   {logoUploadError && (
@@ -411,7 +413,7 @@ export function DesktopOrganizationView({
                   onClick={handleSkipOnboarding}
                   className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                 >
-                  Omitir
+                  {t.common.skip}
                 </button>
 
                 <AnimatePresence>
@@ -430,7 +432,7 @@ export function DesktopOrganizationView({
                       transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
                       className="px-4 py-2 rounded-lg bg-slate-950 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500"
                     >
-                      Siguiente
+                      {t.common.nextBtn}
                     </motion.button>
                   )}
                 </AnimatePresence>
@@ -452,14 +454,14 @@ export function DesktopOrganizationView({
 
                 <div className="space-y-2 max-w-sm">
                   <h2 className="text-lg font-semibold tracking-tight text-slate-950">
-                    ¡Felicidades!
+                    {t.org.congratsTitle}
                   </h2>
                   <p className="text-sm text-slate-600 leading-relaxed">
                     {hasUploadedLogo && hasTypedName
-                      ? 'Ya tienes el logo y el nombre de tu organización listos para empezar.'
+                      ? t.org.congratsBoth
                       : hasUploadedLogo
-                        ? 'Ya tienes el logo de tu organización. Podrás poner el nombre cuando desees.'
-                        : 'Ya tienes el nombre de tu organización. Podrás subir tu logo cuando desees.'}
+                        ? t.org.congratsLogoOnly
+                        : t.org.congratsNameOnly}
                   </p>
                 </div>
 
@@ -469,7 +471,7 @@ export function DesktopOrganizationView({
                     {draftLogoUrl || (googlePhotoUrl && !logoImgFailed) ? (
                       <img
                         src={draftLogoUrl || googlePhotoUrl || ''}
-                        alt="Logo de organización"
+                        alt={t.org.uploadLogoTitle}
                         referrerPolicy="no-referrer"
                         onError={() => setLogoImgFailed(true)}
                         className="w-full h-full object-cover"
@@ -481,7 +483,7 @@ export function DesktopOrganizationView({
                     )}
                   </div>
                   <span className="text-sm font-medium text-slate-900">
-                    {draftName.trim() || 'Sin nombre'}
+                    {draftName.trim() || t.org.unnamed}
                   </span>
                 </div>
               </div>
@@ -492,14 +494,14 @@ export function DesktopOrganizationView({
                   onClick={() => setOnboardingStage('welcome')}
                   className="px-3 py-2 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
-                  Editar
+                  {t.common.edit}
                 </button>
                 <button
                   type="button"
                   onClick={handleFinishCongrats}
                   className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                 >
-                  Continuar
+                  {t.common.continueBtn}
                 </button>
               </div>
             </motion.div>
@@ -530,14 +532,14 @@ export function DesktopOrganizationView({
             type="button"
             disabled={isUploadingLogo}
             onClick={() => dashboardLogoInputRef.current?.click()}
-            aria-label="Cambiar logo de la organización"
-            title="Cambiar logo de la organización"
+            aria-label={t.org.changeLogoAria}
+            title={t.org.changeLogoTitle}
             className="group relative w-11 h-11 rounded-full border border-slate-200/90 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           >
             {activeLogoSrc && !logoImgFailed ? (
               <img
                 src={activeLogoSrc}
-                alt={orgProfile.name}
+                alt={orgProfile.name === 'Sin nombre' ? t.org.unnamed : orgProfile.name}
                 referrerPolicy="no-referrer"
                 onError={() => setLogoImgFailed(true)}
                 className="w-full h-full object-cover"
@@ -579,12 +581,12 @@ export function DesktopOrganizationView({
                   }}
                   autoFocus
                   maxLength={60}
-                  placeholder="Nombre de tu organización"
+                  placeholder={t.org.orgNamePlaceholder}
                   className="w-full max-w-[230px] rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm font-semibold text-slate-900 focus:border-blue-500 focus:outline-none"
                 />
                 <button
                   type="submit"
-                  aria-label="Guardar nombre de organización"
+                  aria-label={t.org.saveOrgNameAria}
                   className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
                 >
                   <Check className="w-3.5 h-3.5" aria-hidden="true" />
@@ -599,7 +601,7 @@ export function DesktopOrganizationView({
                       : 'text-slate-950'
                   }`}
                 >
-                  {orgProfile.name}
+                  {orgProfile.name === 'Sin nombre' ? t.org.unnamed : orgProfile.name}
                 </h2>
                 <button
                   type="button"
@@ -609,8 +611,8 @@ export function DesktopOrganizationView({
                     );
                     setEditingOrgName(true);
                   }}
-                  aria-label="Cambiar nombre de la organización"
-                  title="Cambiar nombre"
+                  aria-label={t.org.renameOrgAria}
+                  title={t.org.renameOrgTitle}
                   className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                 >
                   <Pencil className="w-3 h-3" aria-hidden="true" />
@@ -627,8 +629,8 @@ export function DesktopOrganizationView({
             onClick={() => setStorePickerOpen((prev) => !prev)}
             aria-expanded={storePickerOpen}
             aria-haspopup="menu"
-            aria-label="Abrir tienda de tus servicios"
-            title="Ver tienda"
+            aria-label={t.org.openStoreServicesAria}
+            title={t.org.viewStoreTitle}
             className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
               storePickerOpen
                 ? 'border-slate-300 bg-slate-100 text-slate-950'
@@ -642,7 +644,7 @@ export function DesktopOrganizationView({
             {storePickerOpen && (
               <motion.div
                 role="menu"
-                aria-label="Selecciona un servicio para ver en tu tienda"
+                aria-label={t.org.pickStoreAria}
                 initial={
                   shouldReduceMotion
                     ? { opacity: 0 }
@@ -658,12 +660,12 @@ export function DesktopOrganizationView({
                 className="absolute right-0 top-full mt-2 w-60 rounded-2xl border border-slate-200/95 bg-white shadow-[0_18px_44px_-12px_rgba(15,23,42,0.24)] p-1.5 z-30"
               >
                 <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-slate-400">
-                  Ver tienda de
+                  {t.org.viewStoreOf}
                 </p>
 
                 {services.length === 0 ? (
                   <p className="px-2.5 py-2 text-xs text-slate-500">
-                    Aún no tienes servicios disponibles.
+                    {t.org.noServicesAvailable}
                   </p>
                 ) : (
                   <ul className="max-h-56 overflow-y-auto divide-y divide-slate-100">
@@ -708,27 +710,26 @@ export function DesktopOrganizationView({
       <div className="flex flex-col gap-3.5 flex-1 min-h-0">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-xs font-semibold tracking-tight text-slate-900">
-            Mis servicios
+            {t.org.myServices}
           </h3>
 
           <button
             type="button"
             onClick={onNewProduct}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
           >
             <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-            Nuevo producto
+            {t.org.newProduct}
           </button>
         </div>
 
         {services.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200/90 bg-slate-50/60 px-5 py-8 text-center space-y-2">
             <p className="text-sm font-medium text-slate-800">
-              Aún no tienes servicios en tu organización
+              {t.org.noServicesTitleDesktop}
             </p>
             <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-              Procesa y mapea tu primer producto desde la pantalla principal para
-              tener aquí su servicio, API y endpoint.
+              {t.org.noServicesDescDesktop}
             </p>
           </div>
         ) : (
@@ -766,7 +767,7 @@ export function DesktopOrganizationView({
                         />
                         <button
                           type="submit"
-                          aria-label="Guardar nombre del servicio"
+                          aria-label={t.org.saveServiceNameAria}
                           className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
                         >
                           <Check className="w-3.5 h-3.5" aria-hidden="true" />
@@ -783,8 +784,8 @@ export function DesktopOrganizationView({
                             setServiceNameInput(service.name);
                             setEditingServiceId(service.id);
                           }}
-                          aria-label={`Renombrar ${service.name}`}
-                          title="Renombrar servicio"
+                          aria-label={t.org.renameServiceAria(service.name)}
+                          title={t.org.renameServiceTitle}
                           className="w-6 h-6 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer shrink-0"
                         >
                           <Pencil className="w-3 h-3" aria-hidden="true" />
@@ -793,8 +794,7 @@ export function DesktopOrganizationView({
                     )}
 
                     <span className="text-[11px] font-medium text-slate-400 tabular-nums shrink-0">
-                      {service.itemCount}{' '}
-                      {service.itemCount === 1 ? 'producto' : 'productos'}
+                      {t.org.productCount(service.itemCount)}
                     </span>
                   </div>
 
@@ -810,7 +810,7 @@ export function DesktopOrganizationView({
                           aria-hidden="true"
                           className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                         />
-                        <span>API del servicio</span>
+                        <span>{t.org.serviceApiLink}</span>
                       </button>
 
                       <button
@@ -822,7 +822,7 @@ export function DesktopOrganizationView({
                           aria-hidden="true"
                           className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                         />
-                        <span>Endpoint de este servicio</span>
+                        <span>{t.org.serviceEndpointLink}</span>
                       </button>
                     </div>
 
@@ -831,8 +831,8 @@ export function DesktopOrganizationView({
                         <button
                           type="button"
                           onClick={() => onOpenServiceChat(service)}
-                          aria-label={`Probar ${service.name} en Search Link IA`}
-                          title="Probar en Search Link IA"
+                          aria-label={t.org.testChatAria(service.name)}
+                          title={t.org.testChatTitle}
                           className="w-7 h-7 rounded-lg flex items-center justify-center text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
                         >
                           <Bot className="w-3.5 h-3.5" aria-hidden="true" />
@@ -842,8 +842,8 @@ export function DesktopOrganizationView({
                       <button
                         type="button"
                         onClick={() => onViewServiceHistory(service)}
-                        aria-label={`Ver historial del proceso de ${service.name}`}
-                        title="Ver proceso de automatización"
+                        aria-label={t.org.viewHistoryAria(service.name)}
+                        title={t.org.viewHistoryTitle}
                         className="w-7 h-7 rounded-lg flex items-center justify-center text-rose-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
                       >
                         <History className="w-3.5 h-3.5" aria-hidden="true" />
@@ -873,8 +873,8 @@ export function DesktopOrganizationView({
               aria-modal="true"
               aria-label={
                 credentialBox.kind === 'api'
-                  ? 'API del servicio'
-                  : 'Endpoint de este servicio'
+                  ? t.org.serviceApiLink
+                  : t.org.serviceEndpointLink
               }
               initial={
                 shouldReduceMotion
@@ -896,8 +896,8 @@ export function DesktopOrganizationView({
                   <div className="flex items-center gap-2">
                     <p className="text-xs font-semibold text-slate-950">
                       {credentialBox.kind === 'api'
-                        ? 'API del servicio'
-                        : 'Endpoint de este servicio'}
+                        ? t.org.serviceApiLink
+                        : t.org.serviceEndpointLink}
                     </p>
                     <span className="text-[10px] font-medium text-slate-400">
                       Search Link Core
@@ -910,7 +910,7 @@ export function DesktopOrganizationView({
                 <button
                   type="button"
                   onClick={() => setCredentialBox(null)}
-                  aria-label="Cerrar recuadro"
+                  aria-label={t.org.closeBoxAria}
                   className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                 >
                   <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -952,12 +952,12 @@ export function DesktopOrganizationView({
                                 className="w-3 h-3 text-emerald-600 stroke-[2.75]"
                                 aria-hidden="true"
                               />
-                              Copiado
+                              {t.common.copied}
                             </>
                           ) : (
                             <>
                               <Copy className="w-3 h-3" aria-hidden="true" />
-                              Copiar
+                              {t.common.copy}
                             </>
                           )}
                         </button>
@@ -968,8 +968,8 @@ export function DesktopOrganizationView({
                       <div className="space-y-2.5">
                         <p className="text-[11px] text-slate-500 leading-relaxed">
                           {rawApiKeyAvailable
-                            ? 'Envía esta llave en el header x-api-key o Authorization: Bearer.'
-                            : 'Por seguridad solo se guarda el prefijo en la nube. Genera una nueva API Key si necesitas copiarla completa.'}
+                            ? t.org.apiHintRaw
+                            : t.org.apiHintPrefixDesktop}
                         </p>
 
                         <div className="flex items-center justify-between gap-2 pt-1">
@@ -997,7 +997,9 @@ export function DesktopOrganizationView({
                                 }`}
                               />
                               <span>
-                                {serviceIsActive ? 'Servicio activo' : 'Servicio pausado'}
+                                {serviceIsActive
+                                  ? t.org.serviceActiveDesktop
+                                  : t.org.servicePausedDesktop}
                               </span>
                             </button>
                           ) : (
@@ -1027,7 +1029,7 @@ export function DesktopOrganizationView({
                                 className={`w-3 h-3 ${rotatingKey ? 'animate-spin' : ''}`}
                                 aria-hidden="true"
                               />
-                              <span>Regenerar API Key</span>
+                              <span>{t.org.regenerateKeyDesktop}</span>
                             </button>
                           )}
                         </div>
@@ -1039,7 +1041,7 @@ export function DesktopOrganizationView({
                             type="text"
                             value={manualTestKey}
                             onChange={(e) => setManualTestKey(e.target.value)}
-                            placeholder="Pega tu API Key sl_core_... para probar"
+                            placeholder={t.org.pasteKeyPlaceholder}
                             className="w-full rounded-lg border border-slate-200/90 bg-slate-50/70 px-2.5 py-1.5 font-mono text-[11px] text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:outline-none"
                           />
                         )}
@@ -1059,8 +1061,8 @@ export function DesktopOrganizationView({
                             className="text-[11px] font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
                           >
                             {copiedCredential === 'curl'
-                              ? 'cURL copiado'
-                              : 'Copiar comando cURL'}
+                              ? t.org.curlCopied
+                              : t.org.copyCurlDesktop}
                           </button>
 
                           <button
@@ -1097,7 +1099,7 @@ export function DesktopOrganizationView({
                             ) : (
                               <Play className="w-3 h-3" aria-hidden="true" />
                             )}
-                            <span>Probar en vivo</span>
+                            <span>{t.org.testLive}</span>
                           </button>
                         </div>
 

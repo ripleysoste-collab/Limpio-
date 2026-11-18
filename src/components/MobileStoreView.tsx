@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
+import { useI18n } from '../lib/i18n';
 import type { OrganizationServiceItem } from './DesktopOrganizationView';
 
 interface MobileStoreViewProps {
@@ -13,6 +14,7 @@ export function MobileStoreView({
   organizationName,
   organizationLogoUrl,
 }: MobileStoreViewProps) {
+  const { t } = useI18n();
   const shouldReduceMotion = useReducedMotion();
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({});
@@ -110,17 +112,17 @@ export function MobileStoreView({
           </div>
 
           <span className="text-[10.5px] font-medium text-slate-500 tabular-nums shrink-0">
-            {products.length} {products.length === 1 ? 'producto' : 'productos'}
+            {t.org.productCount(products.length)}
           </span>
         </div>
 
         {products.length === 0 ? (
           <div className="rounded-2xl border border-white/90 bg-white/80 backdrop-blur-md px-4 py-9 text-center shadow-xs">
             <p className="text-xs font-medium text-slate-800">
-              Este servicio aún no tiene productos visibles en tienda
+              {t.store.emptyTitle}
             </p>
             <p className="text-[11px] text-slate-500 mt-1">
-              Procesa un nuevo lote de imágenes para verlo aquí.
+              {t.store.emptyDescMobile}
             </p>
           </div>
         ) : (
@@ -151,7 +153,7 @@ export function MobileStoreView({
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">
-                        Sin imagen
+                        {t.store.noImage}
                       </div>
                     )}
                   </div>
@@ -173,12 +175,12 @@ export function MobileStoreView({
                           isNameExpanded ? 'whitespace-normal break-words' : 'truncate'
                         }`}
                       >
-                        {product.nombre || 'Producto sin nombre'}
+                        {product.nombre || t.store.unnamedProduct}
                       </p>
                     </button>
 
                     <p className="w-full text-[10.5px] font-medium text-slate-600/85 truncate">
-                      {product.categoria || 'General'}
+                      {product.categoria || t.common.generalCategory}
                     </p>
                   </div>
                 </article>

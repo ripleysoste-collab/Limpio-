@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { User } from '@supabase/supabase-js';
-import { ArrowLeft, Calendar, Loader2, Mail, User as UserIcon, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, Loader2, Mail, User as UserIcon, X } from 'lucide-react';
 
 import {
   DesktopOrganizationView,
@@ -9,6 +9,12 @@ import {
   type OrganizationServiceItem,
 } from './DesktopOrganizationView';
 import { DesktopStoreView } from './DesktopStoreView';
+import {
+  formatCreationDate,
+  LANGUAGE_OPTIONS,
+  useI18n,
+  type SupportedLocale,
+} from '../lib/i18n';
 
 interface DesktopAccountMenuProps {
   open: boolean;
@@ -26,26 +32,25 @@ interface DesktopAccountMenuProps {
   onSignOut: () => Promise<void>;
 }
 
-type DesktopMenuView = 'menu' | 'google-account' | 'organization' | 'store';
+type DesktopMenuView =
+  | 'menu'
+  | 'google-account'
+  | 'organization'
+  | 'store'
+  | 'language';
 
-function formatCreationDateEs(isoDate?: string): string {
-  if (!isoDate) return 'Fecha no disponible';
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) return 'Fecha no disponible';
-  return new Intl.DateTimeFormat('es-ES', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(parsed);
-}
-
-function getUserDisplayInfo(user: User) {
+function getUserDisplayInfo(
+  user: User,
+  userFallback: string,
+  locale: SupportedLocale,
+  dateUnavailable: string,
+) {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const fullName =
     (typeof meta.full_name === 'string' && meta.full_name.trim()) ||
     (typeof meta.name === 'string' && meta.name.trim()) ||
     user.email?.split('@')[0] ||
-    'Usuario';
+    userFallback;
   const photoUrl =
     (typeof meta.avatar_url === 'string' && meta.avatar_url.trim()) ||
     (typeof meta.picture === 'string' && meta.picture.trim()) ||
@@ -55,7 +60,7 @@ function getUserDisplayInfo(user: User) {
     fullName,
     email: user.email || '',
     photoUrl,
-    createdAtFormatted: formatCreationDateEs(user.created_at),
+    createdAtFormatted: formatCreationDate(user.created_at, locale, dateUnavailable),
     initialLetter: fullName.trim().charAt(0).toUpperCase() || 'U',
   };
 }
@@ -76,6 +81,7 @@ export function DesktopAccountMenu({
   onSignOut,
 }: DesktopAccountMenuProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { locale, source, countryCode, setManualLocale, t } = useI18n();
   const [view, setView] = useState<DesktopMenuView>('menu');
   const [selectedStoreServiceId, setSelectedStoreServiceId] = useState<string | null>(
     null,
@@ -85,7 +91,12 @@ export function DesktopAccountMenu({
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
 
-  const info = getUserDisplayInfo(user);
+  const info = getUserDisplayInfo(
+    user,
+    t.common.userFallback,
+    locale,
+    t.menu.dateUnavailable,
+  );
 
   useEffect(() => {
     setImgFailed(false);
@@ -105,15 +116,20 @@ export function DesktopAccountMenu({
     services.find((srv) => srv.id === selectedStoreServiceId) ?? services[0] ?? null;
 
   const isExpandedPanelView =
-    view === 'google-account' || view === 'organization' || view === 'store';
+    view === 'google-account' ||
+    view === 'organization' ||
+    view === 'store' ||
+    view === 'language';
   const topTitle =
     view === 'google-account'
-      ? 'Tu cuenta de Google'
+      ? t.menu.googleAccount
       : view === 'organization'
-        ? 'Organización'
+        ? t.menu.organization
         : view === 'store'
-          ? 'Mi tienda'
-          : 'Cuenta';
+          ? t.menu.myStore
+          : view === 'language'
+            ? t.menu.language
+            : t.menu.account;
 
   const handleConfirmSignOut = async () => {
     if (signingOut) return;
@@ -122,7 +138,7 @@ export function DesktopAccountMenu({
     try {
       await onSignOut();
     } catch {
-      setSignOutError('No pudimos cerrar la sesión. Intenta de nuevo.');
+      setSignOutError(t.menu.signOutError);
       setSigningOut(false);
     }
   };
@@ -133,12 +149,14 @@ export function DesktopAccountMenu({
         <motion.aside
           aria-label={
             view === 'google-account'
-              ? 'Detalles de tu cuenta de Google'
+              ? t.menu.googleAccountDetailsAria
               : view === 'organization'
-                ? 'Organización'
+                ? t.menu.organization
                 : view === 'store'
-                  ? 'Mi tienda'
-                  : 'Menú de cuenta'
+                  ? t.menu.myStore
+                  : view === 'language'
+                    ? t.menu.languagesTitle
+                    : t.menu.accountMenuAria
           }
           initial={
             shouldReduceMotion
@@ -190,7 +208,9 @@ export function DesktopAccountMenu({
                       setView(view === 'store' ? 'organization' : 'menu');
                     }}
                     aria-label={
-                      view === 'store' ? 'Volver a Organización' : 'Volver al menú'
+                      view === 'store'
+                        ? t.menu.backToOrgAria
+                        : t.menu.backToMenuAria
                     }
                     className="w-7 h-7 -ml-1 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100/90 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer shrink-0"
                   >
@@ -205,7 +225,7 @@ export function DesktopAccountMenu({
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Cerrar menú"
+                aria-label={t.menu.closeMenuAria}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100/90 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" aria-hidden="true" />
@@ -216,7 +236,7 @@ export function DesktopAccountMenu({
               {view === 'menu' ? (
                 <motion.nav
                   key="desktop-menu-list"
-                  aria-label="Opciones de cuenta"
+                  aria-label={t.menu.accountOptionsAria}
                   initial={shouldReduceMotion ? undefined : { opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={shouldReduceMotion ? undefined : { opacity: 0 }}
@@ -230,7 +250,7 @@ export function DesktopAccountMenu({
                         onClick={() => setView('google-account')}
                         className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors duration-150 focus-visible:outline-none focus-visible:text-slate-950 cursor-pointer"
                       >
-                        Tu cuenta de Google
+                        {t.menu.googleAccount}
                       </button>
                     </li>
                     <li>
@@ -239,7 +259,16 @@ export function DesktopAccountMenu({
                         onClick={() => setView('organization')}
                         className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors duration-150 focus-visible:outline-none focus-visible:text-slate-950 cursor-pointer"
                       >
-                        Organización
+                        {t.menu.organization}
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => setView('language')}
+                        className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors duration-150 focus-visible:outline-none focus-visible:text-slate-950 cursor-pointer"
+                      >
+                        {t.menu.language}
                       </button>
                     </li>
                   </ul>
@@ -285,6 +314,77 @@ export function DesktopAccountMenu({
                     organizationName={orgProfile.name}
                     organizationLogoUrl={orgProfile.logoUrl || info.photoUrl}
                   />
+                </motion.div>
+              ) : view === 'language' ? (
+                <motion.div
+                  key="desktop-language-view"
+                  initial={shouldReduceMotion ? undefined : { opacity: 0, x: 14 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={shouldReduceMotion ? undefined : { opacity: 0, x: 14 }}
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex-1 overflow-y-auto px-8 py-7 flex flex-col justify-between"
+                >
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+                        {t.menu.languagesTitle}
+                      </h2>
+                      <p className="text-sm text-slate-500 mt-1">
+                        {t.menu.languageSectionPrompt}
+                      </p>
+                    </div>
+
+                    <div
+                      role="radiogroup"
+                      aria-label={t.menu.languageOptionsAria}
+                      className="rounded-2xl border border-slate-200/85 bg-slate-50/70 divide-y divide-slate-200/75 overflow-hidden"
+                    >
+                      {LANGUAGE_OPTIONS.map((option) => {
+                        const isSelected = locale === option.code;
+                        return (
+                          <button
+                            key={option.code}
+                            type="button"
+                            role="radio"
+                            aria-checked={isSelected}
+                            onClick={() => setManualLocale(option.code)}
+                            className={`w-full px-4 py-3.5 flex items-center justify-between gap-3 text-left transition-colors duration-150 cursor-pointer ${
+                              isSelected
+                                ? 'bg-white text-slate-950'
+                                : 'text-slate-700 hover:bg-white/75 hover:text-slate-950'
+                            }`}
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-950 truncate">
+                                {option.nativeLabel}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5 truncate">
+                                {option.regionLabel}
+                              </p>
+                            </div>
+
+                            {isSelected && (
+                              <Check
+                                className="w-4 h-4 text-slate-950 shrink-0"
+                                aria-hidden="true"
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="pt-6 mt-8 border-t border-slate-200/75 space-y-1">
+                    <p className="text-xs font-medium text-slate-700">
+                      {source === 'manual'
+                        ? t.menu.languageManualSavedNote
+                        : t.menu.languageAutoDetectedNote(countryCode)}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {t.menu.languageLocalStorageHint}
+                    </p>
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div
@@ -335,7 +435,7 @@ export function DesktopAccountMenu({
                         />
                         <div className="min-w-0">
                           <p className="text-[11px] font-medium text-slate-400">
-                            Nombre de usuario
+                            {t.menu.usernameLabel}
                           </p>
                           <p className="text-sm font-medium text-slate-900 mt-0.5 break-words">
                             {info.fullName}
@@ -351,7 +451,7 @@ export function DesktopAccountMenu({
                           />
                           <div className="min-w-0">
                             <p className="text-[11px] font-medium text-slate-400">
-                              Cuenta de Google
+                              {t.menu.googleAccountLabel}
                             </p>
                             <p className="text-sm font-medium text-slate-900 mt-0.5 break-all">
                               {info.email}
@@ -367,10 +467,10 @@ export function DesktopAccountMenu({
                         />
                         <div className="min-w-0">
                           <p className="text-[11px] font-medium text-slate-400">
-                            Fecha de creación
+                            {t.menu.createdAtLabel}
                           </p>
                           <p className="text-sm font-medium text-slate-900 mt-0.5">
-                            Cuenta creada el {info.createdAtFormatted}
+                            {t.menu.accountCreatedOn(info.createdAtFormatted)}
                           </p>
                         </div>
                       </div>
@@ -383,7 +483,7 @@ export function DesktopAccountMenu({
                       {confirmSignOut && (
                         <motion.div
                           role="alertdialog"
-                          aria-label="Confirmar cierre de cuenta"
+                          aria-label={t.menu.confirmSignOutAria}
                           initial={
                             shouldReduceMotion
                               ? { opacity: 0 }
@@ -403,10 +503,10 @@ export function DesktopAccountMenu({
                           className="mb-3 rounded-2xl border border-slate-200/95 bg-white p-4 shadow-[0_14px_34px_-10px_rgba(15,23,42,0.18)]"
                         >
                           <p className="text-sm font-medium text-slate-900">
-                            ¿Estás seguro que quieres cerrar cuenta?
+                            {t.menu.confirmSignOutTitle}
                           </p>
                           <p className="text-xs text-slate-500 mt-1">
-                            Tendrás que volver a iniciar sesión con Google para entrar de nuevo.
+                            {t.menu.confirmSignOutDescDesktop}
                           </p>
 
                           {signOutError && (
@@ -423,7 +523,7 @@ export function DesktopAccountMenu({
                               }}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
                             >
-                              Cancelar
+                              {t.common.cancel}
                             </button>
                             <button
                               type="button"
@@ -434,7 +534,7 @@ export function DesktopAccountMenu({
                               {signingOut && (
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
                               )}
-                              Aceptar
+                              {t.common.accept}
                             </button>
                           </div>
                         </motion.div>
@@ -449,7 +549,7 @@ export function DesktopAccountMenu({
                       }}
                       className="text-sm font-medium text-rose-600 hover:text-rose-700 transition-colors duration-150 focus-visible:outline-none focus-visible:underline cursor-pointer"
                     >
-                      Cerrar cuenta
+                      {t.menu.signOut}
                     </button>
                   </div>
                 </motion.div>

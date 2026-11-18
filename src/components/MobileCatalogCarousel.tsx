@@ -26,6 +26,7 @@ import {
   type CatalogPdfExportKind,
 } from '../lib/pdfExport';
 import { MobileJsonEditorModal } from './MobileJsonEditorModal';
+import { useI18n } from '../lib/i18n';
 
 export type ImageCompressionStatus =
   | 'pending'
@@ -67,36 +68,12 @@ interface MobileCatalogCarouselProps {
   serviceCredentials?: ServiceCredentialsDisplay | null;
 }
 
-const SEARCH_LINK_BENEFITS = [
-  {
-    id: 'speed',
-    title: 'Rapidez',
-    description: 'Extrae y organiza imágenes en segundos, ligera y sin esperas.',
-    icon: Zap,
-    toneClass: 'bg-amber-50 text-amber-600',
-  },
-  {
-    id: 'clean-urls',
-    title: 'URLs limpias',
-    description: 'Convierte rutas largas en enlaces cortos, claros y ordenados.',
-    icon: Link2,
-    toneClass: 'bg-blue-50 text-blue-600',
-  },
-  {
-    id: 'easy-anywhere',
-    title: 'Fácil en teléfono o PC',
-    description: 'Úsala cómodo desde el celular o el computador sin complicaciones.',
-    icon: Smartphone,
-    toneClass: 'bg-emerald-50 text-emerald-600',
-  },
-  {
-    id: 'ready-to-share',
-    title: 'Listas para compartir',
-    description: 'Revisa cada foto y ten tus enlaces listos al instante en un toque.',
-    icon: Copy,
-    toneClass: 'bg-rose-50 text-rose-600',
-  },
-] as const;
+const BENEFIT_VISUALS = {
+  speed: { icon: Zap, toneClass: 'bg-amber-50 text-amber-600' },
+  'clean-urls': { icon: Link2, toneClass: 'bg-blue-50 text-blue-600' },
+  'easy-anywhere': { icon: Smartphone, toneClass: 'bg-emerald-50 text-emerald-600' },
+  'ready-to-share': { icon: Copy, toneClass: 'bg-rose-50 text-rose-600' },
+} as const;
 
 export function MobileCatalogCarousel({
   images,
@@ -146,6 +123,7 @@ export function MobileCatalogCarousel({
     isReadOnlyReplay ? 'unified' : 'idle',
   );
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useI18n();
 
   useEffect(() => {
     setExpandedMappedIds({});
@@ -536,14 +514,14 @@ export function MobileCatalogCarousel({
         item.cleanUrl ||
         item.url;
       return {
-        nombre: mapped?.nombre || item.alt || 'Producto',
-        categoria: mapped?.categoria || 'General',
+        nombre: mapped?.nombre || item.alt || t.common.productFallback,
+        categoria: mapped?.categoria || t.common.generalCategory,
         descripcion: mapped?.descripcion || '',
         url: bestUrl,
       };
     });
     return JSON.stringify(payload, null, 2);
-  }, [images, mappedResults, compressionResults]);
+  }, [images, mappedResults, compressionResults, t]);
 
   const handleExportPdf = async (kind: CatalogPdfExportKind) => {
     if (exportingPdfKind) return;
@@ -573,7 +551,7 @@ export function MobileCatalogCarousel({
             className={`-mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] snap-x snap-mandatory scroll-pl-4 sm:scroll-pl-5 px-4 sm:px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
               mergeStage === 'merging' ? 'overflow-hidden' : 'overflow-x-auto'
             }`}
-            aria-label="Vista móvil de imágenes, URLs y beneficios"
+            aria-label={t.pipeline.mobileCarouselAria}
           >
             <div className="flex items-start gap-3.5 w-max pr-4 sm:pr-5">
               {/* Card 1: Expands cleanly to full visible mobile width during merge */}
@@ -587,11 +565,11 @@ export function MobileCatalogCarousel({
                 className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col"
               >
                 <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                  Aquí verás tus imágenes
+                  {t.pipeline.stageImagesTitle}
                 </h2>
 
                 <section
-                  aria-label="Aquí verás tus imágenes"
+                  aria-label={t.pipeline.stageImagesTitle}
                   className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] p-2 overflow-hidden"
                 >
                   {isExtracting ? (
@@ -612,7 +590,7 @@ export function MobileCatalogCarousel({
                             key={`mobile-thumb-${item.id}`}
                             type="button"
                             onClick={() => setFullscreenImage(item)}
-                            aria-label={`Ver ${item.alt}`}
+                            aria-label={t.pipeline.viewProductAria(item.alt)}
                             className="relative w-full h-full overflow-hidden rounded-lg bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                           >
                             {hasError ? (
@@ -651,11 +629,11 @@ export function MobileCatalogCarousel({
                 className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col"
               >
                 <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                  Aquí puedes ver tus metadatos
+                  {t.pipeline.stageMetadataTitle}
                 </h2>
 
                 <section
-                  aria-label="Aquí puedes ver tus metadatos"
+                  aria-label={t.pipeline.stageMetadataTitle}
                   className="h-[min(41dvh,300px)] min-h-[245px] w-full rounded-[18px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.11),0_4px_12px_-4px_rgba(37,99,235,0.06)] px-2.5 py-1.5"
                 >
                   <div className="w-full h-full flex flex-col divide-y divide-slate-100/85 select-none overflow-hidden">
@@ -688,22 +666,25 @@ export function MobileCatalogCarousel({
                 className="w-[62vw] max-w-[248px] shrink-0 snap-start flex flex-col"
               >
                 <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                  ¿Por qué usarías Search Link?
+                  {t.pipeline.whyUseSearchLink}
                 </h2>
 
                 <section
-                  aria-label="Por qué usarías Search Link"
+                  aria-label={t.pipeline.whyUseSearchLinkAria}
                   className="h-[min(41dvh,300px)] min-h-[245px] w-full flex flex-col justify-between gap-2"
                 >
-                  {SEARCH_LINK_BENEFITS.map((benefit) => {
-                    const Icon = benefit.icon;
+                  {t.pipeline.benefits.map((benefit) => {
+                    const visual =
+                      BENEFIT_VISUALS[benefit.id as keyof typeof BENEFIT_VISUALS] ??
+                      BENEFIT_VISUALS.speed;
+                    const Icon = visual.icon;
                     return (
                       <article
                         key={benefit.id}
                         className="flex-1 min-h-0 w-full rounded-[14px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_8px_22px_-10px_rgba(15,23,42,0.11),0_2px_8px_-3px_rgba(37,99,235,0.05)] px-2.5 py-1.5 flex items-center gap-2.5"
                       >
                         <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${benefit.toneClass}`}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${visual.toneClass}`}
                           aria-hidden="true"
                         >
                           <Icon className="w-3.5 h-3.5" />
@@ -751,17 +732,17 @@ export function MobileCatalogCarousel({
                 ref={compressionScrollRef}
                 onScroll={handleCompressionScroll}
                 className="relative -mx-4 sm:-mx-5 w-[calc(100%+2rem)] sm:w-[calc(100%+2.5rem)] overflow-x-auto snap-x snap-mandatory scroll-pl-4 sm:scroll-pl-5 px-4 sm:px-5 pb-2.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                aria-label="Imágenes y proceso de compresión"
+                aria-label={t.pipeline.mobileCompressionAria}
               >
                 <div className="flex items-start gap-3.5 w-max pr-4 sm:pr-5">
                   {/* Card 1: Uploaded images remain safely accessible on the left */}
                   <div className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col">
                     <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                      Aquí verás tus imágenes
+                      {t.pipeline.stageImagesTitle}
                     </h2>
 
                     <section
-                      aria-label="Aquí verás tus imágenes"
+                      aria-label={t.pipeline.stageImagesTitle}
                       className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.06)] p-2.5 overflow-hidden"
                     >
                       <div
@@ -779,7 +760,7 @@ export function MobileCatalogCarousel({
                               key={`comp-left-thumb-${item.id}`}
                               type="button"
                               onClick={() => setFullscreenImage(item)}
-                              aria-label={`Ver ${item.alt}`}
+                              aria-label={t.pipeline.viewProductAria(item.alt)}
                               className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                             >
                               {hasError ? (
@@ -815,11 +796,11 @@ export function MobileCatalogCarousel({
                     className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
                   >
                     <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                      Comprimiendo
+                      {t.pipeline.stageCompressingTitle}
                     </h2>
 
                     <section
-                      aria-label="Comprimiendo"
+                      aria-label={t.pipeline.stageCompressingTitle}
                       className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(16,185,129,0.08)] p-2.5 overflow-hidden"
                     >
                       <div
@@ -925,11 +906,11 @@ export function MobileCatalogCarousel({
                       className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
                     >
                       <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                        Lanzando a base de datos
+                        {t.pipeline.stageUploadingTitle}
                       </h2>
 
                       <section
-                        aria-label="Lanzando a base de datos"
+                        aria-label={t.pipeline.stageUploadingTitle}
                         className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(16,185,129,0.08)] p-2.5 overflow-hidden"
                       >
                         <div
@@ -1025,11 +1006,11 @@ export function MobileCatalogCarousel({
                       className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
                     >
                       <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                        Recibiendo
+                        {t.pipeline.stageReceivingTitle}
                       </h2>
 
                       <section
-                        aria-label="Recibiendo"
+                        aria-label={t.pipeline.stageReceivingTitle}
                         className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(16,185,129,0.08)] p-2.5 overflow-hidden"
                       >
                         <ul className="w-full h-full flex flex-col justify-start gap-[2.5px] overflow-hidden">
@@ -1084,7 +1065,7 @@ export function MobileCatalogCarousel({
                                   </motion.span>
                                 ) : status === 'error' ? (
                                   <span className="flex-1 min-w-0 text-[10.5px] leading-none text-rose-500 truncate">
-                                    No se pudo recibir
+                                    {t.pipeline.couldNotReceive}
                                   </span>
                                 ) : (
                                   <span className="h-2 w-2/3 rounded-full bg-slate-100 animate-pulse" />
@@ -1106,11 +1087,11 @@ export function MobileCatalogCarousel({
                       className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
                     >
                       <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                        Renderizar y mapear
+                        {t.pipeline.stageMappingTitle}
                       </h2>
 
                       <section
-                        aria-label="Renderizar y mapear"
+                        aria-label={t.pipeline.stageMappingTitle}
                         className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] p-2.5 overflow-hidden"
                       >
                         <ul className="w-full h-full flex flex-col justify-start gap-[2.5px] overflow-hidden">
@@ -1174,7 +1155,7 @@ export function MobileCatalogCarousel({
                                   </motion.span>
                                 ) : status === 'error' ? (
                                   <span className="flex-1 min-w-0 text-[10.5px] leading-none text-rose-500 truncate">
-                                    No se pudo mapear
+                                    {t.pipeline.couldNotMap}
                                   </span>
                                 ) : (
                                   <span className="h-2 w-3/4 rounded-full bg-slate-100 animate-pulse" />
@@ -1197,11 +1178,11 @@ export function MobileCatalogCarousel({
                       className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
                     >
                       <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                        Ciclo de vida
+                        {t.pipeline.stageLifecycleTitle}
                       </h2>
 
                       <section
-                        aria-label="Ciclo de vida"
+                        aria-label={t.pipeline.stageLifecycleTitle}
                         className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] p-4 flex flex-col justify-between overflow-hidden"
                       >
                         <p className="text-[13px] leading-relaxed text-slate-700">
@@ -1209,13 +1190,9 @@ export function MobileCatalogCarousel({
                             🎉
                           </span>
                           <span className="font-semibold text-slate-950">
-                            ¡Enhorabuena!
+                            {t.pipeline.congratsTitleMobile}
                           </span>{' '}
-                          Ya tienes{' '}
-                          {processedCount === 1
-                            ? 'tu 1 imagen procesada y guardada'
-                            : `tus ${processedCount} imágenes procesadas y guardadas`}{' '}
-                          en nuestro R2, listas para conectar tu chatbot y página.
+                          {t.pipeline.congratsBodyMobile(processedCount)}
                         </p>
 
                         <div className="pt-3 border-t border-slate-200/75 flex flex-col gap-1.5">
@@ -1224,7 +1201,7 @@ export function MobileCatalogCarousel({
                             onClick={handleOpenViewApi}
                             className="w-full py-1.5 text-left text-[13px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-75 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
                           >
-                            APIs generadas
+                            {t.pipeline.generatedApisLink}
                           </button>
 
                           <button
@@ -1232,7 +1209,7 @@ export function MobileCatalogCarousel({
                             onClick={handleOpenViewApi}
                             className="w-full py-1.5 text-left text-[13px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-75 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
                           >
-                            Endpoint generado
+                            {t.pipeline.generatedEndpointLink}
                           </button>
                         </div>
                       </section>
@@ -1249,24 +1226,24 @@ export function MobileCatalogCarousel({
                       className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
                     >
                       <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                        Ver tu API
+                        {t.pipeline.stageViewApiTitle}
                       </h2>
 
                       <section
-                        aria-label="Ver tu API"
+                        aria-label={t.pipeline.stageViewApiTitle}
                         className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] p-4 flex flex-col justify-between overflow-hidden"
                       >
                         <div>
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-[12.5px] font-semibold text-slate-950">
-                              Tus credenciales listas
+                              {t.pipeline.credentialsReadyTitle}
                             </p>
                             <span className="text-[10px] font-medium text-slate-400 shrink-0">
                               Search Link Core
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-                            Toca el ícono al final para copiar tu API o endpoint.
+                            {t.pipeline.credentialsReadyHint}
                           </p>
                         </div>
 
@@ -1278,7 +1255,7 @@ export function MobileCatalogCarousel({
                                 className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                               />
                               <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                                {serviceCredentials?.apiKey || 'Generando API Key...'}
+                                {serviceCredentials?.apiKey || t.pipeline.generatingApiKey}
                               </span>
                             </div>
 
@@ -1292,7 +1269,7 @@ export function MobileCatalogCarousel({
                                   serviceCredentials.apiKey,
                                 )
                               }
-                              aria-label="Copiar API"
+                              aria-label={t.pipeline.copyApiAria}
                               className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer disabled:opacity-40"
                             >
                               {copiedMetadataId === 'mobile-api' ? (
@@ -1313,7 +1290,7 @@ export function MobileCatalogCarousel({
                                 className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                               />
                               <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                                {serviceCredentials?.endpointUrl || 'Generando endpoint...'}
+                                {serviceCredentials?.endpointUrl || t.pipeline.generatingEndpoint}
                               </span>
                             </div>
 
@@ -1327,7 +1304,7 @@ export function MobileCatalogCarousel({
                                   serviceCredentials.endpointUrl,
                                 )
                               }
-                              aria-label="Copiar endpoint"
+                              aria-label={t.pipeline.copyEndpointAria}
                               className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer disabled:opacity-40"
                             >
                               {copiedMetadataId === 'mobile-endpoint' ? (
@@ -1348,7 +1325,7 @@ export function MobileCatalogCarousel({
                             onClick={onOpenOrganization}
                             className="w-full pt-1 text-left text-[12.5px] font-semibold text-blue-600 hover:text-blue-700 active:opacity-75 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
                           >
-                            Ver tu organización
+                            {t.pipeline.viewYourOrg}
                           </button>
                         )}
                       </section>
@@ -1364,21 +1341,21 @@ export function MobileCatalogCarousel({
                       className="w-[78vw] max-w-[308px] shrink-0 snap-start flex flex-col"
                     >
                       <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                        Productividad
+                        {t.pipeline.stageProductivityTitle}
                       </h2>
 
                       <section
-                        aria-label="Productividad"
+                        aria-label={t.pipeline.stageProductivityTitle}
                         className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] px-4 py-3 flex flex-col justify-center overflow-y-auto"
                       >
                         <ul className="divide-y divide-slate-100/90">
                           {(
                             [
-                              { kind: 'json', label: 'Descargar mapeo JSON' },
-                              { kind: 'images', label: 'Descargar imágenes' },
-                              { kind: 'urls', label: 'Descargar URLs' },
-                              { kind: 'metadata', label: 'Descargar metadatos' },
-                              { kind: 'all', label: 'Descargar todo' },
+                              { kind: 'json', label: t.pipeline.pdfActions.json },
+                              { kind: 'images', label: t.pipeline.pdfActions.images },
+                              { kind: 'urls', label: t.pipeline.pdfActions.urls },
+                              { kind: 'metadata', label: t.pipeline.pdfActions.metadata },
+                              { kind: 'all', label: t.pipeline.pdfActions.all },
                             ] as const
                           ).map((action) => {
                             const isGenerating = exportingPdfKind === action.kind;
@@ -1408,7 +1385,7 @@ export function MobileCatalogCarousel({
                               onClick={() => setIsJsonEditorOpen(true)}
                               className="w-full py-2 text-left text-[13px] font-normal text-blue-600 active:opacity-65 transition-opacity cursor-pointer focus-visible:outline-none focus-visible:underline"
                             >
-                              Ver en editor
+                              {t.pipeline.pdfActions.openEditor}
                             </button>
                           </li>
                         </ul>
@@ -1449,11 +1426,11 @@ export function MobileCatalogCarousel({
           ) : (
             <>
               <h2 className="text-[14px] font-semibold text-slate-950 tracking-[-0.015em] mb-2 pl-1">
-                Aquí verás tus imágenes
+                {t.pipeline.stageImagesTitle}
               </h2>
 
               <section
-                aria-label="Aquí verás tus imágenes"
+                aria-label={t.pipeline.stageImagesTitle}
                 className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.06)] p-2.5 overflow-hidden"
               >
                 {isExtracting ? (
@@ -1479,7 +1456,7 @@ export function MobileCatalogCarousel({
                           key={`unified-thumb-${item.id}`}
                           type="button"
                           onClick={() => setFullscreenImage(item)}
-                          aria-label={`Ver ${item.alt}`}
+                          aria-label={t.pipeline.viewProductAria(item.alt)}
                           className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] active:scale-[0.96] transition-transform duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                         >
                           {hasError ? (
@@ -1517,15 +1494,15 @@ export function MobileCatalogCarousel({
               transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               aria-label={
                 allMappedComplete
-                  ? 'Renderizado y mapeado'
-                  : 'Aquí puedes ver tus metadatos'
+                  ? t.pipeline.stageMappedDoneTitle
+                  : t.pipeline.stageMetadataTitle
               }
               className="mt-5 px-1 pb-6"
             >
               <h2 className="text-[13.5px] font-semibold text-slate-950 tracking-[-0.015em] mb-2">
                 {allMappedComplete
-                  ? 'Renderizado y mapeado'
-                  : 'Aquí puedes ver tus metadatos'}
+                  ? t.pipeline.stageMappedDoneTitle
+                  : t.pipeline.stageMetadataTitle}
               </h2>
 
               {allMappedComplete ? (
@@ -1548,7 +1525,7 @@ export function MobileCatalogCarousel({
                             <X className="w-2.5 h-2.5 stroke-[2.75]" />
                           </span>
                           <span className="text-xs text-rose-600/90 truncate">
-                            No se pudo mapear esta imagen.
+                            {t.pipeline.couldNotMap}
                           </span>
                         </li>
                       );
@@ -1576,7 +1553,7 @@ export function MobileCatalogCarousel({
                             }))
                           }
                           aria-expanded={isExpanded}
-                          aria-label={`${isExpanded ? 'Ocultar' : 'Ver'} JSON de ${mapped.nombre}`}
+                          aria-label={t.pipeline.showJsonAria(isExpanded, mapped.nombre)}
                           className="w-full py-3 flex items-center justify-between gap-2.5 text-left active:opacity-70 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-md"
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1625,12 +1602,12 @@ export function MobileCatalogCarousel({
                                   onClick={() =>
                                     handleCopyMetadataUrl(`json-${item.id}`, jsonText)
                                   }
-                                  aria-label={`Copiar JSON de ${mapped.nombre}`}
+                                  aria-label={t.pipeline.copyJsonOfAria(mapped.nombre)}
                                   className="w-full rounded-xl bg-white/75 border border-slate-900/10 p-3 text-left active:opacity-75 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
                                 >
                                   <div className="flex items-center justify-between gap-2 mb-1.5">
                                     <span className="text-[10.5px] font-medium text-slate-500">
-                                      JSON del producto
+                                      {t.pipeline.productJsonLabel}
                                     </span>
                                     <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-slate-600">
                                       {isCopied ? (
@@ -1639,12 +1616,12 @@ export function MobileCatalogCarousel({
                                             className="w-3 h-3 text-emerald-600 stroke-[2.75]"
                                             aria-hidden="true"
                                           />
-                                          <span className="text-emerald-600">Copiado</span>
+                                          <span className="text-emerald-600">{t.common.copied}</span>
                                         </>
                                       ) : (
                                         <>
                                           <Copy className="w-3 h-3" aria-hidden="true" />
-                                          <span>Copiar</span>
+                                          <span>{t.common.copy}</span>
                                         </>
                                       )}
                                     </span>
@@ -1684,7 +1661,7 @@ export function MobileCatalogCarousel({
                           <button
                             type="button"
                             onClick={() => handleCopyMetadataUrl(item.id, copyableUrl)}
-                            aria-label={`Copiar URL ${displayUrl}`}
+                            aria-label={t.pipeline.copyUrlOfAria(displayUrl)}
                             className="w-full flex items-center justify-between gap-2.5 py-2.5 min-w-0 text-left active:opacity-65 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 rounded-md"
                           >
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1709,7 +1686,7 @@ export function MobileCatalogCarousel({
                             <div className="flex items-center gap-1.5 shrink-0">
                               {isCopied && (
                                 <span className="text-[10.5px] font-medium text-emerald-600">
-                                  Copiado
+                                  {t.common.copied}
                                 </span>
                               )}
                               {compressed && compressed.savedPercent > 0 && (
@@ -1776,6 +1753,7 @@ export function MobileCatalogCarousel({
 }
 
 function ExtractingPlaceholder() {
+  const { t } = useI18n();
   return (
     <div className="relative w-full h-full flex items-center justify-center">
       <div className="grid grid-cols-3 grid-rows-3 gap-1.5 w-full h-full opacity-55">
@@ -1790,7 +1768,7 @@ function ExtractingPlaceholder() {
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/60 backdrop-blur-[2px]">
         <Loader2 className="w-6 h-6 text-blue-600 animate-spin" aria-hidden="true" />
         <span className="text-xs font-medium text-slate-700">
-          Buscando imágenes...
+          {t.pipeline.searchingImages}
         </span>
       </div>
     </div>
@@ -1808,6 +1786,7 @@ function MobileFullscreenViewer({
   reduceMotion,
   onClose,
 }: MobileFullscreenViewerProps) {
+  const { t } = useI18n();
   const dragY = useMotionValue(0);
   const backdropOpacity = useTransform(dragY, [0, 260], [1, 0.25]);
   const ambientOpacity = useTransform(dragY, [0, 260], [0.35, 0.08]);
@@ -1882,7 +1861,7 @@ function MobileFullscreenViewer({
       <button
         type="button"
         onClick={onClose}
-        aria-label="Cerrar imagen"
+        aria-label={t.pipeline.closeImageAria}
         className="fixed top-4 right-4 z-20 w-10 h-10 rounded-full bg-black/55 hover:bg-black/75 text-white border border-white/20 backdrop-blur-md flex items-center justify-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       >
         <X className="w-5 h-5" aria-hidden="true" />

@@ -8,6 +8,7 @@ import type {
   ImageReceiveStatus,
   ImageUploadStatus,
 } from './MobileCatalogCarousel';
+import { useI18n } from '../lib/i18n';
 
 interface DesktopUploadSequenceProps {
   images: CatalogImageItem[];
@@ -66,6 +67,7 @@ export function DesktopUploadSequence({
 }: DesktopUploadSequenceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useI18n();
   const [containerWidth, setContainerWidth] = useState(960);
   const [phase, setPhase] = useState<SequencePhase>(
     shouldReduceMotion ? 'active' : 'merging',
@@ -239,12 +241,12 @@ export function DesktopUploadSequence({
         : 'w-4 h-4';
 
   const stageTitle = showReceiveBox
-    ? 'Recibiendo'
+    ? t.pipeline.stageReceivingTitle
     : showUploadBox
-      ? 'Lanzando a base de datos'
+      ? t.pipeline.stageUploadingTitle
       : showCompressionBox
-        ? 'Comprimiendo'
-        : 'Aquí verás tus imágenes';
+        ? t.pipeline.stageCompressingTitle
+        : t.pipeline.stageImagesTitle;
 
   const headingClasses =
     'text-sm font-semibold text-white tracking-tight mb-2.5 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)]';
@@ -263,7 +265,7 @@ export function DesktopUploadSequence({
             transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
             className={headingClasses}
           >
-            Aquí verás tus imágenes
+            {t.pipeline.stageImagesTitle}
           </motion.h2>
           <motion.h2
             initial={{ opacity: 0, x: -12 }}
@@ -271,7 +273,7 @@ export function DesktopUploadSequence({
             transition={{ duration: 0.34, ease: [0.22, 1, 0.36, 1] }}
             className={headingClasses}
           >
-            Aquí puedes ver tus metadatos
+            {t.pipeline.stageMetadataTitle}
           </motion.h2>
         </div>
       ) : (
@@ -330,7 +332,7 @@ export function DesktopUploadSequence({
           <>
             {/* Left card separates cleanly back to left column */}
             <motion.section
-              aria-label="Aquí verás tus imágenes"
+              aria-label={t.pipeline.stageImagesTitle}
               initial={{ left: 0, width: containerWidth }}
               animate={{ left: 0, width: halfWidth }}
               transition={{ duration: SPLIT_DURATION_MS / 1000, ease: [0.22, 1, 0.36, 1] }}
@@ -341,7 +343,7 @@ export function DesktopUploadSequence({
 
             {/* Right card glides smoothly out to right column */}
             <motion.section
-              aria-label="Aquí puedes ver tus metadatos"
+              aria-label={t.pipeline.stageMetadataTitle}
               initial={{ left: containerWidth - halfWidth, width: halfWidth, opacity: 0.25 }}
               animate={{ left: rightStartX, width: halfWidth, opacity: 1 }}
               transition={{ duration: SPLIT_DURATION_MS / 1000, ease: [0.22, 1, 0.36, 1] }}
@@ -411,7 +413,7 @@ export function DesktopUploadSequence({
                           </motion.span>
                         ) : status === 'error' ? (
                           <span className="flex-1 min-w-0 text-xs leading-none text-rose-500 truncate">
-                            No se pudo recibir
+                            {t.pipeline.couldNotReceive}
                           </span>
                         ) : (
                           <span className="h-2.5 w-1/2 rounded-full bg-slate-100 animate-pulse" />

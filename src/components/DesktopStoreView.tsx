@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
+import { useI18n } from '../lib/i18n';
 import type { OrganizationServiceItem } from './DesktopOrganizationView';
 
 interface DesktopStoreViewProps {
@@ -13,6 +14,7 @@ export function DesktopStoreView({
   organizationName,
   organizationLogoUrl,
 }: DesktopStoreViewProps) {
+  const { t } = useI18n();
   const shouldReduceMotion = useReducedMotion();
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [failedImageIds, setFailedImageIds] = useState<Record<string, boolean>>({});
@@ -147,7 +149,7 @@ export function DesktopStoreView({
           </div>
 
           <span className="text-[11px] font-medium text-slate-500 tabular-nums shrink-0">
-            {products.length} {products.length === 1 ? 'producto' : 'productos'}
+            {t.org.productCount(products.length)}
           </span>
         </div>
 
@@ -155,10 +157,10 @@ export function DesktopStoreView({
         {products.length === 0 ? (
           <div className="rounded-2xl border border-white/90 bg-white/75 backdrop-blur-md px-5 py-10 text-center shadow-xs">
             <p className="text-sm font-medium text-slate-800">
-              Este servicio aún no tiene productos visibles en tienda
+              {t.store.emptyTitle}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Procesa un nuevo lote de imágenes para verlo aquí en tu tienda visual.
+              {t.store.emptyDescDesktop}
             </p>
           </div>
         ) : (
@@ -189,7 +191,7 @@ export function DesktopStoreView({
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400">
-                        Sin imagen
+                        {t.store.noImage}
                       </div>
                     )}
                   </div>
@@ -205,8 +207,10 @@ export function DesktopStoreView({
                       }
                       title={
                         isNameExpanded
-                          ? 'Toca para contraer'
-                          : `${product.nombre} (toca para ver completo)`
+                          ? t.store.tapToCollapse
+                          : t.store.tapToExpandFull(
+                              product.nombre || t.store.unnamedProduct,
+                            )
                       }
                       className="w-full text-left focus-visible:outline-none focus-visible:underline cursor-pointer"
                     >
@@ -215,12 +219,12 @@ export function DesktopStoreView({
                           isNameExpanded ? 'whitespace-normal break-words' : 'truncate'
                         }`}
                       >
-                        {product.nombre || 'Producto sin nombre'}
+                        {product.nombre || t.store.unnamedProduct}
                       </p>
                     </button>
 
                     <p className="text-[10.5px] font-medium text-slate-500 truncate">
-                      {product.categoria || 'General'}
+                      {product.categoria || t.common.generalCategory}
                     </p>
                   </div>
                 </article>

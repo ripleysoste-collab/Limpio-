@@ -25,6 +25,7 @@ import type {
   ImageUploadStatus,
 } from './MobileCatalogCarousel';
 import { LIGHT_TOKEN_CLASSES, tokenizeJsonLine } from './MobileJsonEditorModal';
+import { useI18n } from '../lib/i18n';
 
 export interface ServiceCredentialsDisplay {
   serviceName?: string;
@@ -193,6 +194,7 @@ export function DualCatalogShowcase({
   const leftStageRef = useRef<HTMLDivElement>(null);
   const rightStageRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useI18n();
 
   const [rects, setRects] = useState<{ left: BoxRect; right: BoxRect }>({
     left: { x: 0, y: 0, width: 0, height: 0 },
@@ -285,14 +287,14 @@ export function DualCatalogShowcase({
         item.cleanUrl ||
         item.url;
       return {
-        nombre: mapped?.nombre || item.alt || 'Producto',
-        categoria: mapped?.categoria || 'General',
+        nombre: mapped?.nombre || item.alt || t.common.productFallback,
+        categoria: mapped?.categoria || t.common.generalCategory,
         descripcion: mapped?.descripcion || '',
         url: bestUrl,
       };
     });
     return JSON.stringify(payload, null, 2);
-  }, [images, mappedResults, compressionResults]);
+  }, [images, mappedResults, compressionResults, t]);
 
   const tokenizedJsonLines = useMemo(
     () => fullMappedJsonText.split('\n').map((line) => tokenizeJsonLine(line)),
@@ -909,10 +911,10 @@ export function DualCatalogShowcase({
             {/* Top-left card: Aquí verás tus imágenes */}
             <div className="h-[calc((100%-0.875rem)/2)] min-h-[180px] shrink-0 flex flex-col">
               <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
-                Aquí verás tus imágenes
+                {t.pipeline.stageImagesTitle}
               </h2>
               <section
-                aria-label="Aquí verás tus imágenes"
+                aria-label={t.pipeline.stageImagesTitle}
                 className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] p-3 overflow-hidden"
               >
                 <div
@@ -927,8 +929,8 @@ export function DualCatalogShowcase({
                       key={`split-img-${item.id}`}
                       type="button"
                       onClick={() => setFullscreenImage(item)}
-                      aria-label={`Ampliar ${item.alt} en el lado izquierdo`}
-                      title={`Clic para ver ${item.alt}`}
+                      aria-label={t.pipeline.enlargeLeftAria(item.alt)}
+                      title={t.pipeline.clickToViewTitle(item.alt)}
                       className="relative w-full h-full overflow-hidden rounded-xl bg-slate-50 ring-1 ring-inset ring-black/[0.04] hover:brightness-95 active:scale-[0.98] transition-all duration-150 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70"
                     >
                       <TileImage
@@ -956,10 +958,10 @@ export function DualCatalogShowcase({
               className="h-[calc((100%-0.875rem)/2)] min-h-[180px] shrink-0 flex flex-col"
             >
               <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
-                Aquí puedes ver tus metadatos
+                {t.pipeline.stageMetadataTitle}
               </h2>
               <section
-                aria-label="Aquí puedes ver tus metadatos"
+                aria-label={t.pipeline.stageMetadataTitle}
                 className="flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] p-3 overflow-y-auto"
               >
                 <div className="flex flex-col gap-0.5">
@@ -979,7 +981,7 @@ export function DualCatalogShowcase({
                           onClick={() => onSelectBackground(item)}
                           aria-pressed={isActive}
                           className="flex-1 min-w-0 h-full flex items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded"
-                          title={`Ver ${item.alt} en el fondo`}
+                          title={t.pipeline.viewInBackgroundTitle(item.alt)}
                         >
                           <Eye
                             className={`w-3.5 h-3.5 shrink-0 transition-colors ${
@@ -1011,8 +1013,8 @@ export function DualCatalogShowcase({
                         <button
                           type="button"
                           onClick={() => void handleCopyUrl(item)}
-                          aria-label={`Copiar URL de ${item.alt}`}
-                          title="Copiar URL"
+                          aria-label={t.pipeline.copyUrlOfAria(item.alt)}
+                          title={t.pipeline.copyUrlTitle}
                           className="w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                         >
                           {isCopied ? (
@@ -1044,20 +1046,20 @@ export function DualCatalogShowcase({
                 className="shrink-0 flex flex-col pt-0.5"
               >
                 <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
-                  Productividad
+                  {t.pipeline.stageProductivityTitle}
                 </h2>
                 <section
-                  aria-label="Productividad"
+                  aria-label={t.pipeline.stageProductivityTitle}
                   className="w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] px-5 py-3"
                 >
                   <ul className="divide-y divide-slate-100/90">
                     {(
                       [
-                        { kind: 'json', label: 'Descargar mapeo JSON' },
-                        { kind: 'images', label: 'Descargar imágenes' },
-                        { kind: 'urls', label: 'Descargar URLs' },
-                        { kind: 'metadata', label: 'Descargar metadatos' },
-                        { kind: 'all', label: 'Descargar todo' },
+                        { kind: 'json', label: t.pipeline.pdfActions.json },
+                        { kind: 'images', label: t.pipeline.pdfActions.images },
+                        { kind: 'urls', label: t.pipeline.pdfActions.urls },
+                        { kind: 'metadata', label: t.pipeline.pdfActions.metadata },
+                        { kind: 'all', label: t.pipeline.pdfActions.all },
                       ] as const
                     ).map((action) => {
                       const isGenerating = exportingPdfKind === action.kind;
@@ -1087,7 +1089,7 @@ export function DualCatalogShowcase({
                         onClick={() => setRightCardView('editor')}
                         className="w-full py-2.5 text-left text-[13.5px] font-normal text-blue-600 hover:text-blue-700 active:opacity-70 transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline"
                       >
-                        Ver en editor
+                        {t.pipeline.pdfActions.openEditor}
                       </button>
                     </li>
                   </ul>
@@ -1108,22 +1110,22 @@ export function DualCatalogShowcase({
             <h2 className="text-sm font-semibold text-white tracking-tight mb-2 pl-1 drop-shadow-[0_1px_10px_rgba(0,0,0,0.65)] shrink-0">
               {allMappedComplete
                 ? rightCardView === 'editor'
-                  ? 'Editor JSON'
+                  ? t.pipeline.stageEditorTitle
                   : rightCardView === 'lifecycle'
-                    ? 'Ciclo de vida, API y endpoint'
-                    : 'Renderizado y mapeado'
-                : 'Renderizar y mapear'}
+                    ? t.pipeline.stageLifecycleFullTitle
+                    : t.pipeline.stageMappedDoneTitle
+                : t.pipeline.stageMappingTitle}
             </h2>
 
             <section
               aria-label={
                 allMappedComplete
                   ? rightCardView === 'editor'
-                    ? 'Editor JSON'
+                    ? t.pipeline.stageEditorTitle
                     : rightCardView === 'lifecycle'
-                      ? 'Ciclo de vida, API y endpoint'
-                      : 'Renderizado y mapeado'
-                  : 'Renderizar y mapear'
+                      ? t.pipeline.stageLifecycleFullTitle
+                      : t.pipeline.stageMappedDoneTitle
+                  : t.pipeline.stageMappingTitle
               }
               className={`relative flex-1 min-h-0 w-full rounded-3xl bg-white border border-white/85 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.45)] ${
                 rightCardView === 'editor'
@@ -1149,8 +1151,8 @@ export function DualCatalogShowcase({
                           onClick={() =>
                             void handleCopyText('editor-json-all', fullMappedJsonText)
                           }
-                          aria-label="Copiar todo el JSON"
-                          title="Copiar JSON"
+                          aria-label={t.pipeline.copyAllJsonAria}
+                          title={t.pipeline.copyJsonTitle}
                           className="p-1 text-slate-400 hover:text-slate-800 active:opacity-60 transition-colors cursor-pointer"
                         >
                           {copiedId === 'editor-json-all' ? (
@@ -1166,8 +1168,8 @@ export function DualCatalogShowcase({
                         <button
                           type="button"
                           onClick={() => setRightCardView('lifecycle')}
-                          aria-label="Cerrar editor y volver a Ciclo de vida"
-                          title="Cerrar editor"
+                          aria-label={t.pipeline.closeEditorBackAria}
+                          title={t.pipeline.closeEditorTitle}
                           className="p-1 text-slate-500 hover:text-slate-950 active:opacity-60 transition-colors cursor-pointer"
                         >
                           <X className="w-5 h-5" aria-hidden="true" />
@@ -1225,21 +1227,16 @@ export function DualCatalogShowcase({
                             🎉
                           </span>
                           <span className="font-semibold text-slate-950">
-                            ¡Felicidades!
+                            {t.pipeline.congratsTitleDesktop}
                           </span>{' '}
-                          Ya tienes{' '}
-                          {processedCount === 1
-                            ? 'tu 1 imagen procesada y guardada'
-                            : `tus ${processedCount} imágenes procesadas y guardadas`}{' '}
-                          en nuestro R2. Tu endpoint y tu API te servirán para conectar tu
-                          chatbot y la página de tu emprendimiento.
+                          {t.pipeline.congratsBodyDesktop(processedCount)}
                         </p>
 
                         <button
                           type="button"
                           onClick={() => setRightCardView('mapped')}
-                          aria-label="Volver a Renderizado y mapeado"
-                          title="Volver a Renderizado y mapeado"
+                          aria-label={t.pipeline.backToMappedAria}
+                          title={t.pipeline.backToMappedAria}
                           className="w-7 h-7 shrink-0 rounded-full border border-slate-200/85 bg-slate-50/70 flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
                         >
                           <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1250,7 +1247,7 @@ export function DualCatalogShowcase({
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-2">
                           <h3 className="text-xs font-semibold tracking-tight text-slate-900">
-                            Generado tu API y endpoint
+                            {t.pipeline.generatedApiTitle}
                           </h3>
                           <span className="text-[10.5px] font-medium text-slate-400">
                             Search Link Core
@@ -1265,7 +1262,7 @@ export function DualCatalogShowcase({
                                 className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                               />
                               <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                                {serviceCredentials?.apiKey || 'Generando API Key...'}
+                                {serviceCredentials?.apiKey || t.pipeline.generatingApiKey}
                               </span>
                             </div>
 
@@ -1279,8 +1276,8 @@ export function DualCatalogShowcase({
                                   serviceCredentials.apiKey,
                                 )
                               }
-                              aria-label="Copiar API"
-                              title="Copiar API Key"
+                              aria-label={t.pipeline.copyApiAria}
+                              title={t.pipeline.copyApiTitle}
                               className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer disabled:opacity-40"
                             >
                               {copiedId === 'lifecycle-api' ? (
@@ -1301,7 +1298,7 @@ export function DualCatalogShowcase({
                                 className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                               />
                               <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                                {serviceCredentials?.endpointUrl || 'Generando endpoint...'}
+                                {serviceCredentials?.endpointUrl || t.pipeline.generatingEndpoint}
                               </span>
                             </div>
 
@@ -1315,8 +1312,8 @@ export function DualCatalogShowcase({
                                   serviceCredentials.endpointUrl,
                                 )
                               }
-                              aria-label="Copiar endpoint"
-                              title="Copiar endpoint"
+                              aria-label={t.pipeline.copyEndpointAria}
+                              title={t.pipeline.copyEndpointTitle}
                               className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer disabled:opacity-40"
                             >
                               {copiedId === 'lifecycle-endpoint' ? (
@@ -1339,7 +1336,7 @@ export function DualCatalogShowcase({
                             key={`lifecycle-thumb-${item.id}`}
                             type="button"
                             onClick={() => setFullscreenImage(item)}
-                            aria-label={`Ver ${mappedResults[item.id]?.nombre || item.alt}`}
+                            aria-label={t.pipeline.viewProductAria(mappedResults[item.id]?.nombre || item.alt)}
                             title={mappedResults[item.id]?.nombre || item.alt}
                             className="relative aspect-square w-full overflow-hidden rounded-xl bg-slate-50 border border-slate-200/85 hover:brightness-95 active:scale-[0.97] transition-all duration-150 cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                           >
@@ -1367,8 +1364,8 @@ export function DualCatalogShowcase({
                           <button
                             type="button"
                             onClick={() => setRightCardView('lifecycle')}
-                            aria-label="Ir a Ciclo de vida, API y endpoint"
-                            title="Ir a Ciclo de vida, API y endpoint"
+                            aria-label={t.pipeline.goToLifecycleAria}
+                            title={t.pipeline.goToLifecycleAria}
                             className="w-7 h-7 rounded-full border border-slate-200/85 bg-slate-50/70 flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
                           >
                             <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1387,7 +1384,7 @@ export function DualCatalogShowcase({
                                 className="py-3.5 min-w-0"
                               >
                                 <span className="text-xs text-rose-600/90">
-                                  No se pudo mapear esta imagen.
+                                  {t.pipeline.couldNotMap}
                                 </span>
                               </li>
                             );
@@ -1414,7 +1411,7 @@ export function DualCatalogShowcase({
                                 onClick={() =>
                                   void handleCopyText(`split-json-${item.id}`, jsonText)
                                 }
-                                aria-label={`Copiar JSON de ${mapped.nombre}`}
+                                aria-label={t.pipeline.copyJsonOfAria(mapped.nombre)}
                                 className="w-full py-3.5 px-2 text-left hover:bg-slate-50/80 active:opacity-75 transition-colors rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50"
                               >
                                 <div className="flex items-start justify-between gap-3">
@@ -1428,7 +1425,7 @@ export function DualCatalogShowcase({
                                           className="w-3.5 h-3.5 stroke-[2.75]"
                                           aria-hidden="true"
                                         />
-                                        Copiado
+                                        {t.common.copied}
                                       </span>
                                     ) : (
                                       <Copy className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1523,7 +1520,7 @@ export function DualCatalogShowcase({
                           </motion.span>
                         ) : status === 'error' ? (
                           <span className="flex-1 min-w-0 text-xs leading-none text-rose-500 truncate">
-                            No se pudo mapear
+                            {t.pipeline.couldNotMap}
                           </span>
                         ) : (
                           <span className="h-2.5 w-2/3 rounded-full bg-slate-200/80 animate-pulse" />
@@ -1547,12 +1544,12 @@ export function DualCatalogShowcase({
           transition={{ duration: 0.25 }}
           className="flex flex-col"
         >
-          <h2 className={headingClasses}>Aquí verás tus imágenes</h2>
+          <h2 className={headingClasses}>{t.pipeline.stageImagesTitle}</h2>
           <section
             ref={leftCardRef}
             onClick={handleLeftBorderClick}
-            aria-label="Aquí verás tus imágenes"
-            title={isCompleted ? 'Toca el borde blanco para ampliar' : undefined}
+            aria-label={t.pipeline.stageImagesTitle}
+            title={isCompleted ? t.pipeline.tapBorderToExpand : undefined}
             className={cardClasses}
           >
             <div
@@ -1629,12 +1626,12 @@ export function DualCatalogShowcase({
           transition={{ duration: 0.25 }}
           className="flex flex-col"
         >
-          <h2 className={headingClasses}>Aquí puedes ver tus metadatos</h2>
+          <h2 className={headingClasses}>{t.pipeline.stageMetadataTitle}</h2>
           <section
             ref={rightCardRef}
             onClick={handleRightBorderClick}
-            aria-label="Aquí puedes ver tus metadatos"
-            title={isCompleted ? 'Toca el borde blanco para ampliar' : undefined}
+            aria-label={t.pipeline.stageMetadataTitle}
+            title={isCompleted ? t.pipeline.tapBorderToExpand : undefined}
             className={cardClasses}
           >
             <div
@@ -1676,7 +1673,7 @@ export function DualCatalogShowcase({
                         className={`group flex-1 min-w-0 h-full flex items-center gap-2 px-2.5 rounded-lg text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
                           isActive ? 'bg-slate-100' : 'hover:bg-slate-50'
                         }`}
-                        title={`Ver ${item.alt} en el fondo`}
+                        title={t.pipeline.viewInBackgroundTitle(item.alt)}
                       >
                         <Eye
                           className={`w-3.5 h-3.5 shrink-0 transition-colors ${
@@ -1712,8 +1709,8 @@ export function DualCatalogShowcase({
                             e.stopPropagation();
                             void handleCopyUrl(item);
                           }}
-                          aria-label={`Copiar URL de ${item.alt}`}
-                          title="Copiar URL"
+                          aria-label={t.pipeline.copyUrlOfAria(item.alt)}
+                          title={t.pipeline.copyUrlTitle}
                           className="w-6 h-6 shrink-0 rounded-md flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                         >
                           {isCopied ? (
@@ -1800,8 +1797,8 @@ export function DualCatalogShowcase({
             aria-modal="true"
             aria-label={
               expandedMode === 'images'
-                ? 'Vista ampliada de imágenes'
-                : 'Vista ampliada de metadatos'
+                ? t.pipeline.expandedImagesAria
+                : t.pipeline.expandedMetadataAria
             }
             initial={{
               left: expandGeometry.start.left,
@@ -1824,18 +1821,18 @@ export function DualCatalogShowcase({
               <div className="flex items-baseline gap-3">
                 <h2 className="text-lg font-semibold text-slate-950 tracking-tight">
                   {expandedMode === 'images'
-                    ? 'Aquí verás tus imágenes'
-                    : 'Aquí puedes ver tus metadatos'}
+                    ? t.pipeline.stageImagesTitle
+                    : t.pipeline.stageMetadataTitle}
                 </h2>
                 <span className="text-xs text-slate-400 tabular-nums">
-                  {images.length} elementos
+                  {t.pipeline.elementsCount(images.length)}
                 </span>
               </div>
 
               <button
                 type="button"
                 onClick={closeExpanded}
-                aria-label="Cerrar vista ampliada"
+                aria-label={t.pipeline.closeExpandedAria}
                 className="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
                 <X className="w-4.5 h-4.5" aria-hidden="true" />
@@ -1867,7 +1864,7 @@ export function DualCatalogShowcase({
                       onClick={() => onSelectBackground(item)}
                       onDoubleClick={() => setFullscreenImage(item)}
                       className="group relative w-full h-full overflow-hidden rounded-2xl bg-white border border-slate-200/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-zoom-in"
-                      title={`Doble clic para ver ${item.alt} en pantalla completa`}
+                      title={t.pipeline.doubleClickFullscreen(item.alt)}
                     >
                       <TileImage
                         item={item}
@@ -1905,8 +1902,8 @@ export function DualCatalogShowcase({
                             type="button"
                             onClick={() => onSelectBackground(item)}
                             aria-pressed={isActive}
-                            aria-label={`Usar ${item.alt} como fondo`}
-                            title={`Usar ${item.alt} como fondo`}
+                            aria-label={t.pipeline.useAsBackgroundAria(item.alt)}
+                            title={t.pipeline.useAsBackgroundAria(item.alt)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                           >
                             <Eye
@@ -1930,7 +1927,7 @@ export function DualCatalogShowcase({
                                 ? 'text-slate-950 font-medium'
                                 : 'text-slate-700 hover:text-slate-950'
                             }`}
-                            title={`Abrir imagen original: ${item.alt}`}
+                            title={t.pipeline.openOriginalImageTitle(item.alt)}
                           >
                             {displayUrl}
                           </a>
@@ -1944,12 +1941,12 @@ export function DualCatalogShowcase({
                           {isCopied ? (
                             <>
                               <Check className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
-                              <span className="text-emerald-700">Copiada</span>
+                              <span className="text-emerald-700">{t.common.copiedFem}</span>
                             </>
                           ) : (
                             <>
                               <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                              <span>Copiar</span>
+                              <span>{t.common.copy}</span>
                             </>
                           )}
                         </button>
@@ -2012,7 +2009,7 @@ export function DualCatalogShowcase({
                 e.stopPropagation();
                 setFullscreenImage(null);
               }}
-              aria-label="Cerrar imagen en pantalla completa"
+              aria-label={t.pipeline.closeFullscreenAria}
               className={`${
                 isSplitWorkspaceActive ? 'absolute' : 'fixed'
               } top-5 right-5 z-20 w-11 h-11 rounded-full bg-black/55 hover:bg-black/80 text-white border border-white/20 backdrop-blur-md flex items-center justify-center transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white`}

@@ -1,4 +1,5 @@
 import type { IncomingHttpHeaders } from 'node:http';
+import type { SupportedLocale } from './localeDetection.ts';
 import {
   resolveSearchLinkCoreEndpoint,
   type SearchLinkCoreProduct,
@@ -31,6 +32,7 @@ export interface SearchLinkChatInput {
   serviceName?: string;
   organizationName?: string;
   userId?: string;
+  locale?: SupportedLocale;
   fallbackProducts?: Array<{
     id?: string;
     nombre: string;
@@ -251,6 +253,7 @@ async function resolveWithGroqReasoning(options: {
   apiKey: string;
   orgName: string;
   serviceName: string;
+  locale: SupportedLocale;
   products: SearchLinkCoreProduct[];
   history: SearchLinkChatTurn[];
   message: string;
@@ -259,7 +262,11 @@ async function resolveWithGroqReasoning(options: {
     return {
       selectedProducts: [],
       reply:
-        'Este servicio aún no tiene productos publicados en su catálogo.',
+        options.locale === 'en'
+          ? 'This service does not have any published products in its catalog yet.'
+          : options.locale === 'pt'
+            ? 'Este serviço ainda não possui produtos publicados no catálogo.'
+            : 'Este servicio aún no tiene productos publicados en su catálogo.',
     };
   }
 
@@ -275,18 +282,44 @@ async function resolveWithGroqReasoning(options: {
   );
 
   const systemInstruction =
-    `Eres Search Link IA, asesor experto y amable de "${options.orgName}" (${options.serviceName}).\n` +
-    `Catálogo real del negocio: ${JSON.stringify(indexedCatalog)}\n\n` +
-    `Reglas estrictas para elegir "product_ids":\n` +
-    `1) Analiza con cuidado la intención real del cliente antes de responder.\n` +
-    `2) Si pide un producto específico (ej. "crema de tomate", "ramen", "paella"), incluye ÚNICAMENTE el id exacto que corresponde a ese plato o artículo. NUNCA incluyas otros productos distintos solo porque compartan una palabra o ingrediente menor en su descripción.\n` +
-    `3) Si pide por característica o categoría (ej. "algo ligero y saludable", "algo con camarones", "sopas"), incluye SOLO los ids que realmente cumplan con eso.\n` +
-    `4) Si pregunta de forma general ("qué hay", "qué hay de comer", "qué venden", "menú", "muéstrame todo"), incluye una muestra amplia y variada del catálogo (hasta 6 ids).\n` +
-    `5) Si pide algo que NO existe en el catálogo (ej. "pizza", "hamburguesa" cuando no están), devuelve product_ids: [] y díselo con amabilidad sugiriendo 1 o 2 opciones que sí existan.\n` +
-    `6) Si es solo un saludo ("hola", "buenas"), devuelve product_ids: [] y saluda brevemente preguntando qué busca.\n\n` +
-    `Reglas para "reply":\n` +
-    `- Español natural, cálido y breve (1 o 2 frases cortas, máximo 35 palabras).\n` +
-    `- Cuando product_ids no esté vacío, recuerda que las imágenes de esos productos se mostrarán justo arriba del texto, así que no hagas listas largas.`;
+    options.locale === 'en'
+      ? `You are Search Link IA, a friendly and accurate shopping advisor for "${options.orgName}" (${options.serviceName}).\n` +
+        `Real business catalog: ${JSON.stringify(indexedCatalog)}\n\n` +
+        `Strict rules for selecting "product_ids":\n` +
+        `1) Carefully understand the customer's real intent before answering.\n` +
+        `2) If the user asks for a specific item (e.g., "tomato soup", "ramen", "paella"), include ONLY the exact id of that matching item. NEVER include unrelated items just because they share a minor word or ingredient in the description.\n` +
+        `3) If the user asks by category or trait (e.g., "something light and healthy", "with shrimp", "soups"), include ONLY ids that genuinely match.\n` +
+        `4) If asking broadly ("what do you have", "what is on the menu", "show me everything"), include a varied sample from the catalog (up to 6 ids).\n` +
+        `5) If asking for something NOT in the catalog, return product_ids: [] and politely suggest 1 or 2 real options that exist.\n` +
+        `6) If it is just a greeting ("hi", "hello"), return product_ids: [] and greet briefly asking what they are looking for.\n\n` +
+        `Rules for "reply":\n` +
+        `- Natural, warm, concise English (1 or 2 short sentences, max 35 words).\n` +
+        `- When product_ids is non-empty, product images appear right above your text, so never output long lists.`
+      : options.locale === 'pt'
+        ? `Você é o Search Link IA, consultor amigável e preciso da "${options.orgName}" (${options.serviceName}).\n` +
+          `Catálogo real do negócio: ${JSON.stringify(indexedCatalog)}\n\n` +
+          `Regras estritas para escolher "product_ids":\n` +
+          `1) Analise com atenção a real intenção do cliente antes de responder.\n` +
+          `2) Se pedir um produto específico (ex.: "creme de tomate", "ramen", "paella"), inclua APENAS o id exato correspondente. NUNCA inclua outros produtos só porque compartilham uma palavra ou ingrediente menor na descrição.\n` +
+          `3) Se pedir por característica ou categoria (ex.: "algo leve e saudável", "com camarão", "sopas"), inclua SOMENTE os ids que realmente correspondam.\n` +
+          `4) Se perguntar de forma geral ("o que vocês têm", "o que tem no cardápio", "me mostre tudo"), inclua uma amostra variada do catálogo (até 6 ids).\n` +
+          `5) Se pedir algo que NÃO existe no catálogo, retorne product_ids: [] e avise com simpatia sugerindo 1 ou 2 opções reais.\n` +
+          `6) Se for apenas uma saudação ("olá", "oi"), retorne product_ids: [] e cumprimente brevemente perguntando o que procura.\n\n` +
+          `Regras para "reply":\n` +
+          `- Português natural, cordial e breve (1 ou 2 frases curtas, máximo 35 palavras).\n` +
+          `- Quando product_ids não estiver vazio, as imagens dos produtos aparecerão logo acima do texto, portanto não faça listas longas.`
+        : `Eres Search Link IA, asesor experto y amable de "${options.orgName}" (${options.serviceName}).\n` +
+          `Catálogo real del negocio: ${JSON.stringify(indexedCatalog)}\n\n` +
+          `Reglas estrictas para elegir "product_ids":\n` +
+          `1) Analiza con cuidado la intención real del cliente antes de responder.\n` +
+          `2) Si pide un producto específico (ej. "crema de tomate", "ramen", "paella"), incluye ÚNICAMENTE el id exacto que corresponde a ese plato o artículo. NUNCA incluyas otros productos distintos solo porque compartan una palabra o ingrediente menor en su descripción.\n` +
+          `3) Si pide por característica o categoría (ej. "algo ligero y saludable", "algo con camarones", "sopas"), incluye SOLO los ids que realmente cumplan con eso.\n` +
+          `4) Si pregunta de forma general ("qué hay", "qué hay de comer", "qué venden", "menú", "muéstrame todo"), incluye una muestra amplia y variada del catálogo (hasta 6 ids).\n` +
+          `5) Si pide algo que NO existe en el catálogo (ej. "pizza", "hamburguesa" cuando no están), devuelve product_ids: [] y díselo con amabilidad sugiriendo 1 o 2 opciones que sí existan.\n` +
+          `6) Si es solo un saludo ("hola", "buenas"), devuelve product_ids: [] y saluda brevemente preguntando qué busca.\n\n` +
+          `Reglas para "reply":\n` +
+          `- Español natural, cálido y breve (1 o 2 frases cortas, máximo 35 palabras).\n` +
+          `- Cuando product_ids no esté vacío, recuerda que las imágenes de esos productos se mostrarán justo arriba del texto, así que no hagas listas largas.`;
 
   const messages = [
     { role: 'system', content: systemInstruction },
@@ -392,12 +425,25 @@ async function resolveWithGroqReasoning(options: {
         }
       }
 
+      const fallbackFoundReply =
+        options.locale === 'en'
+          ? 'Here are the items that match your search. Would you like more details?'
+          : options.locale === 'pt'
+            ? 'Aqui está o que corresponde à sua busca. Gostaria de mais detalhes?'
+            : 'Aquí tienes lo que coincide con tu búsqueda. ¿Te gustaría más detalles?';
+      const fallbackMissingReply =
+        options.locale === 'en'
+          ? 'I could not find that exact item in the catalog. Should I show you other options?'
+          : options.locale === 'pt'
+            ? 'Não encontrei esse item exato no catálogo. Posso mostrar outras opções?'
+            : 'No encontré ese producto exacto en el catálogo. ¿Te muestro otras opciones?';
+
       const reply =
         typeof parsed.reply === 'string' && parsed.reply.trim()
           ? parsed.reply.trim()
           : selectedProducts.length > 0
-            ? 'Aquí tienes lo que coincide con tu búsqueda. ¿Te gustaría más detalles?'
-            : 'No encontré ese producto exacto en el catálogo. ¿Te muestro otras opciones?';
+            ? fallbackFoundReply
+            : fallbackMissingReply;
 
       return { selectedProducts, reply };
     } catch {
@@ -412,12 +458,21 @@ async function resolveWithGroqReasoning(options: {
 export async function* streamSearchLinkChat(
   input: SearchLinkChatInput,
 ): AsyncGenerator<SearchLinkChatStreamEvent> {
+  const locale: SupportedLocale =
+    input.locale === 'en' || input.locale === 'pt' || input.locale === 'es'
+      ? input.locale
+      : 'es';
   const cleanMessage = (input.message || '').trim().slice(0, 2000);
   if (!cleanMessage) {
     yield {
       type: 'error',
       status: 400,
-      error: 'Escribe un mensaje para consultar el catálogo.',
+      error:
+        locale === 'en'
+          ? 'Write a message to search the catalog.'
+          : locale === 'pt'
+            ? 'Escreva uma mensagem para consultar o catálogo.'
+            : 'Escribe un mensaje para consultar el catálogo.',
     };
     return;
   }
@@ -428,7 +483,11 @@ export async function* streamSearchLinkChat(
       type: 'error',
       status: 503,
       error:
-        'Search Link IA está esperando la variable GROQ_API_KEY en el servidor.',
+        locale === 'en'
+          ? 'Search Link IA is waiting for GROQ_API_KEY on the server.'
+          : locale === 'pt'
+            ? 'O Search Link IA está aguardando a variável GROQ_API_KEY no servidor.'
+            : 'Search Link IA está esperando la variable GROQ_API_KEY en el servidor.',
     };
     return;
   }
@@ -457,6 +516,7 @@ export async function* streamSearchLinkChat(
       apiKey: groqKey,
       orgName: catalog.orgName,
       serviceName: catalog.serviceName,
+      locale,
       products: catalog.products,
       history,
       message: cleanMessage,

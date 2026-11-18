@@ -6,6 +6,7 @@ import desktopDesertBg from './assets/images/bg_desert_desktop_1794853953945.jpg
 import { AuthDrawer } from './components/AuthDrawer';
 import { AutomationExamplesSection } from './components/AutomationExamplesSection';
 import { DesktopAccountMenu } from './components/DesktopAccountMenu';
+import { SourceCodeLibrarySection } from './components/SourceCodeLibrarySection';
 import type {
   OrganizationProfile,
   OrganizationServiceItem,
@@ -1786,6 +1787,11 @@ export default function App() {
 
       {/* Desktop-only animated automation examples below the home showcase; fades out once an automation flow starts */}
       <AutomationExamplesSection
+        visible={!hasSearched && !isFileUploadFlow && !isExtracting}
+      />
+
+      {/* Desktop-only free source code library below automation examples */}
+      <SourceCodeLibrarySection
         visible={!hasSearched && !isFileUploadFlow && !isExtracting}
       />
 

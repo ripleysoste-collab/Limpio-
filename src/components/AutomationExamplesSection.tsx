@@ -342,7 +342,7 @@ export function AutomationExamplesSection({
           animate={{ opacity: 1, y: 0 }}
           exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-10 hidden lg:block w-full max-w-[1360px] mx-auto mt-14 pb-14"
+          className="relative z-10 hidden lg:block w-full max-w-[1360px] mx-auto mt-14 pb-8"
         >
           {/* Clean heading & subtitle without extra action buttons */}
           <div className="mb-5 px-1">

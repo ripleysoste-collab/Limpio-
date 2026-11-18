@@ -1,17 +1,24 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { User } from '@supabase/supabase-js';
-import { ArrowLeft, Calendar, Loader2, Mail, User as UserIcon, X } from 'lucide-react';
+import { ArrowLeft, Calendar, Check, Loader2, Mail, User as UserIcon, X } from 'lucide-react';
 import type {
   OrganizationProfile,
   OrganizationServiceItem,
 } from './DesktopOrganizationView';
 import { MobileOrganizationView } from './MobileOrganizationView';
 import { MobileStoreView } from './MobileStoreView';
+import {
+  formatCreationDate,
+  LANGUAGE_OPTIONS,
+  useI18n,
+  type SupportedLocale,
+} from '../lib/i18n';
 
 interface MobileAccountMenuProps {
   menuOpen: boolean;
   accountModalOpen: boolean;
+  languageModalOpen: boolean;
   panelOpen: boolean;
   user: User;
   orgProfile: OrganizationProfile;
@@ -26,29 +33,25 @@ interface MobileAccountMenuProps {
   onCloseMenu: () => void;
   onOpenAccountModal: () => void;
   onCloseAccountModal: () => void;
+  onOpenLanguageModal: () => void;
+  onCloseLanguageModal: () => void;
   onOpenPanel: () => void;
   onClosePanel: () => void;
   onSignOut: () => Promise<void>;
 }
 
-function formatCreationDateEs(isoDate?: string): string {
-  if (!isoDate) return 'Fecha no disponible';
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) return 'Fecha no disponible';
-  return new Intl.DateTimeFormat('es-ES', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(parsed);
-}
-
-function getUserDisplayInfo(user: User) {
+function getUserDisplayInfo(
+  user: User,
+  userFallback: string,
+  locale: SupportedLocale,
+  dateUnavailable: string,
+) {
   const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
   const fullName =
     (typeof meta.full_name === 'string' && meta.full_name.trim()) ||
     (typeof meta.name === 'string' && meta.name.trim()) ||
     user.email?.split('@')[0] ||
-    'Usuario';
+    userFallback;
   const photoUrl =
     (typeof meta.avatar_url === 'string' && meta.avatar_url.trim()) ||
     (typeof meta.picture === 'string' && meta.picture.trim()) ||
@@ -58,7 +61,7 @@ function getUserDisplayInfo(user: User) {
     fullName,
     email: user.email || '',
     photoUrl,
-    createdAtFormatted: formatCreationDateEs(user.created_at),
+    createdAtFormatted: formatCreationDate(user.created_at, locale, dateUnavailable),
     initialLetter: fullName.trim().charAt(0).toUpperCase() || 'U',
   };
 }
@@ -66,6 +69,7 @@ function getUserDisplayInfo(user: User) {
 export function MobileAccountMenu({
   menuOpen,
   accountModalOpen,
+  languageModalOpen,
   panelOpen,
   user,
   orgProfile,
@@ -80,11 +84,14 @@ export function MobileAccountMenu({
   onCloseMenu,
   onOpenAccountModal,
   onCloseAccountModal,
+  onOpenLanguageModal,
+  onCloseLanguageModal,
   onOpenPanel,
   onClosePanel,
   onSignOut,
 }: MobileAccountMenuProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { locale, source, countryCode, setManualLocale, t } = useI18n();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -96,7 +103,12 @@ export function MobileAccountMenu({
     null,
   );
 
-  const info = getUserDisplayInfo(user);
+  const info = getUserDisplayInfo(
+    user,
+    t.common.userFallback,
+    locale,
+    t.menu.dateUnavailable,
+  );
 
   const selectedStoreService =
     services.find((srv) => srv.id === selectedStoreServiceId) ?? services[0] ?? null;
@@ -127,7 +139,7 @@ export function MobileAccountMenu({
     try {
       await onSignOut();
     } catch {
-      setSignOutError('No pudimos cerrar la sesión. Intenta de nuevo.');
+      setSignOutError(t.menu.signOutError);
       setSigningOut(false);
     }
   };
@@ -153,7 +165,7 @@ export function MobileAccountMenu({
             <motion.aside
               role="dialog"
               aria-modal="true"
-              aria-label="Menú de cuenta"
+              aria-label={t.menu.accountMenuAria}
               initial={shouldReduceMotion ? { opacity: 0 } : { x: '100%' }}
               animate={shouldReduceMotion ? { opacity: 1 } : { x: 0 }}
               exit={shouldReduceMotion ? { opacity: 0 } : { x: '100%' }}
@@ -166,19 +178,19 @@ export function MobileAccountMenu({
             >
               <div className="flex items-center justify-between px-4 pt-4 pb-3.5 border-b border-slate-200/75 shrink-0">
                 <span className="text-sm font-semibold tracking-tight text-slate-950">
-                  Cuenta
+                  {t.menu.account}
                 </span>
                 <button
                   type="button"
                   onClick={onCloseMenu}
-                  aria-label="Cerrar menú"
+                  aria-label={t.menu.closeMenuAria}
                   className="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100/90 transition-colors cursor-pointer"
                 >
                   <X className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
 
-              <nav aria-label="Opciones de cuenta" className="flex-1 overflow-y-auto px-4 py-3">
+              <nav aria-label={t.menu.accountOptionsAria} className="flex-1 overflow-y-auto px-4 py-3">
                 <ul className="divide-y divide-slate-200/75">
                   <li>
                     <button
@@ -189,7 +201,7 @@ export function MobileAccountMenu({
                       }}
                       className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors cursor-pointer"
                     >
-                      Tu cuenta de Google
+                      {t.menu.googleAccount}
                     </button>
                   </li>
                   <li>
@@ -201,7 +213,19 @@ export function MobileAccountMenu({
                       }}
                       className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors cursor-pointer"
                     >
-                      Organización
+                      {t.menu.organization}
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onCloseMenu();
+                        onOpenLanguageModal();
+                      }}
+                      className="w-full py-3 text-left text-[14px] font-medium text-slate-800 hover:text-slate-950 transition-colors cursor-pointer"
+                    >
+                      {t.menu.language}
                     </button>
                   </li>
                 </ul>
@@ -232,7 +256,7 @@ export function MobileAccountMenu({
             <motion.div
               role="dialog"
               aria-modal="true"
-              aria-label="Detalles de tu cuenta de Google"
+              aria-label={t.menu.googleAccountDetailsAria}
               initial={
                 shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 10 }
               }
@@ -252,13 +276,13 @@ export function MobileAccountMenu({
               {/* Modal top bar */}
               <div className="flex items-center justify-between px-5 pt-4 pb-3.5 border-b border-slate-200/75">
                 <span className="text-sm font-semibold tracking-tight text-slate-950">
-                  Tu cuenta de Google
+                  {t.menu.googleAccount}
                 </span>
                 <button
                   type="button"
                   disabled={signingOut}
                   onClick={onCloseAccountModal}
-                  aria-label="Cerrar detalles de cuenta"
+                  aria-label={t.menu.closeAccountModalAria}
                   className="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100/90 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <X className="w-4 h-4" aria-hidden="true" />
@@ -303,7 +327,7 @@ export function MobileAccountMenu({
                     />
                     <div className="min-w-0">
                       <p className="text-[10px] font-medium text-slate-400">
-                        Nombre de usuario
+                        {t.menu.usernameLabel}
                       </p>
                       <p className="text-xs font-medium text-slate-900 mt-0.5 break-words">
                         {info.fullName}
@@ -319,7 +343,7 @@ export function MobileAccountMenu({
                       />
                       <div className="min-w-0">
                         <p className="text-[10px] font-medium text-slate-400">
-                          Cuenta de Google
+                          {t.menu.googleAccountLabel}
                         </p>
                         <p className="text-xs font-medium text-slate-900 mt-0.5 break-all">
                           {info.email}
@@ -335,10 +359,10 @@ export function MobileAccountMenu({
                     />
                     <div className="min-w-0">
                       <p className="text-[10px] font-medium text-slate-400">
-                        Fecha de creación
+                        {t.menu.createdAtLabel}
                       </p>
                       <p className="text-xs font-medium text-slate-900 mt-0.5">
-                        Cuenta creada el {info.createdAtFormatted}
+                        {t.menu.accountCreatedOn(info.createdAtFormatted)}
                       </p>
                     </div>
                   </div>
@@ -351,7 +375,7 @@ export function MobileAccountMenu({
                   {confirmSignOut && (
                     <motion.div
                       role="alertdialog"
-                      aria-label="Confirmar cierre de sesión"
+                      aria-label={t.menu.confirmSignOutAria}
                       initial={
                         shouldReduceMotion
                           ? { opacity: 0 }
@@ -371,10 +395,10 @@ export function MobileAccountMenu({
                       className="mb-3 rounded-2xl border border-slate-200/95 bg-white p-3.5 shadow-[0_14px_32px_-10px_rgba(15,23,42,0.22)]"
                     >
                       <p className="text-xs font-medium text-slate-900">
-                        ¿Estás seguro que quieres cerrar cuenta?
+                        {t.menu.confirmSignOutTitle}
                       </p>
                       <p className="text-[11px] text-slate-500 mt-0.5">
-                        Tendrás que volver a iniciar sesión con Google.
+                        {t.menu.confirmSignOutDescMobile}
                       </p>
 
                       {signOutError && (
@@ -391,7 +415,7 @@ export function MobileAccountMenu({
                           }}
                           className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
                         >
-                          Cancelar
+                          {t.common.cancel}
                         </button>
                         <button
                           type="button"
@@ -402,7 +426,7 @@ export function MobileAccountMenu({
                           {signingOut && (
                             <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
                           )}
-                          Aceptar
+                          {t.common.accept}
                         </button>
                       </div>
                     </motion.div>
@@ -417,7 +441,7 @@ export function MobileAccountMenu({
                   }}
                   className="text-sm font-medium text-rose-600 hover:text-rose-700 transition-colors cursor-pointer"
                 >
-                  Cerrar cuenta
+                  {t.menu.signOut}
                 </button>
               </div>
             </motion.div>
@@ -431,7 +455,9 @@ export function MobileAccountMenu({
           <motion.section
             role="dialog"
             aria-modal="true"
-            aria-label={panelSubView === 'store' ? 'Mi tienda' : 'Organización'}
+            aria-label={
+              panelSubView === 'store' ? t.menu.myStore : t.menu.organization
+            }
             initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
             animate={shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
@@ -444,14 +470,14 @@ export function MobileAccountMenu({
                   <button
                     type="button"
                     onClick={() => setPanelSubView('organization')}
-                    aria-label="Volver a Organización"
+                    aria-label={t.menu.backToOrgAria}
                     className="w-8 h-8 -ml-1 rounded-full flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-100/90 transition-colors cursor-pointer shrink-0"
                   >
                     <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                   </button>
                 )}
                 <span className="text-[15px] font-semibold tracking-tight text-slate-950 truncate">
-                  {panelSubView === 'store' ? 'Mi tienda' : 'Organización'}
+                  {panelSubView === 'store' ? t.menu.myStore : t.menu.organization}
                 </span>
               </div>
 
@@ -459,7 +485,9 @@ export function MobileAccountMenu({
                 type="button"
                 onClick={onClosePanel}
                 aria-label={
-                  panelSubView === 'store' ? 'Cerrar tienda' : 'Cerrar organización'
+                  panelSubView === 'store'
+                    ? t.menu.closeStoreAria
+                    : t.menu.closeOrgAria
                 }
                 className="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100/90 transition-colors cursor-pointer shrink-0"
               >
@@ -493,6 +521,116 @@ export function MobileAccountMenu({
               />
             )}
           </motion.section>
+        )}
+      </AnimatePresence>
+
+      {/* 4. Mobile centered floating Idioma modal (exact same frame as Google Account modal) */}
+      <AnimatePresence>
+        {languageModalOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden flex items-center justify-center p-5">
+            {/* Dimmed backdrop */}
+            <motion.div
+              aria-hidden="true"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
+              onClick={onCloseLanguageModal}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]"
+            />
+
+            {/* Centered compact card */}
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label={t.menu.languagesTitle}
+              initial={
+                shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 10 }
+              }
+              animate={
+                shouldReduceMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }
+              }
+              exit={
+                shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: 8 }
+              }
+              transition={
+                shouldReduceMotion
+                  ? { duration: 0 }
+                  : { duration: 0.24, ease: [0.22, 1, 0.36, 1] }
+              }
+              className="relative w-full max-w-[336px] rounded-3xl bg-white/96 backdrop-blur-xl border border-slate-200/90 shadow-[0_24px_60px_-16px_rgba(15,23,42,0.3)] overflow-visible"
+            >
+              {/* Modal top bar */}
+              <div className="flex items-center justify-between px-5 pt-4 pb-3.5 border-b border-slate-200/75">
+                <span className="text-sm font-semibold tracking-tight text-slate-950">
+                  {t.menu.language}
+                </span>
+                <button
+                  type="button"
+                  onClick={onCloseLanguageModal}
+                  aria-label={t.menu.closeMenuAria}
+                  className="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100/90 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              {/* Languages list */}
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-xs font-semibold text-slate-500">
+                  {t.menu.languagesTitle}
+                </p>
+
+                <div
+                  role="radiogroup"
+                  aria-label={t.menu.languageOptionsAria}
+                  className="rounded-2xl border border-slate-200/80 bg-slate-50/75 divide-y divide-slate-200/70 overflow-hidden"
+                >
+                  {LANGUAGE_OPTIONS.map((option) => {
+                    const isSelected = locale === option.code;
+                    return (
+                      <button
+                        key={option.code}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => setManualLocale(option.code)}
+                        className={`w-full px-3.5 py-2.5 flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-white text-slate-950'
+                            : 'text-slate-700 hover:bg-white/75 hover:text-slate-950'
+                        }`}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-950 truncate">
+                            {option.nativeLabel}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                            {option.regionLabel}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <Check
+                            className="w-3.5 h-3.5 text-slate-950 shrink-0"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Bottom auto/manual hint */}
+              <div className="px-5 pt-3 pb-4 border-t border-slate-200/75">
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  {source === 'manual'
+                    ? t.menu.languageManualSavedNote
+                    : t.menu.languageAutoDetectedNote(countryCode)}
+                </p>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowUp, Loader2, Package, RotateCcw, X } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 import type { OrganizationServiceItem } from './DesktopOrganizationView';
 
 interface ChatProductCard {
@@ -33,6 +34,7 @@ export function SearchLinkChatDrawer({
   userId,
   onClose,
 }: SearchLinkChatDrawerProps) {
+  const { locale, t } = useI18n();
   const shouldReduceMotion = useReducedMotion();
   const [messagesByService, setMessagesByService] = useState<
     Record<string, ChatMessage[]>
@@ -142,6 +144,7 @@ export function SearchLinkChatDrawer({
           serviceName: service.name,
           organizationName,
           userId,
+          locale,
           fallbackProducts: (service.products ?? []).map((prod) => ({
             id: prod.id,
             nombre: prod.nombre,
@@ -173,9 +176,7 @@ export function SearchLinkChatDrawer({
             ...m,
             streaming: false,
             error: true,
-            text:
-              data.error ||
-              'No se pudo obtener respuesta de Search Link IA en este momento.',
+            text: data.error || t.chat.defaultRequestError,
           }));
           return;
         }
@@ -184,7 +185,7 @@ export function SearchLinkChatDrawer({
           ...m,
           streaming: false,
           products: Array.isArray(data.products) ? data.products : [],
-          text: data.reply || 'Aquí tienes las opciones disponibles en tu catálogo.',
+          text: data.reply || t.chat.defaultSuccessReply,
         }));
         return;
       }
@@ -235,7 +236,7 @@ export function SearchLinkChatDrawer({
                   ...m,
                   streaming: false,
                   error: true,
-                  text: evt.error || 'Error al generar respuesta.',
+                  text: evt.error || t.chat.defaultStreamError,
                 }));
               }
             } catch {
@@ -256,7 +257,7 @@ export function SearchLinkChatDrawer({
         ...m,
         streaming: false,
         error: true,
-        text: 'Error de red al conectar con Search Link IA. Intenta de nuevo.',
+        text: t.chat.networkError,
       }));
     } finally {
       setIsSending(false);
@@ -290,7 +291,7 @@ export function SearchLinkChatDrawer({
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Cerrar Search Link IA"
+                aria-label={t.chat.closeAria}
                 className="w-8 h-8 -ml-1 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
               >
                 <X className="w-4 h-4" aria-hidden="true" />
@@ -317,12 +318,12 @@ export function SearchLinkChatDrawer({
                 type="button"
                 onClick={handleResetChat}
                 disabled={isSending}
-                aria-label="Limpiar conversación"
-                title="Limpiar conversación"
+                aria-label={t.chat.clearConversation}
+                title={t.chat.clearConversation}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0 disabled:opacity-45"
               >
                 <RotateCcw className="w-3 h-3" aria-hidden="true" />
-                <span>Limpiar</span>
+                <span>{t.chat.clearShort}</span>
               </button>
             )}
           </header>
@@ -342,8 +343,7 @@ export function SearchLinkChatDrawer({
                     {organizationName !== 'Sin nombre'
                       ? `${organizationName} · `
                       : ''}
-                    {service.name} · {service.itemCount}{' '}
-                    {service.itemCount === 1 ? 'producto' : 'productos'} en vivo
+                    {service.name} · {t.chat.liveProducts(service.itemCount)}
                   </p>
                 </div>
               </div>
@@ -424,8 +424,8 @@ export function SearchLinkChatDrawer({
                             />
                             <span>
                               {msg.products && msg.products.length > 0
-                                ? 'Preparando respuesta...'
-                                : 'Consultando catálogo...'}
+                                ? t.chat.preparingReply
+                                : t.chat.queryingCatalog}
                             </span>
                           </div>
                         )
@@ -441,7 +441,7 @@ export function SearchLinkChatDrawer({
           <div className="px-4 sm:px-6 pb-5 pt-3 border-t border-slate-100 bg-white shrink-0 space-y-2">
             {dailyLimitUsed && (
               <p className="text-center text-[11.5px] text-slate-500">
-                Prueba diaria usada (1/1 hoy). Vuelve mañana para probar de nuevo.
+                {t.chat.dailyLimitNotice}
               </p>
             )}
 
@@ -461,16 +461,16 @@ export function SearchLinkChatDrawer({
                 disabled={isSending || dailyLimitUsed}
                 placeholder={
                   dailyLimitUsed
-                    ? 'Límite diario de 1 prueba alcanzado por hoy'
-                    : 'Escribe tu mensaje...'
+                    ? t.chat.dailyLimitPlaceholder
+                    : t.chat.inputPlaceholder
                 }
-                aria-label="Escribe tu mensaje para Search Link IA"
+                aria-label={t.chat.inputAria}
                 className="flex-1 min-w-0 bg-transparent text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:opacity-60"
               />
               <button
                 type="submit"
                 disabled={isSending || dailyLimitUsed || !inputValue.trim()}
-                aria-label="Enviar mensaje"
+                aria-label={t.chat.sendAria}
                 className="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {isSending ? (

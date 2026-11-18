@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Check, Copy, X } from 'lucide-react';
+import { useI18n } from '../lib/i18n';
 
 interface MobileJsonEditorModalProps {
   jsonText: string;
@@ -79,6 +80,7 @@ export function MobileJsonEditorModal({
   onClose,
 }: MobileJsonEditorModalProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
   const lines = useMemo(() => jsonText.split('\n'), [jsonText]);
@@ -112,7 +114,7 @@ export function MobileJsonEditorModal({
     <motion.section
       role="dialog"
       aria-modal="true"
-      aria-label="Editor JSON de solo lectura"
+      aria-label={t.pipeline.readOnlyEditorAria}
       initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 10 }}
@@ -124,8 +126,8 @@ export function MobileJsonEditorModal({
         <button
           type="button"
           onClick={() => void handleCopyAll()}
-          aria-label="Copiar todo el JSON"
-          title="Copiar JSON"
+          aria-label={t.pipeline.copyAllJsonAria}
+          title={t.pipeline.copyJsonTitle}
           className="p-1 text-slate-400 hover:text-slate-800 active:opacity-60 transition-colors cursor-pointer"
         >
           {copied ? (
@@ -138,7 +140,7 @@ export function MobileJsonEditorModal({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Cerrar editor"
+          aria-label={t.pipeline.closeEditorTitle}
           className="p-1 text-slate-500 hover:text-slate-950 active:opacity-60 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" aria-hidden="true" />

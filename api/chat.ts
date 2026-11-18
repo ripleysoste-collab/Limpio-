@@ -5,6 +5,7 @@ import {
   streamSearchLinkChat,
   type SearchLinkChatTurn,
 } from '../lib/searchLinkChat.ts';
+import type { SupportedLocale } from '../lib/localeDetection.ts';
 
 interface VercelLikeRequest extends IncomingMessage {
   body?: unknown;
@@ -59,6 +60,10 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
       ? body.organizationName
       : undefined;
   const userId = typeof body.userId === 'string' ? body.userId : undefined;
+  const locale: SupportedLocale =
+    body.locale === 'en' || body.locale === 'pt' || body.locale === 'es'
+      ? body.locale
+      : 'es';
   const history = Array.isArray(body.history)
     ? (body.history as SearchLinkChatTurn[])
     : undefined;
@@ -83,7 +88,11 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
       ok: false,
       dailyLimitReached: true,
       error:
-        'Límite diario alcanzado: tienes 1 consulta al día en Search Link IA para probar tu API. Vuelve mañana.',
+        locale === 'en'
+          ? 'Daily limit reached: you have 1 Search Link IA query per day to test your API. Try again tomorrow.'
+          : locale === 'pt'
+            ? 'Limite diário atingido: você tem 1 consulta por dia no Search Link IA para testar sua API. Tente amanhã.'
+            : 'Límite diario alcanzado: tienes 1 consulta al día en Search Link IA para probar tu API. Vuelve mañana.',
     });
   }
 
@@ -97,6 +106,7 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
     serviceName,
     organizationName,
     userId,
+    locale,
     fallbackProducts,
   })) {
     if (evt.type === 'error' && !headersSentAsStream) {

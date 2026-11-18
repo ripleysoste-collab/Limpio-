@@ -28,6 +28,11 @@ import {
   type UserApiKeyRow,
   type UserProfileRow,
 } from '../lib/supabaseClient';
+import {
+  formatShortDateTime,
+  useI18n,
+  type TranslationDictionary,
+} from '../lib/i18n';
 import { SearchLinkLogo } from './SearchLinkLogo';
 
 interface AuthDrawerProps {
@@ -47,6 +52,7 @@ export function AuthDrawer({
   pendingBatch,
   onPendingBatchSaved,
 }: AuthDrawerProps) {
+  const { locale, t } = useI18n();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [termsHighlight, setTermsHighlight] = useState(false);
@@ -101,13 +107,12 @@ export function AuthDrawer({
       setApiKeys(keysRes.keys);
       setKeysTableMissing(keysRes.tableMissing);
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'No se pudieron cargar tus datos.';
+      const msg = err instanceof Error ? err.message : t.auth.errLoadData;
       setDataError(msg);
     } finally {
       setLoadingData(false);
     }
-  }, [user]);
+  }, [user, t]);
 
   useEffect(() => {
     if (open && user) {
@@ -141,7 +146,7 @@ export function AuthDrawer({
 
       if (oauthError) {
         setGoogleLoading(false);
-        setAuthError(translateSupabaseAuthError(oauthError));
+        setAuthError(translateSupabaseAuthError(oauthError, t));
         return;
       }
 
@@ -156,17 +161,17 @@ export function AuthDrawer({
             refresh_token: refreshToken,
           });
           if (error) {
-            setAuthError(translateSupabaseAuthError(error.message));
+            setAuthError(translateSupabaseAuthError(error.message, t));
           } else {
-            setAuthSuccess('Sesión iniciada con Google correctamente.');
+            setAuthSuccess(t.auth.googleSignedInSuccess);
             setOauthFallbackUrl(null);
           }
         } else if (authCode) {
           const { error } = await supabase.auth.exchangeCodeForSession(authCode);
           if (error) {
-            setAuthError(translateSupabaseAuthError(error.message));
+            setAuthError(translateSupabaseAuthError(error.message, t));
           } else {
-            setAuthSuccess('Sesión iniciada con Google correctamente.');
+            setAuthSuccess(t.auth.googleSignedInSuccess);
             setOauthFallbackUrl(null);
           }
         }
@@ -208,7 +213,7 @@ export function AuthDrawer({
       window.removeEventListener('message', handleWindowMessage);
       channel?.close();
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!open) {
@@ -229,14 +234,12 @@ export function AuthDrawer({
   const handleGoogleSignIn = async () => {
     if (!acceptedTerms) {
       setTermsHighlight(true);
-      setAuthError(
-        'Debes aceptar los Términos y Condiciones y la Política de Privacidad antes de continuar.',
-      );
+      setAuthError(t.auth.termsError);
       return;
     }
 
     if (!supabase) {
-      setAuthError('Supabase no está configurado en el entorno.');
+      setAuthError(t.auth.supabaseMissingError);
       return;
     }
 
@@ -263,7 +266,7 @@ export function AuthDrawer({
         });
         if (error) {
           setGoogleLoading(false);
-          setAuthError(translateSupabaseAuthError(error.message));
+          setAuthError(translateSupabaseAuthError(error.message, t));
         }
         return;
       }
@@ -280,8 +283,8 @@ export function AuthDrawer({
         setGoogleLoading(false);
         setAuthError(
           error
-            ? translateSupabaseAuthError(error.message)
-            : 'No se pudo generar el enlace de acceso con Google.',
+            ? translateSupabaseAuthError(error.message, t)
+            : t.auth.googleLinkError,
         );
         return;
       }
@@ -300,9 +303,7 @@ export function AuthDrawer({
       if (!popup) {
         setGoogleLoading(false);
         setOauthFallbackUrl(data.url);
-        setAuthError(
-          'Tu navegador bloqueó la ventana emergente. Pulsa el enlace de abajo para abrir Google.',
-        );
+        setAuthError(t.auth.popupBlockedError);
         return;
       }
 
@@ -316,8 +317,8 @@ export function AuthDrawer({
       setGoogleLoading(false);
       setAuthError(
         err instanceof Error
-          ? translateSupabaseAuthError(err.message)
-          : 'No se pudo iniciar sesión con Google.',
+          ? translateSupabaseAuthError(err.message, t)
+          : t.auth.googleSignInError,
       );
     }
   };
@@ -352,9 +353,7 @@ export function AuthDrawer({
       await deleteUserCatalogBatch(batchId);
       setBatches((prev) => prev.filter((b) => b.id !== batchId));
     } catch (err) {
-      setDataError(
-        err instanceof Error ? err.message : 'No se pudo eliminar el catálogo.',
-      );
+      setDataError(err instanceof Error ? err.message : t.auth.errDeleteBatch);
     }
   };
 
@@ -371,12 +370,9 @@ export function AuthDrawer({
       setApiKeys((prev) => [row, ...prev]);
       setNewKeyName('');
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'No se pudo crear la API Key.';
+      const msg = err instanceof Error ? err.message : t.auth.errCreateKey;
       if (msg.includes('relation') || msg.includes('schema cache')) {
-        setDataError(
-          'Primero ejecuta el script SQL en Supabase para habilitar las API Keys.',
-        );
+        setDataError(t.auth.errCreateKeySchema);
       } else {
         setDataError(msg);
       }
@@ -390,9 +386,7 @@ export function AuthDrawer({
       await deleteUserApiKey(keyId);
       setApiKeys((prev) => prev.filter((k) => k.id !== keyId));
     } catch (err) {
-      setDataError(
-        err instanceof Error ? err.message : 'No se pudo eliminar la API Key.',
-      );
+      setDataError(err instanceof Error ? err.message : t.auth.errDeleteKey);
     }
   };
 
@@ -439,7 +433,7 @@ export function AuthDrawer({
             key={isDesktop ? 'desktop-auth-panel' : 'mobile-login-route'}
             role="dialog"
             aria-modal="true"
-            aria-label={user ? 'Tu espacio en Search Link' : 'Iniciar sesión en Search Link'}
+            aria-label={user ? t.auth.drawerAriaAuth : t.auth.drawerAriaGuest}
             initial={panelInitial}
             animate={panelAnimate}
             exit={panelExit}
@@ -499,19 +493,19 @@ export function AuthDrawer({
                   <button
                     type="button"
                     onClick={() => void handleSignOut()}
-                    aria-label="Cerrar sesión"
-                    title="Cerrar sesión"
+                    aria-label={t.auth.signOutAria}
+                    title={t.auth.signOutAria}
                     className="h-9 px-3 rounded-full flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-950 hover:bg-slate-100/90 border border-slate-200/80 bg-white/90 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                   >
                     <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span className="hidden sm:inline">Salir</span>
+                    <span className="hidden sm:inline">{t.auth.signOutShort}</span>
                   </button>
                 )}
 
                 <button
                   type="button"
                   onClick={onClose}
-                  aria-label="Cerrar panel"
+                  aria-label={t.auth.closePanelAria}
                   className="w-10 h-10 lg:w-9 lg:h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100/80 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
                 >
                   <X className="w-4.5 h-4.5" aria-hidden="true" />
@@ -535,7 +529,7 @@ export function AuthDrawer({
                       metadata.full_name) ||
                     (typeof metadata?.name === 'string' && metadata.name) ||
                     user.email?.split('@')[0] ||
-                    'Usuario';
+                    t.common.userFallback;
                   const avatarUrl =
                     profile?.avatar_url ||
                     (typeof metadata?.avatar_url === 'string' &&
@@ -551,7 +545,7 @@ export function AuthDrawer({
                   const providerLabel =
                     rawProvider === 'google'
                       ? 'Google'
-                      : 'Correo y contraseña';
+                      : t.auth.emailPasswordProvider;
                   const initials = displayName.slice(0, 2).toUpperCase();
 
                   return (
@@ -579,8 +573,7 @@ export function AuthDrawer({
                               {user.email}
                             </p>
                             <p className="mt-0.5 text-[11px] text-slate-500">
-                              Acceso: {providerLabel} · Plan{' '}
-                              {profile?.plan === 'pro' ? 'Pro' : 'Gratuito'}
+                              {t.auth.accessPlanLine(providerLabel, profile?.plan === 'pro')}
                             </p>
                           </div>
                         </div>
@@ -589,7 +582,7 @@ export function AuthDrawer({
                           type="button"
                           onClick={() => void loadWorkspaceData()}
                           disabled={loadingData}
-                          aria-label="Actualizar cuenta"
+                          aria-label={t.auth.refreshAccountAria}
                           className="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
                         >
                           <RefreshCw
@@ -612,10 +605,10 @@ export function AuthDrawer({
                         />
                         <span className="text-slate-600">
                           {profile
-                            ? 'Sesión activa y perfil sincronizado en Supabase (tabla profiles).'
+                            ? t.auth.sessionSynced
                             : profileTableMissing
-                              ? 'Sesión activa. Falta ejecutar el SQL del Paso 1 para crear la tabla profiles.'
-                              : 'Sesión activa en Supabase Auth.'}
+                              ? t.auth.sessionMissingProfilesTable
+                              : t.auth.sessionActive}
                         </span>
                       </div>
                     </div>
@@ -625,7 +618,7 @@ export function AuthDrawer({
                 {pendingBatch && !catalogTableMissing && (
                   <div className="mb-3 rounded-2xl border border-blue-200/80 bg-blue-50/85 px-3.5 py-2.5 flex items-center justify-between gap-3">
                     <p className="text-xs text-blue-900 leading-snug">
-                      Tienes un catálogo recién mapeado listo para guardar ({pendingBatch.items.length} ítems).
+                      {t.auth.pendingBatchText(pendingBatch.items.length)}
                     </p>
                     <button
                       type="button"
@@ -633,7 +626,7 @@ export function AuthDrawer({
                       disabled={loadingData}
                       className="shrink-0 h-8 px-3 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
                     >
-                      Guardar ahora
+                      {t.auth.saveNow}
                     </button>
                   </div>
                 )}
@@ -650,7 +643,7 @@ export function AuthDrawer({
                     }`}
                   >
                     <Database className="w-3.5 h-3.5" aria-hidden="true" />
-                    Mis catálogos ({batches.length})
+                    {t.auth.myCatalogsTab(batches.length)}
                   </button>
 
                   <button
@@ -663,7 +656,7 @@ export function AuthDrawer({
                     }`}
                   >
                     <KeyRound className="w-3.5 h-3.5" aria-hidden="true" />
-                    Endpoint y API Keys ({apiKeys.length})
+                    {t.auth.endpointsTab(apiKeys.length)}
                   </button>
                 </div>
 
@@ -681,24 +674,24 @@ export function AuthDrawer({
                     loadingData && batches.length === 0 ? (
                       <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-500">
                         <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
-                        <span className="text-xs">Cargando datos de Supabase...</span>
+                        <span className="text-xs">{t.auth.loadingSupabase}</span>
                       </div>
                     ) : catalogTableMissing ? (
                       <div className="py-8 text-center rounded-2xl border border-dashed border-slate-200 bg-white/85 px-5">
                         <p className="text-sm font-medium text-slate-900">
-                          Paso 2 pendiente: Guardar catálogos
+                          {t.auth.step2PendingTitle}
                         </p>
                         <p className="mt-1.5 text-xs text-slate-500 leading-relaxed">
-                          Primero estamos verificando tu inicio de sesión (Paso 1). Cuando me confirmes que tu cuenta y Google funcionan, crearemos aquí las tablas para guardar catálogos.
+                          {t.auth.step2PendingDesc}
                         </p>
                       </div>
                     ) : batches.length === 0 ? (
                       <div className="py-10 text-center rounded-2xl border border-dashed border-slate-200 bg-white/80 px-4">
                         <p className="text-sm font-medium text-slate-800">
-                          Aún no tienes catálogos guardados
+                          {t.auth.noCatalogsTitle}
                         </p>
                         <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                          Procesa imágenes o una página web estando conectado y se guardarán automáticamente aquí.
+                          {t.auth.noCatalogsDesc}
                         </p>
                       </div>
                     ) : (
@@ -730,13 +723,10 @@ export function AuthDrawer({
                                     {batch.title}
                                   </p>
                                   <p className="mt-0.5 text-[11px] text-slate-500">
-                                    {batch.catalog_items.length || batch.item_count} productos ·{' '}
-                                    {new Date(batch.created_at).toLocaleDateString('es-ES', {
-                                      day: '2-digit',
-                                      month: 'short',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })}
+                                    {t.auth.productsCount(
+                                      batch.catalog_items.length || batch.item_count,
+                                    )}{' '}
+                                    · {formatShortDateTime(batch.created_at, locale)}
                                   </p>
                                 </button>
 
@@ -746,13 +736,13 @@ export function AuthDrawer({
                                     onClick={() =>
                                       void handleCopy(`batch-${batch.id}`, batchJson)
                                     }
-                                    title="Copiar JSON completo"
+                                    title={t.auth.copyFullJsonTitle}
                                     className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-medium text-slate-700 inline-flex items-center gap-1.5"
                                   >
                                     {copiedId === `batch-${batch.id}` ? (
                                       <>
                                         <Check className="w-3.5 h-3.5 text-emerald-600" />
-                                        <span>Copiado</span>
+                                        <span>{t.common.copied}</span>
                                       </>
                                     ) : (
                                       <>
@@ -765,7 +755,7 @@ export function AuthDrawer({
                                   <button
                                     type="button"
                                     onClick={() => void handleDeleteBatch(batch.id)}
-                                    aria-label={`Eliminar ${batch.title}`}
+                                    aria-label={t.auth.deleteBatchAria(batch.title)}
                                     className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -786,10 +776,10 @@ export function AuthDrawer({
                   ) : keysTableMissing ? (
                     <div className="py-8 text-center rounded-2xl border border-dashed border-slate-200 bg-white/85 px-5">
                       <p className="text-sm font-medium text-slate-900">
-                        Paso 3 pendiente: Endpoint y API Keys
+                        {t.auth.step3PendingTitle}
                       </p>
                       <p className="mt-1.5 text-xs text-slate-500 leading-relaxed">
-                        Primero terminaremos el Paso 1 (Inicio de sesión) y el Paso 2 (Guardar catálogos). Después activaremos tus llaves y tu enlace JSON para conectar chatbots.
+                        {t.auth.step3PendingDesc}
                       </p>
                     </div>
                   ) : (
@@ -797,10 +787,16 @@ export function AuthDrawer({
                     <div className="space-y-4">
                       <div className="rounded-2xl border border-slate-200/85 bg-white/95 p-4">
                         <p className="text-xs font-semibold text-slate-900">
-                          Endpoint de lectura JSON
+                          {t.auth.readEndpointTitle}
                         </p>
                         <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                          Conecta este enlace a tu chatbot, n8n o Make enviando tu API Key por parámetro <code className="font-mono text-slate-700">?key=...</code> o cabecera <code className="font-mono text-slate-700">Authorization: Bearer ...</code>.
+                          {t.auth.readEndpointDescPrefix}
+                          <code className="font-mono text-slate-700">?key=...</code>
+                          {t.auth.readEndpointDescMiddle}
+                          <code className="font-mono text-slate-700">
+                            Authorization: Bearer ...
+                          </code>
+                          {t.auth.readEndpointDescSuffix}
                         </p>
                         <div className="mt-2.5 flex items-center gap-2 rounded-xl bg-slate-50 border border-slate-200/80 px-3 py-2">
                           <span className="flex-1 min-w-0 font-mono text-[11px] text-slate-800 truncate">
@@ -825,26 +821,26 @@ export function AuthDrawer({
                         className="rounded-2xl border border-slate-200/85 bg-white/95 p-4 space-y-3"
                       >
                         <p className="text-xs font-semibold text-slate-900">
-                          Generar nueva API Key
+                          {t.auth.generateKeyTitle}
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                           <input
                             type="text"
                             value={newKeyName}
                             onChange={(e) => setNewKeyName(e.target.value)}
-                            placeholder="Nombre (ej. Bot WhatsApp)"
+                            placeholder={t.auth.keyNamePlaceholder}
                             className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-slate-400"
                           />
                           <select
                             value={newKeyBatchId}
                             onChange={(e) => setNewKeyBatchId(e.target.value)}
-                            aria-label="Catálogo asociado"
+                            aria-label={t.auth.associatedCatalogAria}
                             className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
                           >
-                            <option value="">Todos mis catálogos</option>
+                            <option value="">{t.auth.allMyCatalogs}</option>
                             {batches.map((b) => (
                               <option key={`opt-${b.id}`} value={b.id}>
-                                Solo: {b.title}
+                                {t.auth.onlyCatalogPrefix(b.title)}
                               </option>
                             ))}
                           </select>
@@ -859,14 +855,14 @@ export function AuthDrawer({
                           ) : (
                             <Plus className="w-3.5 h-3.5" />
                           )}
-                          Crear API Key
+                          {t.auth.createApiKey}
                         </button>
                       </form>
 
                       {justCreatedRawKey && (
                         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 space-y-2">
                           <p className="text-xs font-semibold text-emerald-950">
-                            Tu nueva API Key (guárdala ahora, no se vuelve a mostrar completa)
+                            {t.auth.newKeyCreatedHint}
                           </p>
                           <div className="flex items-center gap-2 rounded-xl bg-white border border-emerald-200 px-3 py-2">
                             <span className="flex-1 min-w-0 font-mono text-[11px] text-slate-900 truncate">
@@ -880,12 +876,12 @@ export function AuthDrawer({
                               {copiedId === 'raw-key' ? (
                                 <>
                                   <Check className="w-3.5 h-3.5" />
-                                  <span>Copiada</span>
+                                  <span>{t.common.copiedFem}</span>
                                 </>
                               ) : (
                                 <>
                                   <Copy className="w-3.5 h-3.5" />
-                                  <span>Copiar</span>
+                                  <span>{t.common.copy}</span>
                                 </>
                               )}
                             </button>
@@ -907,12 +903,12 @@ export function AuthDrawer({
                               {copiedId === 'full-endpoint' ? (
                                 <>
                                   <Check className="w-3.5 h-3.5" />
-                                  <span>URL copiada</span>
+                                  <span>{t.auth.urlCopied}</span>
                                 </>
                               ) : (
                                 <>
                                   <Copy className="w-3.5 h-3.5" />
-                                  <span>Copiar URL</span>
+                                  <span>{t.auth.copyUrl}</span>
                                 </>
                               )}
                             </button>
@@ -938,7 +934,7 @@ export function AuthDrawer({
                               <button
                                 type="button"
                                 onClick={() => void handleRevokeKey(k.id)}
-                                aria-label={`Revocar ${k.name}`}
+                                aria-label={t.auth.revokeKeyAria(k.name)}
                                 className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors shrink-0"
                               >
                                 <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
@@ -957,10 +953,10 @@ export function AuthDrawer({
                 <div className="w-full max-w-[400px] lg:rounded-[28px] lg:border lg:border-slate-200/85 lg:bg-white/95 lg:backdrop-blur-sm lg:p-8 lg:shadow-[0_24px_60px_-24px_rgba(15,23,42,0.16)]">
                   <div className="mb-7">
                     <h2 className="text-[26px] sm:text-[28px] font-semibold tracking-tight text-slate-950 leading-[1.15] text-balance">
-                      Tu cuenta de Search Link
+                      {t.auth.loginHeading}
                     </h2>
                     <p className="mt-2.5 text-sm text-slate-600 lg:text-slate-500 leading-relaxed">
-                      Inicia sesión en un toque con Google para guardar tus catálogos procesados y conectar tu API.
+                      {t.auth.loginSubtitle}
                     </p>
                   </div>
 
@@ -980,14 +976,14 @@ export function AuthDrawer({
                         if (checked) {
                           setTermsHighlight(false);
                           setAuthError((prev) =>
-                            prev?.includes('Términos y Condiciones') ? null : prev,
+                            prev === t.auth.termsError ? null : prev,
                           );
                         }
                       }}
                       className="mt-0.5 w-4 h-4 rounded border-slate-300 text-slate-900 accent-slate-900 focus:ring-slate-400 shrink-0 cursor-pointer"
                     />
                     <span className="text-[13px] font-normal text-slate-700 leading-snug">
-                      Aceptar Términos y Condiciones y Política de Privacidad
+                      {t.auth.acceptTermsLabel}
                     </span>
                   </label>
 
@@ -1008,7 +1004,9 @@ export function AuthDrawer({
                       <GoogleLogoIcon />
                     )}
                     <span>
-                      {googleLoading ? 'Conectando con Google…' : 'Continuar con Google'}
+                      {googleLoading
+                        ? t.auth.connectingGoogle
+                        : t.auth.continueWithGoogle}
                     </span>
                   </button>
 
@@ -1019,7 +1017,7 @@ export function AuthDrawer({
                       rel="noopener noreferrer"
                       className="mt-3 w-full h-10 rounded-full border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-800 flex items-center justify-center transition-colors"
                     >
-                      Abrir acceso con Google en una pestaña nueva
+                      {t.auth.openGoogleNewTab}
                     </a>
                   )}
 
@@ -1040,15 +1038,15 @@ export function AuthDrawer({
                   <ul className="space-y-3 text-[13px] text-slate-600">
                     <li className="flex items-center gap-3">
                       <ShieldCheck className="w-4 h-4 text-slate-800 shrink-0" aria-hidden="true" />
-                      <span>Acceso inmediato sin contraseñas ni correos extra</span>
+                      <span>{t.auth.bullet1}</span>
                     </li>
                     <li className="flex items-center gap-3">
                       <Database className="w-4 h-4 text-slate-800 shrink-0" aria-hidden="true" />
-                      <span>Tus imágenes y JSON respaldados en tu espacio</span>
+                      <span>{t.auth.bullet2}</span>
                     </li>
                     <li className="flex items-center gap-3">
                       <KeyRound className="w-4 h-4 text-slate-800 shrink-0" aria-hidden="true" />
-                      <span>Listo para generar tu Endpoint y API Keys</span>
+                      <span>{t.auth.bullet3}</span>
                     </li>
                   </ul>
                 </div>
@@ -1061,13 +1059,16 @@ export function AuthDrawer({
   );
 }
 
-function translateSupabaseAuthError(message: string): string {
+function translateSupabaseAuthError(
+  message: string,
+  t: TranslationDictionary,
+): string {
   const lower = message.toLowerCase();
   if (lower.includes('provider is not enabled')) {
-    return 'El acceso con Google no está activado en Supabase.';
+    return t.auth.errProviderNotEnabled;
   }
   if (lower.includes('rate limit') || lower.includes('too many requests')) {
-    return 'Demasiados intentos seguidos. Espera unos segundos.';
+    return t.auth.errRateLimit;
   }
   return message;
 }
