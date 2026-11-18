@@ -4,6 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractImagesFromUrl } from './lib/extractor.ts';
 import { mapStoredImageWithGemini } from './lib/geminiMapper.ts';
+import {
+  runSearchLinkChat,
+  type SearchLinkChatTurn,
+} from './lib/searchLinkChat.ts';
 import { fetchProxiedImage } from './lib/imageProxy.ts';
 import { isValidMediaKey, readImageFromR2 } from './lib/r2Storage.ts';
 import {
@@ -164,6 +168,56 @@ async function startServer() {
             : 'No se pudo mapear la imagen con IA.';
         return res.status(400).json({ error: message });
       }
+    },
+  );
+
+  app.post(
+    '/api/chat',
+    express.json({ type: 'application/json', limit: '512kb' }),
+    async (req, res) => {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const message = typeof body.message === 'string' ? body.message : '';
+      const serviceSlug =
+        typeof body.serviceSlug === 'string' ? body.serviceSlug : undefined;
+      const apiKey = typeof body.apiKey === 'string' ? body.apiKey : undefined;
+      const serviceName =
+        typeof body.serviceName === 'string' ? body.serviceName : undefined;
+      const organizationName =
+        typeof body.organizationName === 'string'
+          ? body.organizationName
+          : undefined;
+      const history = Array.isArray(body.history)
+        ? (body.history as SearchLinkChatTurn[])
+        : undefined;
+      const fallbackProducts = Array.isArray(body.fallbackProducts)
+        ? (body.fallbackProducts as Array<{
+            id?: string;
+            nombre: string;
+            categoria: string;
+            descripcion: string;
+            imagen_url?: string;
+            url?: string;
+          }>)
+        : undefined;
+
+      const result = await runSearchLinkChat({
+        message,
+        history,
+        serviceSlug,
+        apiKey,
+        serviceName,
+        organizationName,
+        fallbackProducts,
+      });
+
+      if (!result.ok) {
+        return res.status(result.status).json({
+          ok: false,
+          error: result.error,
+        });
+      }
+
+      return res.json(result);
     },
   );
 

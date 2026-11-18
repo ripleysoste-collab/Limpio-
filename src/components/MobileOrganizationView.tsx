@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
+  Bot,
   Camera,
   Check,
   Copy,
@@ -35,6 +36,7 @@ interface MobileOrganizationViewProps {
   onNewProduct: () => void;
   onOpenStore: (service: OrganizationServiceItem) => void;
   onViewServiceHistory: (service: OrganizationServiceItem) => void;
+  onOpenServiceChat?: (service: OrganizationServiceItem) => void;
   onRotateServiceKey?: (serviceId: string) => Promise<string | null>;
   onToggleServiceActive?: (serviceId: string, nextActive: boolean) => Promise<void>;
 }
@@ -56,6 +58,7 @@ export function MobileOrganizationView({
   onNewProduct,
   onOpenStore,
   onViewServiceHistory,
+  onOpenServiceChat,
   onRotateServiceKey,
   onToggleServiceActive,
 }: MobileOrganizationViewProps) {
@@ -724,15 +727,29 @@ export function MobileOrganizationView({
                       </button>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => onViewServiceHistory(service)}
-                      aria-label={`Ver historial del proceso de ${service.name}`}
-                      title="Ver proceso de automatización"
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-rose-500 hover:text-rose-600 active:bg-rose-50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
-                    >
-                      <History className="w-3.5 h-3.5" aria-hidden="true" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {onOpenServiceChat && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenServiceChat(service)}
+                          aria-label={`Probar ${service.name} en Search Link IA`}
+                          title="Probar en Search Link IA"
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-blue-600 hover:text-blue-700 active:bg-blue-50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/60"
+                        >
+                          <Bot className="w-3.5 h-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => onViewServiceHistory(service)}
+                        aria-label={`Ver historial del proceso de ${service.name}`}
+                        title="Ver proceso de automatización"
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-rose-500 hover:text-rose-600 active:bg-rose-50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60"
+                      >
+                        <History className="w-3.5 h-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 </li>
               );

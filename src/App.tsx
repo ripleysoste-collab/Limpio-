@@ -23,6 +23,7 @@ import {
   type ImageReceiveStatus,
   type ImageUploadStatus,
 } from './components/MobileCatalogCarousel';
+import { SearchLinkChatDrawer } from './components/SearchLinkChatDrawer';
 import { SearchLinkLogo } from './components/SearchLinkLogo';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
 import {
@@ -123,6 +124,9 @@ export default function App() {
     hasCompletedSetup: false,
   });
   const [orgServices, setOrgServices] = useState<OrganizationServiceItem[]>([]);
+  const [activeChatServiceId, setActiveChatServiceId] = useState<string | null>(
+    null,
+  );
   const [activeServiceCredentials, setActiveServiceCredentials] =
     useState<ServiceCredentialsDisplay | null>(null);
   const authUserRef = useRef<User | null>(null);
@@ -602,6 +606,7 @@ export default function App() {
       if (error) throw error;
     }
     setAuthUser(null);
+    setActiveChatServiceId(null);
     setIsDesktopMenuOpen(false);
     setIsMobileMenuOpen(false);
     setIsMobileAccountModalOpen(false);
@@ -614,7 +619,8 @@ export default function App() {
       !isDesktopMenuOpen &&
       !isMobileMenuOpen &&
       !isMobileAccountModalOpen &&
-      !isMobilePanelOpen
+      !isMobilePanelOpen &&
+      !activeChatServiceId
     ) {
       return;
     }
@@ -622,6 +628,10 @@ export default function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        if (activeChatServiceId) {
+          setActiveChatServiceId(null);
+          return;
+        }
         if (isAuthOpen) closeAuthFlow();
         if (isDesktopMenuOpen) setIsDesktopMenuOpen(false);
         if (isMobileMenuOpen) setIsMobileMenuOpen(false);
@@ -650,6 +660,7 @@ export default function App() {
     isMobileMenuOpen,
     isMobileAccountModalOpen,
     isMobilePanelOpen,
+    activeChatServiceId,
   ]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1813,6 +1824,7 @@ export default function App() {
           onRenameService={handleRenameService}
           onNewProduct={handleStartNewProduct}
           onViewServiceHistory={handleViewServiceHistory}
+          onOpenServiceChat={(service) => setActiveChatServiceId(service.id)}
           onRotateServiceKey={handleRotateServiceKey}
           onToggleServiceActive={handleToggleServiceActive}
           onClose={() => setIsDesktopMenuOpen(false)}
@@ -1833,6 +1845,7 @@ export default function App() {
           onRenameService={handleRenameService}
           onNewProduct={handleStartNewProduct}
           onViewServiceHistory={handleViewServiceHistory}
+          onOpenServiceChat={(service) => setActiveChatServiceId(service.id)}
           onRotateServiceKey={handleRotateServiceKey}
           onToggleServiceActive={handleToggleServiceActive}
           onCloseMenu={() => setIsMobileMenuOpen(false)}
@@ -1843,6 +1856,17 @@ export default function App() {
           onSignOut={handleSignOut}
         />
       )}
+
+      {/* Search Link IA public chatbot simulator pre-configured with Search Link Core API & Endpoint */}
+      <SearchLinkChatDrawer
+        service={
+          activeChatServiceId
+            ? orgServices.find((srv) => srv.id === activeChatServiceId) ?? null
+            : null
+        }
+        organizationName={orgProfile.name}
+        onClose={() => setActiveChatServiceId(null)}
+      />
 
       {/* Auth view: independent /login full-screen on mobile, right half drawer on desktop */}
       <AuthDrawer
