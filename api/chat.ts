@@ -1,5 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { runSearchLinkChat, type SearchLinkChatTurn } from '../lib/searchLinkChat.ts';
+import {
+  checkDailyLimit,
+  consumeDailyLimit,
+  streamSearchLinkChat,
+  type SearchLinkChatTurn,
+} from '../lib/searchLinkChat.ts';
 
 interface VercelLikeRequest extends IncomingMessage {
   body?: unknown;
@@ -53,6 +58,7 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
     typeof body.organizationName === 'string'
       ? body.organizationName
       : undefined;
+  const userId = typeof body.userId === 'string' ? body.userId : undefined;
   const history = Array.isArray(body.history)
     ? (body.history as SearchLinkChatTurn[])
     : undefined;
@@ -67,22 +73,55 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
       }>)
     : undefined;
 
-  const result = await runSearchLinkChat({
+  const limitStatus = checkDailyLimit(
+    req.headers,
+    userId,
+    req.socket?.remoteAddress,
+  );
+  if (!limitStatus.allowed) {
+    return sendJson(res, 429, {
+      ok: false,
+      dailyLimitReached: true,
+      error:
+        'Límite diario alcanzado: tienes 1 consulta al día en Search Link IA para probar tu API. Vuelve mañana.',
+    });
+  }
+
+  let headersSentAsStream = false;
+
+  for await (const evt of streamSearchLinkChat({
     message,
     history,
     serviceSlug,
     apiKey,
     serviceName,
     organizationName,
+    userId,
     fallbackProducts,
-  });
+  })) {
+    if (evt.type === 'error' && !headersSentAsStream) {
+      return sendJson(res, evt.status, {
+        ok: false,
+        error: evt.error,
+      });
+    }
 
-  if (!result.ok) {
-    return sendJson(res, result.status, {
-      ok: false,
-      error: result.error,
-    });
+    if (!headersSentAsStream) {
+      headersSentAsStream = true;
+      res.statusCode = 200;
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+    }
+
+    if (evt.type === 'done') {
+      consumeDailyLimit(req.headers, userId, req.socket?.remoteAddress);
+    }
+
+    res.write(`event: ${evt.type}\ndata: ${JSON.stringify(evt)}\n\n`);
   }
 
-  return sendJson(res, 200, result);
+  if (headersSentAsStream) {
+    res.end();
+  }
 }

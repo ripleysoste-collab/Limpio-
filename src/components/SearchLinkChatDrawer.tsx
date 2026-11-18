@@ -16,18 +16,21 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
   products?: ChatProductCard[];
+  streaming?: boolean;
   error?: boolean;
 }
 
 interface SearchLinkChatDrawerProps {
   service: OrganizationServiceItem | null;
   organizationName: string;
+  userId?: string;
   onClose: () => void;
 }
 
 export function SearchLinkChatDrawer({
   service,
   organizationName,
+  userId,
   onClose,
 }: SearchLinkChatDrawerProps) {
   const shouldReduceMotion = useReducedMotion();
@@ -36,6 +39,7 @@ export function SearchLinkChatDrawer({
   >({});
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [dailyLimitUsed, setDailyLimitUsed] = useState(false);
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -43,17 +47,26 @@ export function SearchLinkChatDrawer({
   const activeMessages = service ? messagesByService[service.id] ?? [] : [];
 
   useEffect(() => {
-    if (!service) return;
+    try {
+      window.localStorage.removeItem(`searchlink_ia_daily_${userId || 'anon'}`);
+    } catch {
+      // Ignore storage errors
+    }
+    setDailyLimitUsed(false);
+  }, [userId, service?.id]);
+
+  useEffect(() => {
+    if (!service || dailyLimitUsed) return;
     const timer = window.setTimeout(() => {
       inputRef.current?.focus();
     }, 180);
     return () => window.clearTimeout(timer);
-  }, [service?.id]);
+  }, [service?.id, dailyLimitUsed]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [activeMessages.length, isSending]);
+  }, [activeMessages, isSending]);
 
   const handleResetChat = () => {
     if (!service || isSending) return;
@@ -61,30 +74,58 @@ export function SearchLinkChatDrawer({
       ...prev,
       [service.id]: [],
     }));
-    inputRef.current?.focus();
+    if (!dailyLimitUsed) {
+      inputRef.current?.focus();
+    }
+  };
+
+  const updateAssistantMessage = (
+    serviceId: string,
+    msgId: string,
+    updater: (prevMsg: ChatMessage) => ChatMessage,
+  ) => {
+    setMessagesByService((prev) => ({
+      ...prev,
+      [serviceId]: (prev[serviceId] ?? []).map((m) =>
+        m.id === msgId ? updater(m) : m,
+      ),
+    }));
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!service || isSending) return;
+    if (!service || isSending || dailyLimitUsed) return;
 
     const trimmed = inputValue.trim();
     if (!trimmed) return;
 
+    const currentServiceId = service.id;
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       role: 'user',
       text: trimmed,
     };
+    const botMsgId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const placeholderBotMsg: ChatMessage = {
+      id: botMsgId,
+      role: 'assistant',
+      text: '',
+      products: [],
+      streaming: true,
+    };
 
-    const currentHistory = (messagesByService[service.id] ?? [])
-      .filter((m) => !m.error)
-      .slice(-10)
+    const currentHistory = (messagesByService[currentServiceId] ?? [])
+      .filter((m) => !m.error && m.text.trim().length > 0)
+      .slice(-6)
       .map((m) => ({ role: m.role, text: m.text }));
 
     setMessagesByService((prev) => ({
       ...prev,
-      [service.id]: [...(prev[service.id] ?? []), userMsg],
+      [currentServiceId]: [
+        ...(prev[currentServiceId] ?? []),
+        userMsg,
+        placeholderBotMsg,
+      ],
     }));
     setInputValue('');
     setIsSending(true);
@@ -100,6 +141,7 @@ export function SearchLinkChatDrawer({
           apiKey: service.apiKey,
           serviceName: service.name,
           organizationName,
+          userId,
           fallbackProducts: (service.products ?? []).map((prod) => ({
             id: prod.id,
             nombre: prod.nombre,
@@ -111,50 +153,110 @@ export function SearchLinkChatDrawer({
         }),
       });
 
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        reply?: string;
-        products?: ChatProductCard[];
-        error?: string;
-      };
+      const contentType = res.headers.get('content-type') || '';
 
-      if (!res.ok || !data.ok) {
-        const errMsg: ChatMessage = {
-          id: `e-${Date.now()}`,
-          role: 'assistant',
-          text:
-            data.error ||
-            'No se pudo obtener respuesta de Search Link IA en este momento.',
-          error: true,
+      if (!contentType.includes('text/event-stream') || !res.body) {
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          reply?: string;
+          products?: ChatProductCard[];
+          dailyLimitReached?: boolean;
+          error?: string;
         };
-        setMessagesByService((prev) => ({
-          ...prev,
-          [service.id]: [...(prev[service.id] ?? []), errMsg],
+
+        if (res.status === 429 || data.dailyLimitReached) {
+          setDailyLimitUsed(true);
+        }
+
+        if (!res.ok || !data.ok) {
+          updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
+            ...m,
+            streaming: false,
+            error: true,
+            text:
+              data.error ||
+              'No se pudo obtener respuesta de Search Link IA en este momento.',
+          }));
+          return;
+        }
+
+        updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
+          ...m,
+          streaming: false,
+          products: Array.isArray(data.products) ? data.products : [],
+          text: data.reply || 'Aquí tienes las opciones disponibles en tu catálogo.',
         }));
         return;
       }
 
-      const botMsg: ChatMessage = {
-        id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        role: 'assistant',
-        text: data.reply || 'Aquí tienes la información de tu catálogo.',
-        products: Array.isArray(data.products) ? data.products : [],
-      };
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let sseBuffer = '';
 
-      setMessagesByService((prev) => ({
-        ...prev,
-        [service.id]: [...(prev[service.id] ?? []), botMsg],
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+
+        let boundaryIdx = sseBuffer.indexOf('\n\n');
+        while (boundaryIdx !== -1) {
+          const rawBlock = sseBuffer.slice(0, boundaryIdx);
+          sseBuffer = sseBuffer.slice(boundaryIdx + 2);
+
+          const dataLine = rawBlock
+            .split('\n')
+            .find((line) => line.startsWith('data:'));
+
+          if (dataLine) {
+            try {
+              const evt = JSON.parse(dataLine.slice(5).trim()) as
+                | { type: 'products'; products: ChatProductCard[] }
+                | { type: 'delta'; text: string }
+                | { type: 'done' }
+                | { type: 'error'; error: string };
+
+              if (evt.type === 'products') {
+                updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
+                  ...m,
+                  products: Array.isArray(evt.products) ? evt.products : [],
+                }));
+              } else if (evt.type === 'delta' && evt.text) {
+                updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
+                  ...m,
+                  text: m.text + evt.text,
+                }));
+              } else if (evt.type === 'done') {
+                updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
+                  ...m,
+                  streaming: false,
+                }));
+              } else if (evt.type === 'error') {
+                updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
+                  ...m,
+                  streaming: false,
+                  error: true,
+                  text: evt.error || 'Error al generar respuesta.',
+                }));
+              }
+            } catch {
+              // Ignore malformed SSE event payload
+            }
+          }
+
+          boundaryIdx = sseBuffer.indexOf('\n\n');
+        }
+      }
+
+      updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
+        ...m,
+        streaming: false,
       }));
     } catch {
-      const errMsg: ChatMessage = {
-        id: `e-${Date.now()}`,
-        role: 'assistant',
-        text: 'Error de red al conectar con Search Link IA. Intenta de nuevo.',
+      updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
+        ...m,
+        streaming: false,
         error: true,
-      };
-      setMessagesByService((prev) => ({
-        ...prev,
-        [service.id]: [...(prev[service.id] ?? []), errMsg],
+        text: 'Error de red al conectar con Search Link IA. Intenta de nuevo.',
       }));
     } finally {
       setIsSending(false);
@@ -215,8 +317,8 @@ export function SearchLinkChatDrawer({
                 type="button"
                 onClick={handleResetChat}
                 disabled={isSending}
-                aria-label="Reiniciar conversación"
-                title="Nueva conversación"
+                aria-label="Limpiar conversación"
+                title="Limpiar conversación"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0 disabled:opacity-45"
               >
                 <RotateCcw className="w-3 h-3" aria-hidden="true" />
@@ -256,18 +358,9 @@ export function SearchLinkChatDrawer({
                     </div>
                   ) : (
                     <div key={msg.id} className="space-y-3">
-                      <div
-                        className={`text-[13.5px] leading-relaxed whitespace-pre-wrap ${
-                          msg.error
-                            ? 'rounded-xl border border-rose-200 bg-rose-50/70 px-3.5 py-2.5 text-rose-700'
-                            : 'text-slate-800'
-                        }`}
-                      >
-                        {msg.text}
-                      </div>
-
+                      {/* 1. IMAGES FIRST so the user sees results in milliseconds */}
                       {msg.products && msg.products.length > 0 && (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-0.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                           {msg.products.map((prod) => {
                             const imgBroken = failedImages[prod.id];
                             return (
@@ -280,6 +373,7 @@ export function SearchLinkChatDrawer({
                                     <img
                                       src={prod.imagen_url}
                                       alt={prod.nombre}
+                                      decoding="async"
                                       referrerPolicy="no-referrer"
                                       onError={() =>
                                         setFailedImages((prev) => ({
@@ -309,42 +403,73 @@ export function SearchLinkChatDrawer({
                           })}
                         </div>
                       )}
+
+                      {/* 2. SHORT FRIENDLY TEXT BELOW IMAGES */}
+                      {msg.text ? (
+                        <div
+                          className={`text-[13.5px] leading-relaxed whitespace-pre-wrap ${
+                            msg.error
+                              ? 'rounded-xl border border-rose-200 bg-rose-50/70 px-3.5 py-2.5 text-rose-700'
+                              : 'text-slate-800'
+                          }`}
+                        >
+                          {msg.text}
+                        </div>
+                      ) : (
+                        msg.streaming && (
+                          <div className="flex items-center gap-2 text-xs text-slate-400">
+                            <Loader2
+                              className="w-3.5 h-3.5 animate-spin text-slate-400"
+                              aria-hidden="true"
+                            />
+                            <span>
+                              {msg.products && msg.products.length > 0
+                                ? 'Preparando respuesta...'
+                                : 'Consultando catálogo...'}
+                            </span>
+                          </div>
+                        )
+                      )}
                     </div>
                   ),
-                )}
-
-                {isSending && (
-                  <div className="flex items-center gap-2 text-xs text-slate-400 py-1">
-                    <Loader2
-                      className="w-3.5 h-3.5 animate-spin text-slate-500"
-                      aria-hidden="true"
-                    />
-                    <span>Consultando catálogo...</span>
-                  </div>
                 )}
               </div>
             )}
           </div>
 
-          {/* Minimal Bottom Chat Input */}
-          <div className="px-4 sm:px-6 pb-5 pt-3 border-t border-slate-100 bg-white shrink-0">
+          {/* Minimal Bottom Chat Input + 1/day test limit notice */}
+          <div className="px-4 sm:px-6 pb-5 pt-3 border-t border-slate-100 bg-white shrink-0 space-y-2">
+            {dailyLimitUsed && (
+              <p className="text-center text-[11.5px] text-slate-500">
+                Prueba diaria usada (1/1 hoy). Vuelve mañana para probar de nuevo.
+              </p>
+            )}
+
             <form
               onSubmit={handleSubmit}
-              className="max-w-2xl mx-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white pl-4 pr-1.5 py-1.5 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08)] focus-within:border-slate-400 transition-colors"
+              className={`max-w-2xl mx-auto flex items-center gap-2 rounded-full border pl-4 pr-1.5 py-1.5 transition-colors ${
+                dailyLimitUsed
+                  ? 'border-slate-200/80 bg-slate-50/70'
+                  : 'border-slate-200 bg-white shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08)] focus-within:border-slate-400'
+              }`}
             >
               <input
                 ref={inputRef}
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                disabled={isSending}
-                placeholder="Escribe tu mensaje..."
+                disabled={isSending || dailyLimitUsed}
+                placeholder={
+                  dailyLimitUsed
+                    ? 'Límite diario de 1 prueba alcanzado por hoy'
+                    : 'Escribe tu mensaje...'
+                }
                 aria-label="Escribe tu mensaje para Search Link IA"
                 className="flex-1 min-w-0 bg-transparent text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none disabled:opacity-60"
               />
               <button
                 type="submit"
-                disabled={isSending || !inputValue.trim()}
+                disabled={isSending || dailyLimitUsed || !inputValue.trim()}
                 aria-label="Enviar mensaje"
                 className="w-8 h-8 rounded-full bg-slate-900 hover:bg-slate-800 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
               >

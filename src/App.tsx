@@ -1865,6 +1865,7 @@ export default function App() {
             : null
         }
         organizationName={orgProfile.name}
+        userId={authUser?.id}
         onClose={() => setActiveChatServiceId(null)}
       />
 

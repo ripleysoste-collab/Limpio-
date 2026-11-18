@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { extractImagesFromUrl } from './lib/extractor.ts';
 import { mapStoredImageWithGemini } from './lib/geminiMapper.ts';
 import {
-  runSearchLinkChat,
+  checkDailyLimit,
+  consumeDailyLimit,
+  streamSearchLinkChat,
   type SearchLinkChatTurn,
 } from './lib/searchLinkChat.ts';
 import { fetchProxiedImage } from './lib/imageProxy.ts';
@@ -186,6 +188,7 @@ async function startServer() {
         typeof body.organizationName === 'string'
           ? body.organizationName
           : undefined;
+      const userId = typeof body.userId === 'string' ? body.userId : undefined;
       const history = Array.isArray(body.history)
         ? (body.history as SearchLinkChatTurn[])
         : undefined;
@@ -200,24 +203,59 @@ async function startServer() {
           }>)
         : undefined;
 
-      const result = await runSearchLinkChat({
+      const limitStatus = checkDailyLimit(
+        req.headers,
+        userId,
+        req.socket?.remoteAddress,
+      );
+      if (!limitStatus.allowed) {
+        return res.status(429).json({
+          ok: false,
+          dailyLimitReached: true,
+          error:
+            'Límite diario alcanzado: tienes 1 consulta al día en Search Link IA para probar tu API. Vuelve mañana.',
+        });
+      }
+
+      let headersSentAsStream = false;
+
+      for await (const evt of streamSearchLinkChat({
         message,
         history,
         serviceSlug,
         apiKey,
         serviceName,
         organizationName,
+        userId,
         fallbackProducts,
-      });
+      })) {
+        if (evt.type === 'error' && !headersSentAsStream) {
+          return res.status(evt.status).json({
+            ok: false,
+            error: evt.error,
+          });
+        }
 
-      if (!result.ok) {
-        return res.status(result.status).json({
-          ok: false,
-          error: result.error,
-        });
+        if (!headersSentAsStream) {
+          headersSentAsStream = true;
+          res.status(200);
+          res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache, no-transform');
+          res.setHeader('Connection', 'keep-alive');
+          res.flushHeaders?.();
+        }
+
+        if (evt.type === 'done') {
+          consumeDailyLimit(req.headers, userId, req.socket?.remoteAddress);
+        }
+
+        res.write(`event: ${evt.type}\ndata: ${JSON.stringify(evt)}\n\n`);
       }
 
-      return res.json(result);
+      if (headersSentAsStream) {
+        return res.end();
+      }
+      return res.status(500).json({ ok: false, error: 'Sin respuesta del servidor.' });
     },
   );
 
