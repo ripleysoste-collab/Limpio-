@@ -306,7 +306,7 @@ export function WhatsAppAgencyPreview({
         <main
           className={`relative flex-1 min-w-0 h-full ${
             activeTab === 'home'
-              ? 'overflow-hidden bg-[#0A0E14]'
+              ? 'overflow-hidden bg-[#F7F9FB]'
               : 'overflow-y-auto bg-white px-8 pt-7 pb-10'
           }`}
         >
@@ -315,11 +315,7 @@ export function WhatsAppAgencyPreview({
             onClick={onClose}
             aria-label={t.sourceCode.closePreviewAria}
             title={t.sourceCode.closePreviewAria}
-            className={`absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 cursor-pointer ${
-              activeTab === 'home'
-                ? 'text-white/75 hover:text-white hover:bg-white/10 focus-visible:ring-white/50'
-                : 'text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:ring-slate-400'
-            }`}
+            className="absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center text-slate-600 hover:text-slate-950 hover:bg-slate-900/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
           >
             <X className="w-5 h-5" aria-hidden="true" />
           </button>
