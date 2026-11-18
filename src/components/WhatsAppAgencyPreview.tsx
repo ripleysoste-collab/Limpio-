@@ -8,6 +8,7 @@ interface WhatsAppAgencyPreviewProps {
 }
 
 type AgencyTabId =
+  | 'home'
   | 'bots'
   | 'metrics'
   | 'users'
@@ -15,7 +16,10 @@ type AgencyTabId =
   | 'superintelligence'
   | 'whatsapp'
   | 'sql'
-  | 'env';
+  | 'env'
+  | 'support'
+  | 'landing'
+  | 'settings';
 
 interface AgencyTabItem {
   id: AgencyTabId;
@@ -38,6 +42,11 @@ const PREVIEW_COPY: Record<
     tabsAria: 'Secciones de Agencia de WhatsApp',
     tabs: [
       {
+        id: 'home',
+        label: 'Inicio',
+        description: 'Resumen general de la agencia, accesos rápidos y estado del sistema',
+      },
+      {
         id: 'bots',
         label: 'Bots',
         description: 'Crear clientes, encender, pausar y suspender bots',
@@ -45,7 +54,7 @@ const PREVIEW_COPY: Record<
       {
         id: 'metrics',
         label: 'Métricas',
-        description: 'Mensajes procesados, bots activos y estado general',
+        description: 'Mensajes procesados, bots activos y rendimiento en vivo',
       },
       {
         id: 'users',
@@ -77,6 +86,21 @@ const PREVIEW_COPY: Record<
         label: '.env',
         description: 'Variables globales del servidor, seguridad y exportación',
       },
+      {
+        id: 'support',
+        label: 'Asistencia humana',
+        description: 'Habilitar página y canales para contacto con soporte humano',
+      },
+      {
+        id: 'landing',
+        label: 'Página de inicio',
+        description: 'Landing pública opcional de la agencia (desactivada por defecto)',
+      },
+      {
+        id: 'settings',
+        label: 'Configuración',
+        description: 'Apariencia, modo oscuro, preferencias y textos legales',
+      },
     ],
   },
   en: {
@@ -85,6 +109,11 @@ const PREVIEW_COPY: Record<
     tabsAria: 'WhatsApp Agency sections',
     tabs: [
       {
+        id: 'home',
+        label: 'Dashboard',
+        description: 'Agency overview, quick shortcuts, and system status',
+      },
+      {
         id: 'bots',
         label: 'Bots',
         description: 'Create clients, toggle power, and suspend bots',
@@ -92,7 +121,7 @@ const PREVIEW_COPY: Record<
       {
         id: 'metrics',
         label: 'Metrics',
-        description: 'Processed messages, active bots, and system health',
+        description: 'Processed messages, active bots, and live performance',
       },
       {
         id: 'users',
@@ -124,6 +153,21 @@ const PREVIEW_COPY: Record<
         label: '.env',
         description: 'Global server variables, security keys, and export',
       },
+      {
+        id: 'support',
+        label: 'Human Support',
+        description: 'Enable a contact page and channels for human assistance',
+      },
+      {
+        id: 'landing',
+        label: 'Landing Page',
+        description: 'Optional public agency homepage (disabled by default)',
+      },
+      {
+        id: 'settings',
+        label: 'Settings',
+        description: 'Appearance, dark mode, preferences, and legal compliance',
+      },
     ],
   },
   pt: {
@@ -132,6 +176,11 @@ const PREVIEW_COPY: Record<
     tabsAria: 'Seções da Agência de WhatsApp',
     tabs: [
       {
+        id: 'home',
+        label: 'Início',
+        description: 'Resumo geral da agência, atalhos e status do sistema',
+      },
+      {
         id: 'bots',
         label: 'Bots',
         description: 'Criar clientes, ligar, pausar e suspender bots',
@@ -139,7 +188,7 @@ const PREVIEW_COPY: Record<
       {
         id: 'metrics',
         label: 'Métricas',
-        description: 'Mensagens processadas, bots ativos e status geral',
+        description: 'Mensagens processadas, bots ativos e desempenho ao vivo',
       },
       {
         id: 'users',
@@ -171,6 +220,21 @@ const PREVIEW_COPY: Record<
         label: '.env',
         description: 'Variáveis globais do servidor, segurança e exportação',
       },
+      {
+        id: 'support',
+        label: 'Suporte humano',
+        description: 'Habilitar página e canais de contato para atendimento humano',
+      },
+      {
+        id: 'landing',
+        label: 'Página inicial',
+        description: 'Landing page pública opcional da agência (desativada por padrão)',
+      },
+      {
+        id: 'settings',
+        label: 'Configurações',
+        description: 'Aparência, modo escuro, preferências e termos legais',
+      },
     ],
   },
 };
@@ -180,7 +244,7 @@ export function WhatsAppAgencyPreview({
   onClose,
 }: WhatsAppAgencyPreviewProps) {
   const { t, locale } = useI18n();
-  const [activeTab, setActiveTab] = useState<AgencyTabId>('bots');
+  const [activeTab, setActiveTab] = useState<AgencyTabId>('home');
 
   if (!open) return null;
 
@@ -199,7 +263,7 @@ export function WhatsAppAgencyPreview({
       <div className="hidden lg:flex w-full h-full bg-white">
         <aside
           aria-label={copy.tabsAria}
-          className="w-[10%] min-w-[152px] shrink-0 h-full border-r border-slate-200/90 bg-white flex flex-col overflow-hidden"
+          className="w-[10%] min-w-[162px] shrink-0 h-full border-r border-slate-200/90 bg-white flex flex-col overflow-hidden"
         >
           <div className="px-3 pt-4 pb-3.5 border-b border-slate-200/80 shrink-0 flex items-start gap-2 min-w-0">
             <div
