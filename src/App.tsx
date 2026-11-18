@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import { Link2, Loader2, Upload, X } from 'lucide-react';
 import desktopDesertBg from './assets/images/bg_desert_desktop_1794853953945.jpg';
 import { AuthDrawer } from './components/AuthDrawer';
+import { AutomationExamplesSection } from './components/AutomationExamplesSection';
 import { DesktopAccountMenu } from './components/DesktopAccountMenu';
 import type {
   OrganizationProfile,
@@ -1423,8 +1424,8 @@ export default function App() {
 
   return (
     <main
-      className={`bg-white lg:bg-[#0e1013] relative min-h-dvh w-full overflow-x-hidden lg:overflow-hidden flex flex-row items-stretch ${
-        isDesktopSplitActive ? 'lg:h-dvh' : ''
+      className={`bg-white lg:bg-[#0e1013] relative min-h-dvh w-full overflow-x-hidden flex flex-row items-stretch ${
+        isDesktopSplitActive ? 'lg:h-dvh lg:overflow-hidden' : ''
       }`}
     >
       {/* Mobile-only full-screen natural luminous backdrop with gentle living color movement */}
@@ -1781,6 +1782,11 @@ export default function App() {
         compressionResults={compressionResults}
         isReadOnlyReplay={isReadOnlyReplay}
         serviceCredentials={activeServiceCredentials}
+      />
+
+      {/* Desktop-only animated automation examples below the home showcase; fades out once an automation flow starts */}
+      <AutomationExamplesSection
+        visible={!hasSearched && !isFileUploadFlow && !isExtracting}
       />
 
       {/* Mobile-only swipeable boxes with Stage 2–5 auto-pan + unboxed metadata / JSON below */}
