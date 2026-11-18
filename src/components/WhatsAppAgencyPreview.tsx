@@ -195,32 +195,11 @@ export function WhatsAppAgencyPreview({
       aria-label={t.sourceCode.previewAria}
       className="fixed inset-0 z-50 w-full h-dvh bg-white text-slate-950 flex flex-col overflow-hidden"
     >
-      {/* Desktop shell: 90% main workspace on the left + 10% right sidebar with brand and stacked menu */}
+      {/* Desktop shell: 10% left sidebar with brand and stacked menu + 90% main workspace on the right */}
       <div className="hidden lg:flex w-full h-full bg-white">
-        <main className="relative flex-1 min-w-0 h-full overflow-y-auto bg-white px-8 pt-7 pb-10">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t.sourceCode.closePreviewAria}
-            title={t.sourceCode.closePreviewAria}
-            className="absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
-          >
-            <X className="w-5 h-5" aria-hidden="true" />
-          </button>
-
-          <div className="max-w-4xl pr-12">
-            <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
-              {currentTab.label}
-            </h1>
-            <p className="mt-1 text-[13px] text-slate-500">
-              {currentTab.description}
-            </p>
-          </div>
-        </main>
-
         <aside
           aria-label={copy.tabsAria}
-          className="w-[10%] min-w-[152px] shrink-0 h-full border-l border-slate-200/90 bg-white flex flex-col overflow-hidden"
+          className="w-[10%] min-w-[152px] shrink-0 h-full border-r border-slate-200/90 bg-white flex flex-col overflow-hidden"
         >
           <div className="px-3 pt-4 pb-3.5 border-b border-slate-200/80 shrink-0 flex items-start gap-2 min-w-0">
             <div
@@ -258,6 +237,27 @@ export function WhatsAppAgencyPreview({
             })}
           </nav>
         </aside>
+
+        <main className="relative flex-1 min-w-0 h-full overflow-y-auto bg-white px-8 pt-7 pb-10">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t.sourceCode.closePreviewAria}
+            title={t.sourceCode.closePreviewAria}
+            className="absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
+
+          <div className="max-w-4xl pr-12">
+            <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
+              {currentTab.label}
+            </h1>
+            <p className="mt-1 text-[13px] text-slate-500">
+              {currentTab.description}
+            </p>
+          </div>
+        </main>
       </div>
 
       {/* Mobile shell: pure white agency layout with swipeable single-purpose tabs */}
