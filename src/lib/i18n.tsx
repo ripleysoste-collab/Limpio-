@@ -4,13 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from 'react';
 
 export type SupportedLocale = 'es' | 'en' | 'pt';
-export type LocaleSource = 'manual' | 'ip' | 'browser' | 'default';
+export type LocaleSource = 'geo' | 'header' | 'default' | 'manual';
 
 export interface LanguageOption {
   code: SupportedLocale;
@@ -18,221 +17,347 @@ export interface LanguageOption {
   regionLabel: string;
 }
 
-export const LANGUAGE_OPTIONS: readonly LanguageOption[] = [
-  { code: 'es', nativeLabel: 'Español', regionLabel: 'Principal' },
-  { code: 'en', nativeLabel: 'English', regionLabel: 'International' },
-  { code: 'pt', nativeLabel: 'Português', regionLabel: 'Brasil / Portugal' },
+export const LANGUAGE_OPTIONS: LanguageOption[] = [
+  {
+    code: 'es',
+    nativeLabel: 'Español',
+    regionLabel: 'España y Latinoamérica',
+  },
+  {
+    code: 'en',
+    nativeLabel: 'English',
+    regionLabel: 'United States, UK & Global',
+  },
+  {
+    code: 'pt',
+    nativeLabel: 'Português',
+    regionLabel: 'Brasil e Portugal',
+  },
 ];
 
-const LOCALE_STORAGE_KEY = 'searchlink_locale';
-const LOCALE_MANUAL_STORAGE_KEY = 'searchlink_locale_manual';
+export const BENEFIT_IDS = [
+  'speed',
+  'clean-urls',
+  'easy-anywhere',
+  'ready-to-share',
+] as const;
 
-function isSupportedLocale(value: unknown): value is SupportedLocale {
-  return value === 'es' || value === 'en' || value === 'pt';
-}
-
-function getIntlLocale(locale: SupportedLocale): string {
-  switch (locale) {
-    case 'en':
-      return 'en-US';
-    case 'pt':
-      return 'pt-BR';
-    case 'es':
-    default:
-      return 'es-ES';
-  }
-}
-
-export function formatCreationDate(
-  isoDate: string | undefined,
-  locale: SupportedLocale,
-  fallback: string,
-): string {
-  if (!isoDate) return fallback;
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) return fallback;
-  return new Intl.DateTimeFormat(getIntlLocale(locale), {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(parsed);
-}
-
-export function formatShortDateTime(
-  isoDate: string,
-  locale: SupportedLocale,
-): string {
-  const parsed = new Date(isoDate);
-  if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toLocaleDateString(getIntlLocale(locale), {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-export interface LocalizedAutomationExample {
-  id:
-    | 'whatsapp'
-    | 'telegram'
-    | 'instagram'
-    | 'messenger'
-    | 'web'
-    | 'discord'
-    | 'slack'
-    | 'line';
-  bottomLabel: string;
-  companyName: string;
-  accountType: string;
-  headerSubline: string;
-  userGreeting: string;
-  botGreeting: string;
-  userRequest: string;
-  botResultText: string;
-  products: [
-    { id: string; name: string; subtitle: string },
-    { id: string; name: string; subtitle: string },
-  ];
-}
+export type BenefitId = (typeof BENEFIT_IDS)[number];
 
 export interface TranslationDictionary {
   common: {
-    userFallback: string;
-    productFallback: string;
-    generalCategory: string;
-    copy: string;
+    accept: string;
+    cancel: string;
+    close: string;
+    continueBtn: string;
     copied: string;
     copiedFem: string;
-    cancel: string;
-    accept: string;
+    copy: string;
     edit: string;
-    continueBtn: string;
+    generalCategory: string;
     nextBtn: string;
+    productFallback: string;
     skip: string;
-    close: string;
-    save: string;
+    userFallback: string;
   };
-  menu: {
-    account: string;
-    googleAccount: string;
-    googleAccountDetailsAria: string;
-    organization: string;
-    myStore: string;
-    language: string;
-    languagesTitle: string;
-    accountMenuAria: string;
-    accountOptionsAria: string;
-    languageOptionsAria: string;
-    backToMenuAria: string;
-    backToOrgAria: string;
-    closeMenuAria: string;
-    closeAccountModalAria: string;
-    closeStoreAria: string;
-    closeOrgAria: string;
-    usernameLabel: string;
-    googleAccountLabel: string;
-    createdAtLabel: string;
-    accountCreatedOn: (formattedDate: string) => string;
-    dateUnavailable: string;
-    signOut: string;
-    confirmSignOutAria: string;
-    confirmSignOutTitle: string;
-    confirmSignOutDescDesktop: string;
-    confirmSignOutDescMobile: string;
-    signOutError: string;
-    languageSectionPrompt: string;
-    languageSelectedLabel: (label: string) => string;
-    languageAutoDetectedNote: (countryCode: string | null) => string;
-    languageManualSavedNote: string;
-    languageLocalStorageHint: string;
-  };
-  home: {
-    uploadDeviceAria: string;
-    uploadDeviceTitle: string;
-    urlFormAria: string;
-    urlInputPlaceholder: string;
+  app: {
+    uploadImagesAria: string;
+    uploadImagesTitle: string;
+    pasteUrlFormAria: string;
+    urlPlaceholder: string;
     urlInputAria: string;
     extractingAria: string;
     clearUrlAria: string;
-    invalidUrlError: string;
-    connectUrlError: string;
-    invalidFilesError: string;
-    freePlanNotice: (max: number) => string;
-    defaultServicePrefix: string;
-    catalogBatchTitle: (count: number) => string;
-    savedToCoreNotice: string;
+    extractEmptyError: string;
+    extractNetworkError: string;
+    freePlanLimitNotice: (maxImages: number) => string;
+    invalidImageFilesError: string;
+    uploadImageError: string;
+    mapImageError: string;
+    serviceDefaultPrefix: (productName: string) => string;
+    batchTitleFallback: (count: number) => string;
+    coreSavedNotice: string;
+    imageFallbackAlt: (index: number) => string;
     openAccountMenuAria: (name: string) => string;
     connectedAccountAria: (name: string) => string;
     openAuthAria: string;
     openAuthTitle: string;
-    uploadImageFallbackError: string;
-    mapImageFallbackError: string;
-    imageLabel: (index: number) => string;
-    productLabel: (index: number) => string;
+    untitledOrgSentinel: string;
+    imageUploadAria: (status: string, alt: string) => string;
+    receiveStatusAria: (status: string, alt: string) => string;
+    compressionStatusAria: (status: string, alt: string) => string;
+  };
+  examples: {
+    sectionAria: string;
+    sectionTitle: string;
+    sectionSubtitle: string;
+    cardAria: (platformLabel: string) => string;
+    visitorName: string;
+    items: Record<
+      | 'whatsapp'
+      | 'telegram'
+      | 'instagram'
+      | 'messenger'
+      | 'web'
+      | 'discord'
+      | 'slack'
+      | 'line',
+      {
+        bottomLabel: string;
+        accountType: string;
+        headerSubline: string;
+        userGreeting: string;
+        botGreeting: string;
+        userRequest: string;
+        botResultText: string;
+        products: [
+          { name: string; subtitle: string },
+          { name: string; subtitle: string },
+        ];
+      }
+    >;
+  };
+  sourceCode: {
+    sectionAria: string;
+    sectionTitle: string;
+    sectionSubtitle: string;
+    whatsappCardAria: string;
+    whatsappTitle: string;
+    whatsappSubtitle: string;
+    whatsappDescription: string;
+    actions: {
+      github: { label: string; feedback: string };
+      zip: { label: string; feedback: string };
+      editor: { label: string; feedback: string };
+      preview: { label: string; feedback: string };
+    };
+  };
+  menu: {
+    account: string;
+    accountCreatedOn: (formattedDate: string) => string;
+    accountMenuAria: string;
+    accountOptionsAria: string;
+    backToMenuAria: string;
+    backToOrgAria: string;
+    closeAccountModalAria: string;
+    closeMenuAria: string;
+    closeOrgAria: string;
+    closeStoreAria: string;
+    confirmSignOutAria: string;
+    confirmSignOutDescDesktop: string;
+    confirmSignOutDescMobile: string;
+    confirmSignOutTitle: string;
+    createdAtLabel: string;
+    dateUnavailable: string;
+    googleAccount: string;
+    googleAccountDetailsAria: string;
+    googleAccountLabel: string;
+    language: string;
+    languageAutoDetectedNote: (countryCode: string | null) => string;
+    languageLocalStorageHint: string;
+    languageManualSavedNote: string;
+    languageOptionsAria: string;
+    languageSectionPrompt: string;
+    languagesTitle: string;
+    myStore: string;
+    organization: string;
+    signOut: string;
+    signOutError: string;
+    usernameLabel: string;
+  };
+  auth: {
+    acceptTermsLabel: string;
+    accessPlanLine: (providerLabel: string, isPro: boolean) => string;
+    allMyCatalogs: string;
+    associatedCatalogAria: string;
+    bullet1: string;
+    bullet2: string;
+    bullet3: string;
+    closePanelAria: string;
+    connectingGoogle: string;
+    continueWithGoogle: string;
+    copyFullJsonTitle: string;
+    copyUrl: string;
+    createApiKey: string;
+    deleteBatchAria: (title: string) => string;
+    drawerAriaAuth: string;
+    drawerAriaGuest: string;
+    emailPasswordProvider: string;
+    endpointsTab: (count: number) => string;
+    errCreateKey: string;
+    errCreateKeySchema: string;
+    errDeleteBatch: string;
+    errDeleteKey: string;
+    errLoadData: string;
+    errProviderNotEnabled: string;
+    errRateLimit: string;
+    generateKeyTitle: string;
+    googleLinkError: string;
+    googleSignInError: string;
+    googleSignedInSuccess: string;
+    keyNamePlaceholder: string;
+    loadingSupabase: string;
+    loginHeading: string;
+    loginSubtitle: string;
+    myCatalogsTab: (count: number) => string;
+    newKeyCreatedHint: string;
+    noCatalogsDesc: string;
+    noCatalogsTitle: string;
+    onlyCatalogPrefix: (title: string) => string;
+    openGoogleNewTab: string;
+    pendingBatchText: (count: number) => string;
+    popupBlockedError: string;
+    productsCount: (count: number) => string;
+    readEndpointDescMiddle: string;
+    readEndpointDescPrefix: string;
+    readEndpointDescSuffix: string;
+    readEndpointTitle: string;
+    refreshAccountAria: string;
+    revokeKeyAria: (name: string) => string;
+    saveNow: string;
+    sessionActive: string;
+    sessionMissingProfilesTable: string;
+    sessionSynced: string;
+    signOutAria: string;
+    signOutShort: string;
+    step2PendingDesc: string;
+    step2PendingTitle: string;
+    step3PendingDesc: string;
+    step3PendingTitle: string;
+    supabaseMissingError: string;
+    termsError: string;
+    urlCopied: string;
+  };
+  chat: {
+    clearConversation: string;
+    clearShort: string;
+    closeAria: string;
+    dailyLimitNotice: string;
+    dailyLimitPlaceholder: string;
+    defaultRequestError: string;
+    defaultStreamError: string;
+    defaultSuccessReply: string;
+    inputAria: string;
+    inputPlaceholder: string;
+    liveProducts: (count: number) => string;
+    networkError: string;
+    preparingReply: string;
+    queryingCatalog: string;
+    sendAria: string;
+  };
+  org: {
+    apiHintPrefixDesktop: string;
+    apiHintPrefixMobile: string;
+    apiHintRaw: string;
+    changeLogoAria: string;
+    changeLogoTitle: string;
+    closeBoxAria: string;
+    companyPlaceholder: string;
+    congratsBoth: string;
+    congratsLogoOnly: string;
+    congratsMobileFallback: string;
+    congratsNameOnly: string;
+    congratsTitle: string;
+    copyCurlDesktop: string;
+    copyCurlMobile: string;
+    curlCopied: string;
+    helperArrowPrompt: string;
+    logoUploadError: string;
+    myServices: string;
+    newProduct: string;
+    noServicesAvailable: string;
+    noServicesDescDesktop: string;
+    noServicesDescMobile: string;
+    noServicesTitleDesktop: string;
+    noServicesTitleMobile: string;
+    openStoreAria: string;
+    openStoreServicesAria: string;
+    orgNamePlaceholder: string;
+    orgNameShortPlaceholder: string;
+    pasteKeyPlaceholder: string;
+    pickStoreAria: string;
+    productCount: (count: number) => string;
+    productCountShort: (count: number) => string;
+    regenerateKeyDesktop: string;
+    regenerateKeyMobile: string;
+    renameOrgAria: string;
+    renameOrgTitle: string;
+    renameServiceAria: (name: string) => string;
+    renameServiceTitle: string;
+    saveOrgNameAria: string;
+    saveServiceNameAria: string;
+    serviceActiveDesktop: string;
+    serviceActiveMobile: string;
+    serviceApiLink: string;
+    serviceEndpointLink: string;
+    servicePausedDesktop: string;
+    servicePausedMobile: string;
+    testChatAria: (name: string) => string;
+    testChatTitle: string;
+    testLive: string;
+    unnamed: string;
+    uploadLogoAria: string;
+    uploadLogoTitle: string;
+    viewHistoryAria: (name: string) => string;
+    viewHistoryTitle: string;
+    viewStoreOf: string;
+    viewStoreTitle: string;
+    welcomeSubtitle: string;
+    welcomeTitle: string;
+  };
+  store: {
+    emptyDescDesktop: string;
+    emptyDescMobile: string;
+    emptyTitle: string;
+    noImage: string;
+    tapToCollapse: string;
+    tapToExpandFull: (name: string) => string;
+    unnamedProduct: string;
   };
   pipeline: {
-    stageImagesTitle: string;
-    stageMetadataTitle: string;
-    stageCompressingTitle: string;
-    stageUploadingTitle: string;
-    stageReceivingTitle: string;
-    stageMappingTitle: string;
-    stageMappedDoneTitle: string;
-    stageLifecycleTitle: string;
-    stageLifecycleFullTitle: string;
-    stageViewApiTitle: string;
-    stageProductivityTitle: string;
-    stageEditorTitle: string;
-    congratsTitleDesktop: string;
-    congratsTitleMobile: string;
+    backToMappedAria: string;
+    benefits: Array<{
+      id: BenefitId;
+      title: string;
+      description: string;
+    }>;
+    clickToViewTitle: (alt: string) => string;
+    closeEditorBackAria: string;
+    closeEditorTitle: string;
+    closeExpandedAria: string;
+    closeFullscreenAria: string;
+    closeImageAria: string;
     congratsBodyDesktop: (count: number) => string;
     congratsBodyMobile: (count: number) => string;
-    generatedApiTitle: string;
-    generatedApisLink: string;
-    generatedEndpointLink: string;
-    credentialsReadyTitle: string;
-    credentialsReadyHint: string;
-    viewYourOrg: string;
-    generatingApiKey: string;
-    generatingEndpoint: string;
+    congratsTitleDesktop: string;
+    congratsTitleMobile: string;
+    copyAllJsonAria: string;
     copyApiAria: string;
     copyApiTitle: string;
     copyEndpointAria: string;
     copyEndpointTitle: string;
-    backToMappedAria: string;
-    goToLifecycleAria: string;
-    couldNotReceive: string;
+    copyJsonOfAria: (name: string) => string;
+    copyJsonTitle: string;
+    copyUrlOfAria: (label: string) => string;
+    copyUrlTitle: string;
     couldNotMap: string;
-    tapBorderToExpand: string;
+    couldNotReceive: string;
+    credentialsReadyHint: string;
+    credentialsReadyTitle: string;
+    doubleClickFullscreen: (alt: string) => string;
+    elementsCount: (count: number) => string;
+    enlargeLeftAria: (alt: string) => string;
     expandedImagesAria: string;
     expandedMetadataAria: string;
-    elementsCount: (count: number) => string;
-    closeExpandedAria: string;
-    doubleClickFullscreen: (alt: string) => string;
-    useAsBackgroundAria: (alt: string) => string;
-    openOriginalImageTitle: (alt: string) => string;
-    copyUrlOfAria: (alt: string) => string;
-    copyUrlTitle: string;
-    viewInBackgroundTitle: (alt: string) => string;
-    enlargeLeftAria: (alt: string) => string;
-    clickToViewTitle: (alt: string) => string;
-    viewProductAria: (alt: string) => string;
-    closeFullscreenAria: string;
-    closeImageAria: string;
-    searchingImages: string;
-    whyUseSearchLink: string;
-    whyUseSearchLinkAria: string;
+    generatedApiTitle: string;
+    generatedApisLink: string;
+    generatedEndpointLink: string;
+    generatingApiKey: string;
+    generatingEndpoint: string;
+    goToLifecycleAria: string;
     mobileCarouselAria: string;
     mobileCompressionAria: string;
-    productJsonLabel: string;
-    showJsonAria: (expanded: boolean, name: string) => string;
-    copyJsonOfAria: (name: string) => string;
-    copyAllJsonAria: string;
-    copyJsonTitle: string;
-    closeEditorBackAria: string;
-    closeEditorTitle: string;
-    readOnlyEditorAria: string;
+    openOriginalImageTitle: (alt: string) => string;
     pdfActions: {
       json: string;
       images: string;
@@ -241,373 +366,105 @@ export interface TranslationDictionary {
       all: string;
       openEditor: string;
     };
-    benefits: Array<{ id: string; title: string; description: string }>;
-  };
-  examples: {
-    sectionAria: string;
-    heading: string;
-    subtitle: string;
-    cardAria: (label: string) => string;
-    discordVisitor: string;
-    items: Record<LocalizedAutomationExample['id'], LocalizedAutomationExample>;
-  };
-  org: {
-    unnamed: string;
-    welcomeTitle: string;
-    welcomeSubtitle: string;
-    companyPlaceholder: string;
-    uploadLogoAria: string;
-    uploadLogoTitle: string;
-    helperArrowPrompt: string;
-    logoUploadError: string;
-    congratsTitle: string;
-    congratsBoth: string;
-    congratsLogoOnly: string;
-    congratsNameOnly: string;
-    congratsMobileFallback: string;
-    changeLogoAria: string;
-    changeLogoTitle: string;
-    orgNamePlaceholder: string;
-    orgNameShortPlaceholder: string;
-    saveOrgNameAria: string;
-    renameOrgAria: string;
-    renameOrgTitle: string;
-    openStoreServicesAria: string;
-    openStoreAria: string;
-    viewStoreTitle: string;
-    pickStoreAria: string;
-    viewStoreOf: string;
-    noServicesAvailable: string;
-    myServices: string;
-    newProduct: string;
-    noServicesTitleDesktop: string;
-    noServicesDescDesktop: string;
-    noServicesTitleMobile: string;
-    noServicesDescMobile: string;
-    saveServiceNameAria: string;
-    renameServiceAria: (name: string) => string;
-    renameServiceTitle: string;
-    productCount: (count: number) => string;
-    productCountShort: (count: number) => string;
-    serviceApiLink: string;
-    serviceEndpointLink: string;
-    testChatAria: (name: string) => string;
-    testChatTitle: string;
-    viewHistoryAria: (name: string) => string;
-    viewHistoryTitle: string;
-    closeBoxAria: string;
-    apiHintRaw: string;
-    apiHintPrefixDesktop: string;
-    apiHintPrefixMobile: string;
-    serviceActiveDesktop: string;
-    servicePausedDesktop: string;
-    serviceActiveMobile: string;
-    servicePausedMobile: string;
-    regenerateKeyDesktop: string;
-    regenerateKeyMobile: string;
-    pasteKeyPlaceholder: string;
-    copyCurlDesktop: string;
-    copyCurlMobile: string;
-    curlCopied: string;
-    testLive: string;
-  };
-  store: {
-    emptyTitle: string;
-    emptyDescDesktop: string;
-    emptyDescMobile: string;
-    noImage: string;
-    tapToCollapse: string;
-    tapToExpandFull: (name: string) => string;
-    unnamedProduct: string;
-  };
-  chat: {
-    closeAria: string;
-    clearConversation: string;
-    clearShort: string;
-    liveProducts: (count: number) => string;
-    preparingReply: string;
-    queryingCatalog: string;
-    dailyLimitNotice: string;
-    dailyLimitPlaceholder: string;
-    inputPlaceholder: string;
-    inputAria: string;
-    sendAria: string;
-    defaultSuccessReply: string;
-    defaultRequestError: string;
-    defaultStreamError: string;
-    networkError: string;
-  };
-  auth: {
-    drawerAriaAuth: string;
-    drawerAriaGuest: string;
-    signOutAria: string;
-    signOutShort: string;
-    closePanelAria: string;
-    emailPasswordProvider: string;
-    accessPlanLine: (provider: string, isPro: boolean) => string;
-    refreshAccountAria: string;
-    sessionSynced: string;
-    sessionMissingProfilesTable: string;
-    sessionActive: string;
-    pendingBatchText: (count: number) => string;
-    saveNow: string;
-    myCatalogsTab: (count: number) => string;
-    endpointsTab: (count: number) => string;
-    loadingSupabase: string;
-    step2PendingTitle: string;
-    step2PendingDesc: string;
-    noCatalogsTitle: string;
-    noCatalogsDesc: string;
-    productsCount: (count: number) => string;
-    copyFullJsonTitle: string;
-    deleteBatchAria: (title: string) => string;
-    step3PendingTitle: string;
-    step3PendingDesc: string;
-    readEndpointTitle: string;
-    readEndpointDescPrefix: string;
-    readEndpointDescMiddle: string;
-    readEndpointDescSuffix: string;
-    generateKeyTitle: string;
-    keyNamePlaceholder: string;
-    associatedCatalogAria: string;
-    allMyCatalogs: string;
-    onlyCatalogPrefix: (title: string) => string;
-    createApiKey: string;
-    newKeyCreatedHint: string;
-    copyUrl: string;
-    urlCopied: string;
-    revokeKeyAria: (name: string) => string;
-    loginHeading: string;
-    loginSubtitle: string;
-    acceptTermsLabel: string;
-    termsError: string;
-    supabaseMissingError: string;
-    googleLinkError: string;
-    popupBlockedError: string;
-    googleSignInError: string;
-    googleSignedInSuccess: string;
-    connectingGoogle: string;
-    continueWithGoogle: string;
-    openGoogleNewTab: string;
-    bullet1: string;
-    bullet2: string;
-    bullet3: string;
-    errProviderNotEnabled: string;
-    errRateLimit: string;
-    errLoadData: string;
-    errDeleteBatch: string;
-    errCreateKey: string;
-    errCreateKeySchema: string;
-    errDeleteKey: string;
+    productJsonLabel: string;
+    readOnlyEditorAria: string;
+    searchingImages: string;
+    showJsonAria: (isExpanded: boolean, name: string) => string;
+    stageCompressingTitle: string;
+    stageEditorTitle: string;
+    stageImagesTitle: string;
+    stageLifecycleFullTitle: string;
+    stageLifecycleTitle: string;
+    stageMappedDoneTitle: string;
+    stageMappingTitle: string;
+    stageMetadataTitle: string;
+    stageProductivityTitle: string;
+    stageReceivingTitle: string;
+    stageUploadingTitle: string;
+    stageViewApiTitle: string;
+    tapBorderToExpand: string;
+    useAsBackgroundAria: (alt: string) => string;
+    viewInBackgroundTitle: (alt: string) => string;
+    viewProductAria: (name: string) => string;
+    viewYourOrg: string;
+    whyUseSearchLink: string;
+    whyUseSearchLinkAria: string;
   };
 }
 
-const ES_DICT: TranslationDictionary = {
+const ES_DICTIONARY: TranslationDictionary = {
   common: {
-    userFallback: 'Usuario',
-    productFallback: 'Producto',
-    generalCategory: 'General',
-    copy: 'Copiar',
+    accept: 'Aceptar',
+    cancel: 'Cancelar',
+    close: 'Cerrar',
+    continueBtn: 'Continuar',
     copied: 'Copiado',
     copiedFem: 'Copiada',
-    cancel: 'Cancelar',
-    accept: 'Aceptar',
+    copy: 'Copiar',
     edit: 'Editar',
-    continueBtn: 'Continuar',
+    generalCategory: 'General',
     nextBtn: 'Siguiente',
+    productFallback: 'Producto',
     skip: 'Omitir',
-    close: 'Cerrar',
-    save: 'Guardar',
+    userFallback: 'Usuario',
   },
-  menu: {
-    account: 'Cuenta',
-    googleAccount: 'Tu cuenta de Google',
-    googleAccountDetailsAria: 'Detalles de tu cuenta de Google',
-    organization: 'Organización',
-    myStore: 'Mi tienda',
-    language: 'Idioma',
-    languagesTitle: 'Idiomas',
-    accountMenuAria: 'Menú de cuenta',
-    accountOptionsAria: 'Opciones de cuenta',
-    languageOptionsAria: 'Idiomas disponibles',
-    backToMenuAria: 'Volver al menú',
-    backToOrgAria: 'Volver a Organización',
-    closeMenuAria: 'Cerrar menú',
-    closeAccountModalAria: 'Cerrar detalles de cuenta',
-    closeStoreAria: 'Cerrar tienda',
-    closeOrgAria: 'Cerrar organización',
-    usernameLabel: 'Nombre de usuario',
-    googleAccountLabel: 'Cuenta de Google',
-    createdAtLabel: 'Fecha de creación',
-    accountCreatedOn: (formattedDate) => `Cuenta creada el ${formattedDate}`,
-    dateUnavailable: 'Fecha no disponible',
-    signOut: 'Cerrar cuenta',
-    confirmSignOutAria: 'Confirmar cierre de cuenta',
-    confirmSignOutTitle: '¿Estás seguro que quieres cerrar cuenta?',
-    confirmSignOutDescDesktop:
-      'Tendrás que volver a iniciar sesión con Google para entrar de nuevo.',
-    confirmSignOutDescMobile: 'Tendrás que volver a iniciar sesión con Google.',
-    signOutError: 'No pudimos cerrar la sesión. Intenta de nuevo.',
-    languageSectionPrompt:
-      'Elige el idioma oficial de toda la plataforma y de Search Link IA.',
-    languageSelectedLabel: (label) => `${label} seleccionado`,
-    languageAutoDetectedNote: (countryCode) =>
-      countryCode
-        ? `Idioma ajustado automáticamente según tu IP (${countryCode}).`
-        : 'Idioma ajustado automáticamente según tu ubicación.',
-    languageManualSavedNote:
-      'Preferencia guardada en este navegador. No se sobrescribirá automáticamente.',
-    languageLocalStorageHint:
-      'Puedes cambiarlo en cualquier momento desde este menú.',
-  },
-  home: {
-    uploadDeviceAria: 'Subir imágenes desde el dispositivo',
-    uploadDeviceTitle: 'Subir imágenes desde tu dispositivo',
-    urlFormAria: 'Pegar URL de página web',
-    urlInputPlaceholder: 'Pega aquí la URL de tu página web...',
+  app: {
+    uploadImagesAria: 'Subir imágenes desde el dispositivo',
+    uploadImagesTitle: 'Subir imágenes desde tu dispositivo',
+    pasteUrlFormAria: 'Pegar URL de página web',
+    urlPlaceholder: 'Pega aquí la URL de tu página web...',
     urlInputAria: 'URL de tu página web',
     extractingAria: 'Extrayendo imágenes',
     clearUrlAria: 'Limpiar URL',
-    invalidUrlError:
-      'No pudimos encontrar imágenes válidas en esa dirección web.',
-    connectUrlError:
+    extractEmptyError: 'No pudimos encontrar imágenes válidas en esa dirección web.',
+    extractNetworkError:
       'No se pudo conectar con la página. Verifica la URL e intenta de nuevo.',
-    invalidFilesError: 'Por favor selecciona archivos de imagen válidos.',
-    freePlanNotice: (max) =>
+    freePlanLimitNotice: (max) =>
       `Plan gratuito: se procesarán las primeras ${max} imágenes.`,
-    defaultServicePrefix: 'Servicio',
-    catalogBatchTitle: (count) => `Catálogo (${count} imágenes)`,
-    savedToCoreNotice: 'Servicio y API guardados en Search Link Core.',
+    invalidImageFilesError: 'Por favor selecciona archivos de imagen válidos.',
+    uploadImageError: 'Error al subir la imagen.',
+    mapImageError: 'Error al renderizar y mapear la imagen con IA.',
+    serviceDefaultPrefix: (name) => `Servicio ${name}`,
+    batchTitleFallback: (count) => `Catálogo (${count} imágenes)`,
+    coreSavedNotice: 'Servicio y API guardados en Search Link Core.',
+    imageFallbackAlt: (index) => `Imagen ${index}`,
     openAccountMenuAria: (name) => `Abrir menú de cuenta (${name})`,
     connectedAccountAria: (name) => `Cuenta conectada (${name})`,
     openAuthAria: 'Abrir registro de cuenta',
     openAuthTitle: 'Crear cuenta o iniciar sesión',
-    uploadImageFallbackError: 'Error al subir la imagen.',
-    mapImageFallbackError: 'Error al renderizar y mapear la imagen con IA.',
-    imageLabel: (index) => `Imagen ${index}`,
-    productLabel: (index) => `Producto ${index}`,
-  },
-  pipeline: {
-    stageImagesTitle: 'Aquí verás tus imágenes',
-    stageMetadataTitle: 'Aquí puedes ver tus metadatos',
-    stageCompressingTitle: 'Comprimiendo',
-    stageUploadingTitle: 'Lanzando a base de datos',
-    stageReceivingTitle: 'Recibiendo',
-    stageMappingTitle: 'Renderizar y mapear',
-    stageMappedDoneTitle: 'Renderizado y mapeado',
-    stageLifecycleTitle: 'Ciclo de vida',
-    stageLifecycleFullTitle: 'Ciclo de vida, API y endpoint',
-    stageViewApiTitle: 'Ver tu API',
-    stageProductivityTitle: 'Productividad',
-    stageEditorTitle: 'Editor JSON',
-    congratsTitleDesktop: '¡Felicidades!',
-    congratsTitleMobile: '¡Enhorabuena!',
-    congratsBodyDesktop: (count) =>
-      `Ya tienes ${
-        count === 1
-          ? 'tu 1 imagen procesada y guardada'
-          : `tus ${count} imágenes procesadas y guardadas`
-      } en nuestro R2. Tu endpoint y tu API te servirán para conectar tu chatbot y la página de tu emprendimiento.`,
-    congratsBodyMobile: (count) =>
-      `Ya tienes ${
-        count === 1
-          ? 'tu 1 imagen procesada y guardada'
-          : `tus ${count} imágenes procesadas y guardadas`
-      } en nuestro R2, listas para conectar tu chatbot y página.`,
-    generatedApiTitle: 'Generado tu API y endpoint',
-    generatedApisLink: 'APIs generadas',
-    generatedEndpointLink: 'Endpoint generado',
-    credentialsReadyTitle: 'Tus credenciales listas',
-    credentialsReadyHint:
-      'Toca el ícono al final para copiar tu API o endpoint.',
-    viewYourOrg: 'Ver tu organización',
-    generatingApiKey: 'Generando API Key...',
-    generatingEndpoint: 'Generando endpoint...',
-    copyApiAria: 'Copiar API',
-    copyApiTitle: 'Copiar API Key',
-    copyEndpointAria: 'Copiar endpoint',
-    copyEndpointTitle: 'Copiar endpoint',
-    backToMappedAria: 'Volver a Renderizado y mapeado',
-    goToLifecycleAria: 'Ir a Ciclo de vida, API y endpoint',
-    couldNotReceive: 'No se pudo recibir',
-    couldNotMap: 'No se pudo mapear esta imagen.',
-    tapBorderToExpand: 'Toca el borde blanco para ampliar',
-    expandedImagesAria: 'Vista ampliada de imágenes',
-    expandedMetadataAria: 'Vista ampliada de metadatos',
-    elementsCount: (count) => `${count} elementos`,
-    closeExpandedAria: 'Cerrar vista ampliada',
-    doubleClickFullscreen: (alt) =>
-      `Doble clic para ver ${alt} en pantalla completa`,
-    useAsBackgroundAria: (alt) => `Usar ${alt} como fondo`,
-    openOriginalImageTitle: (alt) => `Abrir imagen original: ${alt}`,
-    copyUrlOfAria: (alt) => `Copiar URL de ${alt}`,
-    copyUrlTitle: 'Copiar URL',
-    viewInBackgroundTitle: (alt) => `Ver ${alt} en el fondo`,
-    enlargeLeftAria: (alt) => `Ampliar ${alt} en el lado izquierdo`,
-    clickToViewTitle: (alt) => `Clic para ver ${alt}`,
-    viewProductAria: (alt) => `Ver ${alt}`,
-    closeFullscreenAria: 'Cerrar imagen en pantalla completa',
-    closeImageAria: 'Cerrar imagen',
-    searchingImages: 'Buscando imágenes...',
-    whyUseSearchLink: '¿Por qué usarías Search Link?',
-    whyUseSearchLinkAria: 'Por qué usarías Search Link',
-    mobileCarouselAria: 'Vista móvil de imágenes, URLs y beneficios',
-    mobileCompressionAria: 'Imágenes y proceso de compresión',
-    productJsonLabel: 'JSON del producto',
-    showJsonAria: (expanded, name) =>
-      `${expanded ? 'Ocultar' : 'Ver'} JSON de ${name}`,
-    copyJsonOfAria: (name) => `Copiar JSON de ${name}`,
-    copyAllJsonAria: 'Copiar todo el JSON',
-    copyJsonTitle: 'Copiar JSON',
-    closeEditorBackAria: 'Cerrar editor y volver a Ciclo de vida',
-    closeEditorTitle: 'Cerrar editor',
-    readOnlyEditorAria: 'Editor JSON de solo lectura',
-    pdfActions: {
-      json: 'Descargar mapeo JSON',
-      images: 'Descargar imágenes',
-      urls: 'Descargar URLs',
-      metadata: 'Descargar metadatos',
-      all: 'Descargar todo',
-      openEditor: 'Ver en editor',
-    },
-    benefits: [
-      {
-        id: 'speed',
-        title: 'Rapidez',
-        description:
-          'Extrae y organiza imágenes en segundos, ligera y sin esperas.',
-      },
-      {
-        id: 'clean-urls',
-        title: 'URLs limpias',
-        description:
-          'Convierte rutas largas en enlaces cortos, claros y ordenados.',
-      },
-      {
-        id: 'easy-anywhere',
-        title: 'Fácil en teléfono o PC',
-        description:
-          'Úsala cómodo desde el celular o el computador sin complicaciones.',
-      },
-      {
-        id: 'ready-to-share',
-        title: 'Listas para compartir',
-        description:
-          'Revisa cada foto y ten tus enlaces listos al instante en un toque.',
-      },
-    ],
+    untitledOrgSentinel: 'Sin nombre',
+    imageUploadAria: (status, alt) =>
+      status === 'pending'
+        ? `En cola para guardar ${alt}`
+        : status === 'uploading'
+          ? `Guardando ${alt} en la nube`
+          : status === 'done'
+            ? `${alt} guardada`
+            : `Error al guardar ${alt}`,
+    receiveStatusAria: (status, alt) =>
+      status === 'waiting'
+        ? `Recibiendo URL de ${alt}`
+        : status === 'received'
+          ? `URL recibida para ${alt}`
+          : `Error al recibir ${alt}`,
+    compressionStatusAria: (status, alt) =>
+      status === 'rendering'
+        ? `Renderizando ${alt}`
+        : status === 'compressing'
+          ? `Comprimiendo ${alt}`
+          : status === 'done'
+            ? `${alt} comprimida`
+            : `Error al comprimir ${alt}`,
   },
   examples: {
     sectionAria: 'Ejemplos de automatizaciones',
-    heading: 'Ejemplos de automatizaciones',
-    subtitle: 'Cómo actúa Search Link en diferentes plataformas',
-    cardAria: (label) => `Ejemplo en ${label}`,
-    discordVisitor: 'Visitante',
+    sectionTitle: 'Ejemplos de automatizaciones',
+    sectionSubtitle: 'Cómo actúa Search Link en diferentes plataformas',
+    cardAria: (platformLabel) => `Ejemplo en ${platformLabel}`,
+    visitorName: 'Visitante',
     items: {
       whatsapp: {
-        id: 'whatsapp',
         bottomLabel: 'WhatsApp · Chatbots',
-        companyName: 'Veloce Calzado',
         accountType: 'Enterprise',
         headerSubline: 'Catálogo automático',
         userGreeting: 'Hola',
@@ -615,14 +472,12 @@ const ES_DICT: TranslationDictionary = {
         userRequest: 'Quiero ver el catálogo de calzado blanco',
         botResultText: 'Aquí tienes lo que tenemos en catálogo.',
         products: [
-          { id: 'wa-court', name: 'Veloce Court', subtitle: 'Cuero blanco' },
-          { id: 'wa-runner', name: 'Veloce Runner', subtitle: 'Knit marfil' },
+          { name: 'Veloce Court', subtitle: 'Cuero blanco' },
+          { name: 'Veloce Runner', subtitle: 'Knit marfil' },
         ],
       },
       telegram: {
-        id: 'telegram',
         bottomLabel: 'Telegram · Bots',
-        companyName: 'Apex Motors',
         accountType: 'Bot Oficial',
         headerSubline: 'Concesionario digital',
         userGreeting: 'Hola, busco autos',
@@ -630,14 +485,12 @@ const ES_DICT: TranslationDictionary = {
         userRequest: 'Muéstrame los disponibles hoy',
         botResultText: 'Estos dos modelos están listos para entrega.',
         products: [
-          { id: 'tg-sedan', name: 'Apex Air EV', subtitle: 'Sedán eléctrico' },
-          { id: 'tg-suv', name: 'Apex Terra', subtitle: 'SUV híbrida' },
+          { name: 'Apex Air EV', subtitle: 'Sedán eléctrico' },
+          { name: 'Apex Terra', subtitle: 'SUV híbrida' },
         ],
       },
       instagram: {
-        id: 'instagram',
         bottomLabel: 'Instagram · DM Bot',
-        companyName: 'Núa Studio',
         accountType: 'Tienda',
         headerSubline: 'Respuestas en DM',
         userGreeting: 'Hola, me gustó su reel',
@@ -645,14 +498,12 @@ const ES_DICT: TranslationDictionary = {
         userRequest: 'Relojes y gafas para regalo',
         botResultText: 'Aquí tienes nuestros favoritos de temporada.',
         products: [
-          { id: 'ig-watch', name: 'Crono Cuero', subtitle: 'Edición clásica' },
-          { id: 'ig-glasses', name: 'Gafas Carey', subtitle: 'Filtro UV400' },
+          { name: 'Crono Cuero', subtitle: 'Edición clásica' },
+          { name: 'Gafas Carey', subtitle: 'Filtro UV400' },
         ],
       },
       messenger: {
-        id: 'messenger',
         bottomLabel: 'Messenger · Meta Bot',
-        companyName: 'Casa Nórdica',
         accountType: 'Hogar',
         headerSubline: 'Asesor de espacios',
         userGreeting: 'Buenas, vi su anuncio',
@@ -660,14 +511,12 @@ const ES_DICT: TranslationDictionary = {
         userRequest: 'Algo minimalista para la sala',
         botResultText: 'Estas dos piezas combinan perfecto juntas.',
         products: [
-          { id: 'ms-chair', name: 'Silla Roble', subtitle: 'Tela beige' },
-          { id: 'ms-plant', name: 'Monstera Maceta', subtitle: 'Cerámica mate' },
+          { name: 'Silla Roble', subtitle: 'Tela beige' },
+          { name: 'Monstera Maceta', subtitle: 'Cerámica mate' },
         ],
       },
       web: {
-        id: 'web',
         bottomLabel: 'Chat Web · Tienda',
-        companyName: 'Bistro Brasa',
         accountType: 'Web Widget',
         headerSubline: 'Menú en línea',
         userGreeting: 'Hola, ¿qué recomiendan?',
@@ -675,14 +524,12 @@ const ES_DICT: TranslationDictionary = {
         userRequest: 'Algo rápido para cenar hoy',
         botResultText: 'Nuestros dos platos más pedidos esta noche.',
         products: [
-          { id: 'web-burger', name: 'Burger Brioche', subtitle: 'Cheddar maduro' },
-          { id: 'web-pizza', name: 'Pizza Margarita', subtitle: 'Masa madre' },
+          { name: 'Burger Brioche', subtitle: 'Cheddar maduro' },
+          { name: 'Pizza Margarita', subtitle: 'Masa madre' },
         ],
       },
       discord: {
-        id: 'discord',
         bottomLabel: 'Discord · Bot API',
-        companyName: 'Pulse Gear',
         accountType: 'APP',
         headerSubline: '#tienda-hardware',
         userGreeting: 'Hola, busco setup oscuro',
@@ -690,14 +537,12 @@ const ES_DICT: TranslationDictionary = {
         userRequest: 'Muéstrame teclado y audífonos',
         botResultText: 'Ambos disponibles con envío inmediato.',
         products: [
-          { id: 'dc-audio', name: 'Pulse Audio Pro', subtitle: 'Negro mate' },
-          { id: 'dc-kb', name: 'Teclado 65%', subtitle: 'Aluminio ámbar' },
+          { name: 'Pulse Audio Pro', subtitle: 'Negro mate' },
+          { name: 'Teclado 65%', subtitle: 'Aluminio ámbar' },
         ],
       },
       slack: {
-        id: 'slack',
         bottomLabel: 'Slack · App B2B',
-        companyName: 'WorkCraft B2B',
         accountType: 'Empresa',
         headerSubline: '#compras-oficina',
         userGreeting: 'Hola, renovamos oficina',
@@ -705,14 +550,12 @@ const ES_DICT: TranslationDictionary = {
         userRequest: 'Sillas ergonómicas y tazas',
         botResultText: 'Catálogo corporativo listo para pedido.',
         products: [
-          { id: 'sl-chair', name: 'Silla Mesh Pro', subtitle: 'Aluminio B2B' },
-          { id: 'sl-mug', name: 'Set Cerámica', subtitle: 'Lote oficina' },
+          { name: 'Silla Mesh Pro', subtitle: 'Aluminio B2B' },
+          { name: 'Set Cerámica', subtitle: 'Lote oficina' },
         ],
       },
       line: {
-        id: 'line',
         bottomLabel: 'LINE · Official Account',
-        companyName: 'Sora Botanics',
         accountType: 'Oficial',
         headerSubline: 'Asistente cosmético',
         userGreeting: 'Hola, busco skincare',
@@ -720,915 +563,971 @@ const ES_DICT: TranslationDictionary = {
         userRequest: 'Muéstrame ambos por favor',
         botResultText: 'Aquí tienes nuestras fórmulas más buscadas.',
         products: [
-          { id: 'ln-serum', name: 'Sérum Ámbar', subtitle: 'Uso nocturno' },
-          { id: 'ln-perfume', name: 'Esencia Botánica', subtitle: 'Notas cálidas' },
+          { name: 'Sérum Ámbar', subtitle: 'Uso nocturno' },
+          { name: 'Esencia Botánica', subtitle: 'Notas cálidas' },
         ],
       },
     },
   },
+  sourceCode: {
+    sectionAria: 'Código fuente de Search Link Core',
+    sectionTitle: 'Código fuente · Search Link Core',
+    sectionSubtitle:
+      'Librerías gratuitas listas para conectar tu repositorio, base de datos y catálogo en producción',
+    whatsappCardAria: 'Librería gratuita para WhatsApp',
+    whatsappTitle: 'WhatsApp Bot',
+    whatsappSubtitle: 'Meta Cloud API · TypeScript',
+    whatsappDescription:
+      'Código completo con panel web, múltiples bases de datos y catálogo en vivo.',
+    actions: {
+      github: {
+        label: 'Conectar con GitHub',
+        feedback: 'Repositorio oficial listo en la siguiente fase.',
+      },
+      zip: {
+        label: 'Descargar ZIP',
+        feedback: 'Paquete comprimido listo al completar el código fuente.',
+      },
+      editor: {
+        label: 'Ver código en editor',
+        feedback: 'El explorador de archivos se habilitará aquí.',
+      },
+      preview: {
+        label: 'Ver preview',
+        feedback:
+          'Primera vista interactiva que construiremos al aprobar este diseño.',
+      },
+    },
+  },
+  menu: {
+    account: 'Cuenta',
+    accountCreatedOn: (date) => `Creada el ${date}`,
+    accountMenuAria: 'Menú de cuenta',
+    accountOptionsAria: 'Opciones de cuenta',
+    backToMenuAria: 'Volver al menú',
+    backToOrgAria: 'Volver a Organización',
+    closeAccountModalAria: 'Cerrar cuenta de Google',
+    closeMenuAria: 'Cerrar menú',
+    closeOrgAria: 'Cerrar Organización',
+    closeStoreAria: 'Cerrar Mi tienda',
+    confirmSignOutAria: 'Confirmar cierre de sesión',
+    confirmSignOutDescDesktop:
+      'Tu organización y servicios guardados permanecerán seguros para cuando vuelvas.',
+    confirmSignOutDescMobile:
+      'Tu organización y servicios permanecerán guardados.',
+    confirmSignOutTitle: '¿Cerrar sesión ahora?',
+    createdAtLabel: 'Creación de cuenta',
+    dateUnavailable: 'Fecha no disponible',
+    googleAccount: 'Cuenta de Google',
+    googleAccountDetailsAria: 'Detalles de cuenta de Google',
+    googleAccountLabel: 'Correo electrónico',
+    language: 'Idioma',
+    languageAutoDetectedNote: (countryCode) =>
+      countryCode
+        ? `Detectado automáticamente según tu ubicación (${countryCode}).`
+        : 'Detectado automáticamente según tu navegador.',
+    languageLocalStorageHint:
+      'Tu elección manual se guarda localmente en este dispositivo.',
+    languageManualSavedNote: 'Idioma seleccionado manualmente.',
+    languageOptionsAria: 'Idiomas disponibles',
+    languageSectionPrompt: 'Elige el idioma de toda la interfaz y de Search Link IA.',
+    languagesTitle: 'Idiomas disponibles',
+    myStore: 'Mi tienda',
+    organization: 'Organización',
+    signOut: 'Cerrar sesión',
+    signOutError: 'No se pudo cerrar sesión. Intenta de nuevo.',
+    usernameLabel: 'Nombre',
+  },
+  auth: {
+    acceptTermsLabel: 'Acepto los términos y políticas de privacidad de Search Link.',
+    accessPlanLine: (providerLabel, isPro) =>
+      `${providerLabel} · Plan ${isPro ? 'Pro' : 'Gratuito'}`,
+    allMyCatalogs: 'Todos mis catálogos',
+    associatedCatalogAria: 'Catálogo asociado',
+    bullet1: 'Sesión segura y cifrada con Google',
+    bullet2: 'Catálogos y medios sincronizados en la nube',
+    bullet3: 'API Keys y endpoints Search Link Core al instante',
+    closePanelAria: 'Cerrar panel de cuenta',
+    connectingGoogle: 'Conectando con Google…',
+    continueWithGoogle: 'Continuar con Google',
+    copyFullJsonTitle: 'Copiar JSON completo',
+    copyUrl: 'Copiar URL',
+    createApiKey: 'Crear API Key',
+    deleteBatchAria: (title) => `Eliminar catálogo ${title}`,
+    drawerAriaAuth: 'Panel de cuenta de Search Link',
+    drawerAriaGuest: 'Iniciar sesión en Search Link',
+    emailPasswordProvider: 'Correo y contraseña',
+    endpointsTab: (count) => `API y Endpoints (${count})`,
+    errCreateKey: 'No se pudo crear la API Key.',
+    errCreateKeySchema:
+      'Falta crear las tablas de Supabase Core para generar API Keys persistentes.',
+    errDeleteBatch: 'No se pudo eliminar el catálogo.',
+    errDeleteKey: 'No se pudo revocar la API Key.',
+    errLoadData: 'Error cargando datos de tu cuenta.',
+    errProviderNotEnabled:
+      'Google OAuth aún no está habilitado en este proyecto de Supabase.',
+    errRateLimit: 'Demasiados intentos en poco tiempo. Espera un momento.',
+    generateKeyTitle: 'Generar nueva API Key',
+    googleLinkError: 'No pudimos generar el enlace de Google OAuth.',
+    googleSignInError: 'Ocurrió un error al iniciar sesión con Google.',
+    googleSignedInSuccess: 'Sesión iniciada con Google correctamente.',
+    keyNamePlaceholder: 'Nombre (ej. Bot WhatsApp)',
+    loadingSupabase: 'Sincronizando con Supabase…',
+    loginHeading: 'Guarda tus catálogos y obtén tu API',
+    loginSubtitle:
+      'Conecta tu cuenta de Google en un clic para sincronizar productos, endpoints y métricas en tiempo real.',
+    myCatalogsTab: (count) => `Mis catálogos (${count})`,
+    newKeyCreatedHint: 'Nueva API Key creada (cópiala ahora, no se volverá a mostrar completa):',
+    noCatalogsDesc:
+      'Procesa cualquier página web o sube imágenes desde la pantalla principal para guardarlas aquí.',
+    noCatalogsTitle: 'Aún no tienes catálogos guardados',
+    onlyCatalogPrefix: (title) => `Solo: ${title}`,
+    openGoogleNewTab: 'Abrir Google en pestaña nueva',
+    pendingBatchText: (count) =>
+      `Tienes ${count} producto${count === 1 ? '' : 's'} listo${count === 1 ? '' : 's'} para guardar en tu cuenta.`,
+    popupBlockedError:
+      'El navegador bloqueó la ventana emergente de Google. Usa el enlace de abajo.',
+    productsCount: (count) =>
+      `${count} producto${count === 1 ? '' : 's'}`,
+    readEndpointDescMiddle: ' o header ',
+    readEndpointDescPrefix: 'Consulta tu catálogo JSON desde cualquier chatbot enviando ',
+    readEndpointDescSuffix: ' a:',
+    readEndpointTitle: 'Endpoint de lectura Search Link Core',
+    refreshAccountAria: 'Actualizar datos de la cuenta',
+    revokeKeyAria: (name) => `Revocar API Key ${name}`,
+    saveNow: 'Guardar ahora',
+    sessionActive: 'Sesión activa correctamente',
+    sessionMissingProfilesTable:
+      'Sesión activa (tabla profiles pendiente en Supabase)',
+    sessionSynced: 'Cuenta sincronizada con Supabase',
+    signOutAria: 'Cerrar sesión',
+    signOutShort: 'Salir',
+    step2PendingDesc:
+      'Ejecuta la migración de catálogos en Supabase para persistir lotes aquí.',
+    step2PendingTitle: 'Tablas de catálogos pendientes',
+    step3PendingDesc:
+      'Ejecuta la migración de API Keys en Supabase para gestionar llaves aquí.',
+    step3PendingTitle: 'Tabla de API Keys pendiente',
+    supabaseMissingError:
+      'La configuración de Supabase no está disponible en este entorno.',
+    termsError: 'Acepta los términos para continuar con Google.',
+    urlCopied: 'URL copiada',
+  },
+  chat: {
+    clearConversation: 'Reiniciar conversación',
+    clearShort: 'Nueva conversación',
+    closeAria: 'Cerrar chat de prueba',
+    dailyLimitNotice:
+      'Alcanzaste tu prueba gratuita de hoy en Search Link IA. Vuelve mañana o integra tu endpoint.',
+    dailyLimitPlaceholder: 'Límite diario alcanzado...',
+    defaultRequestError: 'No se pudo obtener respuesta de Search Link IA.',
+    defaultStreamError: 'Error durante la respuesta en vivo.',
+    defaultSuccessReply: 'Consulta completada.',
+    inputAria: 'Escribe una consulta para probar el catálogo',
+    inputPlaceholder: 'Pregunta por cualquier producto del catálogo...',
+    liveProducts: (count) => `${count} producto${count === 1 ? '' : 's'} en vivo`,
+    networkError: 'Error de conexión con Search Link IA. Intenta de nuevo.',
+    preparingReply: 'Preparando respuesta…',
+    queryingCatalog: 'Consultando catálogo en vivo…',
+    sendAria: 'Enviar mensaje',
+  },
   org: {
-    unnamed: 'Sin nombre',
-    welcomeTitle: 'Bienvenido a tu organización',
-    welcomeSubtitle: 'Vamos a crearla',
-    companyPlaceholder: 'Pon el nombre de tu empresa',
-    uploadLogoAria: 'Subir logo de tu organización',
-    uploadLogoTitle: 'Subir logo de tu organización',
-    helperArrowPrompt: 'Pon el logo de tu organización y tu nombre',
-    logoUploadError: 'No se pudo subir el logo.',
-    congratsTitle: '¡Felicidades!',
-    congratsBoth:
-      'Ya tienes el logo y el nombre de tu organización listos para empezar.',
-    congratsLogoOnly:
-      'Ya tienes el logo de tu organización. Podrás poner el nombre cuando desees.',
-    congratsNameOnly:
-      'Ya tienes el nombre de tu organización. Podrás subir tu logo cuando desees.',
-    congratsMobileFallback:
-      'Ya tienes tu organización creada. Podrás ajustar tu logo o nombre cuando quieras.',
-    changeLogoAria: 'Cambiar logo de la organización',
-    changeLogoTitle: 'Cambiar logo de la organización',
-    orgNamePlaceholder: 'Nombre de tu organización',
-    orgNameShortPlaceholder: 'Nombre',
-    saveOrgNameAria: 'Guardar nombre de organización',
-    renameOrgAria: 'Cambiar nombre de la organización',
-    renameOrgTitle: 'Cambiar nombre',
-    openStoreServicesAria: 'Abrir tienda de tus servicios',
-    openStoreAria: 'Abrir tienda',
-    viewStoreTitle: 'Ver tienda',
-    pickStoreAria: 'Selecciona un servicio para ver en tu tienda',
-    viewStoreOf: 'Ver tienda de',
-    noServicesAvailable: 'Aún no tienes servicios disponibles.',
-    myServices: 'Mis servicios',
-    newProduct: 'Nuevo producto',
-    noServicesTitleDesktop: 'Aún no tienes servicios en tu organización',
-    noServicesDescDesktop:
-      'Procesa y mapea tu primer producto desde la pantalla principal para tener aquí su servicio, API y endpoint.',
-    noServicesTitleMobile: 'Aún no tienes servicios',
-    noServicesDescMobile:
-      'Procesa un producto desde el inicio para ver aquí su servicio, API y endpoint.',
-    saveServiceNameAria: 'Guardar nombre del servicio',
-    renameServiceAria: (name) => `Renombrar ${name}`,
-    renameServiceTitle: 'Renombrar servicio',
-    productCount: (count) =>
-      `${count} ${count === 1 ? 'producto' : 'productos'}`,
-    productCountShort: (count) => `${count} prod.`,
-    serviceApiLink: 'API del servicio',
-    serviceEndpointLink: 'Endpoint de este servicio',
-    testChatAria: (name) => `Probar ${name} en Search Link IA`,
-    testChatTitle: 'Probar en Search Link IA',
-    viewHistoryAria: (name) => `Ver historial del proceso de ${name}`,
-    viewHistoryTitle: 'Ver proceso de automatización',
-    closeBoxAria: 'Cerrar recuadro',
-    apiHintRaw:
-      'Envía esta llave en el header x-api-key o Authorization: Bearer.',
     apiHintPrefixDesktop:
-      'Por seguridad solo se guarda el prefijo en la nube. Genera una nueva API Key si necesitas copiarla completa.',
+      'Por seguridad solo guardamos el prefijo en la nube. Si necesitas la llave completa, puedes regenerarla al instante.',
     apiHintPrefixMobile:
-      'Por seguridad solo se guarda el prefijo. Genera una nueva API Key si necesitas copiarla completa.',
-    serviceActiveDesktop: 'Servicio activo',
-    servicePausedDesktop: 'Servicio pausado',
-    serviceActiveMobile: 'Activo',
-    servicePausedMobile: 'Pausado',
-    regenerateKeyDesktop: 'Regenerar API Key',
-    regenerateKeyMobile: 'Regenerar',
-    pasteKeyPlaceholder: 'Pega tu API Key sl_core_... para probar',
+      'Solo almacenamos el prefijo por seguridad. Puedes regenerar la llave cuando quieras.',
+    apiHintRaw:
+      'Incluye esta llave en Authorization: Bearer <API_KEY> o x-api-key para consultar este servicio.',
+    changeLogoAria: 'Cambiar logo de organización',
+    changeLogoTitle: 'Cambiar logo',
+    closeBoxAria: 'Cerrar ventana',
+    companyPlaceholder: 'Nombre de tu empresa o marca',
+    congratsBoth:
+      'Ya quedaron guardados tu logo y el nombre de tu organización. Todo está listo para administrar tus servicios.',
+    congratsLogoOnly:
+      'Tu logo quedó guardado correctamente. Puedes agregar o editar el nombre cuando quieras.',
+    congratsMobileFallback:
+      'Tu organización ya quedó configurada para publicar catálogos y endpoints.',
+    congratsNameOnly:
+      'El nombre de tu organización ya quedó guardado. También puedes subir un logo más adelante.',
+    congratsTitle: '¡Organización configurada!',
     copyCurlDesktop: 'Copiar comando cURL',
     copyCurlMobile: 'Copiar cURL',
     curlCopied: 'cURL copiado',
+    helperArrowPrompt:
+      'Sube el logo o escribe el nombre de tu negocio para personalizar tus endpoints y tienda.',
+    logoUploadError: 'No se pudo subir el logo.',
+    myServices: 'Mis servicios',
+    newProduct: 'Nuevo producto',
+    noServicesAvailable: 'Aún no hay servicios activos',
+    noServicesDescDesktop:
+      'Procesa una URL o sube tus imágenes desde la pantalla principal para generar tu primer endpoint en vivo.',
+    noServicesDescMobile:
+      'Procesa una URL o sube imágenes desde el inicio para ver tus servicios aquí.',
+    noServicesTitleDesktop: 'Todavía no tienes servicios generados',
+    noServicesTitleMobile: 'Aún no hay servicios',
+    openStoreAria: 'Abrir tienda del servicio',
+    openStoreServicesAria: 'Abrir selector de Mi tienda',
+    orgNamePlaceholder: 'Nombre de la organización',
+    orgNameShortPlaceholder: 'Nombre de tu marca',
+    pasteKeyPlaceholder: 'Pega aquí tu API Key completa para probar...',
+    pickStoreAria: 'Seleccionar tienda de servicio',
+    productCount: (count) =>
+      `${count} producto${count === 1 ? '' : 's'}`,
+    productCountShort: (count) => `${count} prod.`,
+    regenerateKeyDesktop: 'Regenerar API Key',
+    regenerateKeyMobile: 'Regenerar llave',
+    renameOrgAria: 'Cambiar nombre de organización',
+    renameOrgTitle: 'Cambiar nombre',
+    renameServiceAria: (name) => `Renombrar servicio ${name}`,
+    renameServiceTitle: 'Renombrar servicio',
+    saveOrgNameAria: 'Guardar nombre de organización',
+    saveServiceNameAria: 'Guardar nombre del servicio',
+    serviceActiveDesktop: 'Servicio activo',
+    serviceActiveMobile: 'Activo',
+    serviceApiLink: 'Ver API Key',
+    serviceEndpointLink: 'Endpoint & Prueba en vivo',
+    servicePausedDesktop: 'Servicio pausado',
+    servicePausedMobile: 'Pausado',
+    testChatAria: (name) => `Probar ${name} con Search Link IA`,
+    testChatTitle: 'Probar con Search Link IA',
     testLive: 'Probar en vivo',
+    unnamed: 'Sin nombre',
+    uploadLogoAria: 'Subir logo de organización',
+    uploadLogoTitle: 'Subir logo',
+    viewHistoryAria: (name) => `Ver catálogo completo de ${name}`,
+    viewHistoryTitle: 'Ver historial del servicio',
+    viewStoreOf: 'Abrir Mi tienda de:',
+    viewStoreTitle: 'Mi tienda',
+    welcomeSubtitle:
+      'Centraliza tus catálogos, API Keys y chatbot Search Link IA en un solo lugar.',
+    welcomeTitle: 'Bienvenido a tu Organización',
   },
   store: {
-    emptyTitle: 'Este servicio aún no tiene productos visibles en tienda',
     emptyDescDesktop:
-      'Procesa un nuevo lote de imágenes para verlo aquí en tu tienda visual.',
-    emptyDescMobile: 'Procesa un nuevo lote de imágenes para verlo aquí.',
+      'Este servicio todavía no tiene productos guardados para mostrar.',
+    emptyDescMobile: 'Este servicio no tiene productos para mostrar.',
+    emptyTitle: 'Sin productos en esta tienda',
     noImage: 'Sin imagen',
-    tapToCollapse: 'Toca para contraer',
-    tapToExpandFull: (name) => `${name} (toca para ver completo)`,
+    tapToCollapse: 'Toca para contraer el nombre',
+    tapToExpandFull: (name) => `Toca para ver completo: ${name}`,
     unnamedProduct: 'Producto sin nombre',
   },
-  chat: {
-    closeAria: 'Cerrar Search Link IA',
-    clearConversation: 'Limpiar conversación',
-    clearShort: 'Limpiar',
-    liveProducts: (count) =>
-      `${count} ${count === 1 ? 'producto' : 'productos'} en vivo`,
-    preparingReply: 'Preparando respuesta...',
-    queryingCatalog: 'Consultando catálogo...',
-    dailyLimitNotice:
-      'Prueba diaria usada (1/1 hoy). Vuelve mañana para probar de nuevo.',
-    dailyLimitPlaceholder: 'Límite diario de 1 prueba alcanzado por hoy',
-    inputPlaceholder: 'Escribe tu mensaje...',
-    inputAria: 'Escribe tu mensaje para Search Link IA',
-    sendAria: 'Enviar mensaje',
-    defaultSuccessReply:
-      'Aquí tienes las opciones disponibles en tu catálogo.',
-    defaultRequestError:
-      'No se pudo obtener respuesta de Search Link IA en este momento.',
-    defaultStreamError: 'Error al generar respuesta.',
-    networkError:
-      'Error de red al conectar con Search Link IA. Intenta de nuevo.',
-  },
-  auth: {
-    drawerAriaAuth: 'Tu espacio en Search Link',
-    drawerAriaGuest: 'Iniciar sesión en Search Link',
-    signOutAria: 'Cerrar sesión',
-    signOutShort: 'Salir',
-    closePanelAria: 'Cerrar panel',
-    emailPasswordProvider: 'Correo y contraseña',
-    accessPlanLine: (provider, isPro) =>
-      `Acceso: ${provider} · Plan ${isPro ? 'Pro' : 'Gratuito'}`,
-    refreshAccountAria: 'Actualizar cuenta',
-    sessionSynced:
-      'Sesión activa y perfil sincronizado en Supabase (tabla profiles).',
-    sessionMissingProfilesTable:
-      'Sesión activa. Falta ejecutar el SQL del Paso 1 para crear la tabla profiles.',
-    sessionActive: 'Sesión activa en Supabase Auth.',
-    pendingBatchText: (count) =>
-      `Tienes un catálogo recién mapeado listo para guardar (${count} ítems).`,
-    saveNow: 'Guardar ahora',
-    myCatalogsTab: (count) => `Mis catálogos (${count})`,
-    endpointsTab: (count) => `Endpoint y API Keys (${count})`,
-    loadingSupabase: 'Cargando datos de Supabase...',
-    step2PendingTitle: 'Paso 2 pendiente: Guardar catálogos',
-    step2PendingDesc:
-      'Primero estamos verificando tu inicio de sesión (Paso 1). Cuando me confirmes que tu cuenta y Google funcionan, crearemos aquí las tablas para guardar catálogos.',
-    noCatalogsTitle: 'Aún no tienes catálogos guardados',
-    noCatalogsDesc:
-      'Procesa imágenes o una página web estando conectado y se guardarán automáticamente aquí.',
-    productsCount: (count) => `${count} productos`,
-    copyFullJsonTitle: 'Copiar JSON completo',
-    deleteBatchAria: (title) => `Eliminar ${title}`,
-    step3PendingTitle: 'Paso 3 pendiente: Endpoint y API Keys',
-    step3PendingDesc:
-      'Primero terminaremos el Paso 1 (Inicio de sesión) y el Paso 2 (Guardar catálogos). Después activaremos tus llaves y tu enlace JSON para conectar chatbots.',
-    readEndpointTitle: 'Endpoint de lectura JSON',
-    readEndpointDescPrefix:
-      'Conecta este enlace a tu chatbot, n8n o Make enviando tu API Key por parámetro ',
-    readEndpointDescMiddle: ' o cabecera ',
-    readEndpointDescSuffix: '.',
-    generateKeyTitle: 'Generar nueva API Key',
-    keyNamePlaceholder: 'Nombre (ej. Bot WhatsApp)',
-    associatedCatalogAria: 'Catálogo asociado',
-    allMyCatalogs: 'Todos mis catálogos',
-    onlyCatalogPrefix: (title) => `Solo: ${title}`,
-    createApiKey: 'Crear API Key',
-    newKeyCreatedHint:
-      'Tu nueva API Key (guárdala ahora, no se vuelve a mostrar completa)',
-    copyUrl: 'Copiar URL',
-    urlCopied: 'URL copiada',
-    revokeKeyAria: (name) => `Revocar ${name}`,
-    loginHeading: 'Tu cuenta de Search Link',
-    loginSubtitle:
-      'Inicia sesión en un toque con Google para guardar tus catálogos procesados y conectar tu API.',
-    acceptTermsLabel:
-      'Aceptar Términos y Condiciones y Política de Privacidad',
-    termsError:
-      'Debes aceptar los Términos y Condiciones y la Política de Privacidad antes de continuar.',
-    supabaseMissingError: 'Supabase no está configurado en el entorno.',
-    googleLinkError: 'No se pudo generar el enlace de acceso con Google.',
-    popupBlockedError:
-      'Tu navegador bloqueó la ventana emergente. Pulsa el enlace de abajo para abrir Google.',
-    googleSignInError: 'No se pudo iniciar sesión con Google.',
-    googleSignedInSuccess: 'Sesión iniciada con Google correctamente.',
-    connectingGoogle: 'Conectando con Google…',
-    continueWithGoogle: 'Continuar con Google',
-    openGoogleNewTab: 'Abrir acceso con Google en una pestaña nueva',
-    bullet1: 'Acceso inmediato sin contraseñas ni correos extra',
-    bullet2: 'Tus imágenes y JSON respaldados en tu espacio',
-    bullet3: 'Listo para generar tu Endpoint y API Keys',
-    errProviderNotEnabled:
-      'El acceso con Google no está activado en Supabase.',
-    errRateLimit: 'Demasiados intentos seguidos. Espera unos segundos.',
-    errLoadData: 'No se pudieron cargar tus datos.',
-    errDeleteBatch: 'No se pudo eliminar el catálogo.',
-    errCreateKey: 'No se pudo crear la API Key.',
-    errCreateKeySchema:
-      'Primero ejecuta el script SQL en Supabase para habilitar las API Keys.',
-    errDeleteKey: 'No se pudo eliminar la API Key.',
+  pipeline: {
+    backToMappedAria: 'Volver al mapeo JSON',
+    benefits: [
+      {
+        id: 'speed',
+        title: 'Listo en segundos',
+        description:
+          'Optimiza imágenes a WebP y sube directo al CDN sin configuración manual.',
+      },
+      {
+        id: 'clean-urls',
+        title: 'URLs limpias para bots',
+        description:
+          'Enlaces cortos e inmutables listos para WhatsApp, Telegram o cualquier API.',
+      },
+      {
+        id: 'easy-anywhere',
+        title: 'Fácil desde el móvil',
+        description:
+          'Sube fotos desde tu galería o extrae cualquier sitio web al instante.',
+      },
+      {
+        id: 'ready-to-share',
+        title: 'Catálogo estructurado',
+        description:
+          'IA identifica nombres, categorías y descripciones listas en JSON o PDF.',
+      },
+    ],
+    clickToViewTitle: (alt) => `Clic para ampliar: ${alt}`,
+    closeEditorBackAria: 'Cerrar editor y volver',
+    closeEditorTitle: 'Cerrar editor',
+    closeExpandedAria: 'Contraer vista ampliada',
+    closeFullscreenAria: 'Cerrar imagen en pantalla completa',
+    closeImageAria: 'Cerrar imagen',
+    congratsBodyDesktop: (count) =>
+      `Tu catálogo con ${count} producto${count === 1 ? '' : 's'} ya está optimizado, mapeado en Search Link Core y listo para conectar a cualquier canal.`,
+    congratsBodyMobile: (count) =>
+      `${count} producto${count === 1 ? '' : 's'} optimizado${count === 1 ? '' : 's'} y listo${count === 1 ? '' : 's'} para usar en tu chatbot o tienda.`,
+    congratsTitleDesktop: '¡Automatización completada!',
+    congratsTitleMobile: '¡Todo listo!',
+    copyAllJsonAria: 'Copiar todo el JSON del catálogo',
+    copyApiAria: 'Copiar API Key',
+    copyApiTitle: 'Copiar API Key',
+    copyEndpointAria: 'Copiar URL del endpoint',
+    copyEndpointTitle: 'Copiar endpoint',
+    copyJsonOfAria: (name) => `Copiar JSON de ${name}`,
+    copyJsonTitle: 'Copiar JSON',
+    copyUrlOfAria: (label) => `Copiar URL de ${label}`,
+    copyUrlTitle: 'Copiar URL',
+    couldNotMap: 'No se pudo mapear este elemento.',
+    couldNotReceive: 'No se pudo obtener la URL final.',
+    credentialsReadyHint:
+      'Usa esta llave y endpoint en WhatsApp, Telegram o tu servidor backend.',
+    credentialsReadyTitle: 'Credenciales en vivo listas',
+    doubleClickFullscreen: (alt) => `Doble clic para ver completa: ${alt}`,
+    elementsCount: (count) => `${count} elemento${count === 1 ? '' : 's'}`,
+    enlargeLeftAria: (alt) => `Ampliar imagen ${alt}`,
+    expandedImagesAria: 'Vista ampliada de imágenes',
+    expandedMetadataAria: 'Vista ampliada de metadatos',
+    generatedApiTitle: 'API Key y Endpoint generados',
+    generatedApisLink: 'Ver API Key generada',
+    generatedEndpointLink: 'Ver Endpoint en vivo',
+    generatingApiKey: 'Generando API Key…',
+    generatingEndpoint: 'Generando endpoint…',
+    goToLifecycleAria: 'Ver ciclo de vida y credenciales',
+    mobileCarouselAria: 'Carrusel de catálogo e IA',
+    mobileCompressionAria: 'Progreso de compresión y carga',
+    openOriginalImageTitle: (alt) => `Abrir imagen original: ${alt}`,
+    pdfActions: {
+      json: 'Descargar PDF JSON',
+      images: 'Descargar PDF de Imágenes',
+      urls: 'Descargar PDF de URLs',
+      metadata: 'Descargar PDF de Metadatos',
+      all: 'Descargar Catálogo Completo (PDF)',
+      openEditor: 'Ver JSON en el editor',
+    },
+    productJsonLabel: 'JSON del producto',
+    readOnlyEditorAria: 'Editor de JSON en solo lectura',
+    searchingImages: 'Extrayendo imágenes…',
+    showJsonAria: (isExpanded, name) =>
+      isExpanded ? `Ocultar JSON de ${name}` : `Ver JSON de ${name}`,
+    stageCompressingTitle: 'Comprimiendo imágenes…',
+    stageEditorTitle: 'Editor JSON',
+    stageImagesTitle: 'Imágenes del catálogo',
+    stageLifecycleFullTitle: 'Ciclo de vida · Search Link Core',
+    stageLifecycleTitle: 'Ciclo de vida',
+    stageMappedDoneTitle: 'Mapeo completado',
+    stageMappingTitle: 'Mapeando con IA…',
+    stageMetadataTitle: 'URLs limpias',
+    stageProductivityTitle: 'Productividad',
+    stageReceivingTitle: 'Recibiendo URLs finales…',
+    stageUploadingTitle: 'Subiendo a Search Link Cloud…',
+    stageViewApiTitle: 'Tu API lista',
+    tapBorderToExpand: 'Toca el borde para ampliar',
+    useAsBackgroundAria: (alt) => `Usar ${alt} como fondo`,
+    viewInBackgroundTitle: (alt) => `Ver ${alt} como fondo`,
+    viewProductAria: (name) => `Ver producto ${name}`,
+    viewYourOrg: 'Abrir Organización y probar en IA',
+    whyUseSearchLink: '¿Por qué usar Search Link?',
+    whyUseSearchLinkAria: 'Beneficios de Search Link',
   },
 };
 
-const EN_DICT: TranslationDictionary = {
+const EN_DICTIONARY: TranslationDictionary = {
   common: {
-    userFallback: 'User',
-    productFallback: 'Product',
-    generalCategory: 'General',
-    copy: 'Copy',
+    accept: 'Accept',
+    cancel: 'Cancel',
+    close: 'Close',
+    continueBtn: 'Continue',
     copied: 'Copied',
     copiedFem: 'Copied',
-    cancel: 'Cancel',
-    accept: 'Confirm',
+    copy: 'Copy',
     edit: 'Edit',
-    continueBtn: 'Continue',
+    generalCategory: 'General',
     nextBtn: 'Next',
+    productFallback: 'Product',
     skip: 'Skip',
-    close: 'Close',
-    save: 'Save',
+    userFallback: 'User',
   },
-  menu: {
-    account: 'Account',
-    googleAccount: 'Your Google account',
-    googleAccountDetailsAria: 'Google account details',
-    organization: 'Organization',
-    myStore: 'My store',
-    language: 'Language',
-    languagesTitle: 'Languages',
-    accountMenuAria: 'Account menu',
-    accountOptionsAria: 'Account options',
-    languageOptionsAria: 'Available languages',
-    backToMenuAria: 'Back to menu',
-    backToOrgAria: 'Back to Organization',
-    closeMenuAria: 'Close menu',
-    closeAccountModalAria: 'Close account details',
-    closeStoreAria: 'Close store',
-    closeOrgAria: 'Close organization',
-    usernameLabel: 'Username',
-    googleAccountLabel: 'Google account',
-    createdAtLabel: 'Created on',
-    accountCreatedOn: (formattedDate) => `Account created on ${formattedDate}`,
-    dateUnavailable: 'Date unavailable',
-    signOut: 'Sign out',
-    confirmSignOutAria: 'Confirm sign out',
-    confirmSignOutTitle: 'Are you sure you want to sign out?',
-    confirmSignOutDescDesktop:
-      'You will need to sign in again with Google to access your workspace.',
-    confirmSignOutDescMobile: 'You will need to sign in again with Google.',
-    signOutError: 'Could not sign out. Please try again.',
-    languageSectionPrompt:
-      'Choose the interface language for the platform and Search Link IA.',
-    languageSelectedLabel: (label) => `${label} selected`,
-    languageAutoDetectedNote: (countryCode) =>
-      countryCode
-        ? `Automatically matched to your country by IP (${countryCode}).`
-        : 'Automatically matched to your location.',
-    languageManualSavedNote:
-      'Saved in this browser. It will stay until you change it.',
-    languageLocalStorageHint:
-      'You can switch between Spanish, English, and Portuguese anytime.',
-  },
-  home: {
-    uploadDeviceAria: 'Upload images from your device',
-    uploadDeviceTitle: 'Upload images from your device',
-    urlFormAria: 'Paste webpage URL',
-    urlInputPlaceholder: 'Paste your website URL here...',
+  app: {
+    uploadImagesAria: 'Upload images from your device',
+    uploadImagesTitle: 'Upload images from your device',
+    pasteUrlFormAria: 'Paste website URL',
+    urlPlaceholder: 'Paste your website URL here...',
     urlInputAria: 'Your website URL',
     extractingAria: 'Extracting images',
     clearUrlAria: 'Clear URL',
-    invalidUrlError: 'We could not find valid images at that web address.',
-    connectUrlError:
-      'Could not connect to the page. Check the URL and try again.',
-    invalidFilesError: 'Please select valid image files.',
-    freePlanNotice: (max) =>
+    extractEmptyError: 'We could not find any valid images on that web address.',
+    extractNetworkError:
+      'Could not connect to that webpage. Check the URL and try again.',
+    freePlanLimitNotice: (max) =>
       `Free plan: the first ${max} images will be processed.`,
-    defaultServicePrefix: 'Service',
-    catalogBatchTitle: (count) => `Catalog (${count} images)`,
-    savedToCoreNotice: 'Service and API saved to Search Link Core.',
+    invalidImageFilesError: 'Please select valid image files.',
+    uploadImageError: 'Failed to upload image.',
+    mapImageError: 'Failed to render and map image with AI.',
+    serviceDefaultPrefix: (name) => `${name} Service`,
+    batchTitleFallback: (count) => `Catalog (${count} images)`,
+    coreSavedNotice: 'Service & API saved to Search Link Core.',
+    imageFallbackAlt: (index) => `Image ${index}`,
     openAccountMenuAria: (name) => `Open account menu (${name})`,
     connectedAccountAria: (name) => `Connected account (${name})`,
     openAuthAria: 'Open account sign in',
     openAuthTitle: 'Create account or sign in',
-    uploadImageFallbackError: 'Failed to upload image.',
-    mapImageFallbackError: 'Failed to render and map the image with AI.',
-    imageLabel: (index) => `Image ${index}`,
-    productLabel: (index) => `Product ${index}`,
-  },
-  pipeline: {
-    stageImagesTitle: 'Your images will appear here',
-    stageMetadataTitle: 'Your metadata appears here',
-    stageCompressingTitle: 'Compressing',
-    stageUploadingTitle: 'Uploading to database',
-    stageReceivingTitle: 'Receiving',
-    stageMappingTitle: 'Render & map',
-    stageMappedDoneTitle: 'Rendered & mapped',
-    stageLifecycleTitle: 'Lifecycle',
-    stageLifecycleFullTitle: 'Lifecycle, API & endpoint',
-    stageViewApiTitle: 'View your API',
-    stageProductivityTitle: 'Productivity',
-    stageEditorTitle: 'JSON Editor',
-    congratsTitleDesktop: 'Congratulations!',
-    congratsTitleMobile: 'Congratulations!',
-    congratsBodyDesktop: (count) =>
-      `You now have ${
-        count === 1
-          ? '1 image processed and stored'
-          : `${count} images processed and stored`
-      } in our R2. Your endpoint and API Key let you connect your chatbot and your business website.`,
-    congratsBodyMobile: (count) =>
-      `You now have ${
-        count === 1
-          ? '1 image processed and stored'
-          : `${count} images processed and stored`
-      } in our R2, ready to connect your chatbot and site.`,
-    generatedApiTitle: 'Your API & endpoint generated',
-    generatedApisLink: 'Generated APIs',
-    generatedEndpointLink: 'Generated endpoint',
-    credentialsReadyTitle: 'Your credentials are ready',
-    credentialsReadyHint:
-      'Tap the icon on the right to copy your API Key or endpoint.',
-    viewYourOrg: 'View your organization',
-    generatingApiKey: 'Generating API Key...',
-    generatingEndpoint: 'Generating endpoint...',
-    copyApiAria: 'Copy API',
-    copyApiTitle: 'Copy API Key',
-    copyEndpointAria: 'Copy endpoint',
-    copyEndpointTitle: 'Copy endpoint',
-    backToMappedAria: 'Back to Rendered & mapped',
-    goToLifecycleAria: 'Go to Lifecycle, API & endpoint',
-    couldNotReceive: 'Could not receive',
-    couldNotMap: 'Could not map this image.',
-    tapBorderToExpand: 'Click the white border to expand',
-    expandedImagesAria: 'Expanded images view',
-    expandedMetadataAria: 'Expanded metadata view',
-    elementsCount: (count) => `${count} items`,
-    closeExpandedAria: 'Close expanded view',
-    doubleClickFullscreen: (alt) =>
-      `Double click to view ${alt} fullscreen`,
-    useAsBackgroundAria: (alt) => `Use ${alt} as background`,
-    openOriginalImageTitle: (alt) => `Open original image: ${alt}`,
-    copyUrlOfAria: (alt) => `Copy URL for ${alt}`,
-    copyUrlTitle: 'Copy URL',
-    viewInBackgroundTitle: (alt) => `View ${alt} in background`,
-    enlargeLeftAria: (alt) => `Enlarge ${alt} on the left`,
-    clickToViewTitle: (alt) => `Click to view ${alt}`,
-    viewProductAria: (alt) => `View ${alt}`,
-    closeFullscreenAria: 'Close fullscreen image',
-    closeImageAria: 'Close image',
-    searchingImages: 'Finding images...',
-    whyUseSearchLink: 'Why use Search Link?',
-    whyUseSearchLinkAria: 'Why use Search Link',
-    mobileCarouselAria: 'Mobile view of images, URLs and benefits',
-    mobileCompressionAria: 'Images and compression process',
-    productJsonLabel: 'Product JSON',
-    showJsonAria: (expanded, name) =>
-      `${expanded ? 'Hide' : 'Show'} JSON for ${name}`,
-    copyJsonOfAria: (name) => `Copy JSON for ${name}`,
-    copyAllJsonAria: 'Copy all JSON',
-    copyJsonTitle: 'Copy JSON',
-    closeEditorBackAria: 'Close editor and return to Lifecycle',
-    closeEditorTitle: 'Close editor',
-    readOnlyEditorAria: 'Read-only JSON editor',
-    pdfActions: {
-      json: 'Download JSON mapping',
-      images: 'Download images',
-      urls: 'Download URLs',
-      metadata: 'Download metadata',
-      all: 'Download all',
-      openEditor: 'Open in editor',
-    },
-    benefits: [
-      {
-        id: 'speed',
-        title: 'High speed',
-        description:
-          'Extract and organize images in seconds, lightweight with zero wait.',
-      },
-      {
-        id: 'clean-urls',
-        title: 'Clean URLs',
-        description:
-          'Turn long messy links into short, structured, ready-to-use URLs.',
-      },
-      {
-        id: 'easy-anywhere',
-        title: 'Easy on phone or PC',
-        description:
-          'Work smoothly from your phone or desktop with no setup hassle.',
-      },
-      {
-        id: 'ready-to-share',
-        title: 'Ready to share',
-        description:
-          'Preview every asset and copy your links or JSON in a single tap.',
-      },
-    ],
+    untitledOrgSentinel: 'Sin nombre',
+    imageUploadAria: (status, alt) =>
+      status === 'pending'
+        ? `Queued to save ${alt}`
+        : status === 'uploading'
+          ? `Saving ${alt} to cloud`
+          : status === 'done'
+            ? `${alt} saved`
+            : `Failed to save ${alt}`,
+    receiveStatusAria: (status, alt) =>
+      status === 'waiting'
+        ? `Receiving URL for ${alt}`
+        : status === 'received'
+          ? `URL received for ${alt}`
+          : `Failed to receive ${alt}`,
+    compressionStatusAria: (status, alt) =>
+      status === 'rendering'
+        ? `Rendering ${alt}`
+        : status === 'compressing'
+          ? `Compressing ${alt}`
+          : status === 'done'
+            ? `${alt} compressed`
+            : `Failed to compress ${alt}`,
   },
   examples: {
     sectionAria: 'Automation examples',
-    heading: 'Automation examples',
-    subtitle: 'How Search Link works across messaging & commerce platforms',
-    cardAria: (label) => `Example on ${label}`,
-    discordVisitor: 'Visitor',
+    sectionTitle: 'Automation examples',
+    sectionSubtitle: 'How Search Link works across different messaging platforms',
+    cardAria: (platformLabel) => `${platformLabel} example`,
+    visitorName: 'Visitor',
     items: {
       whatsapp: {
-        id: 'whatsapp',
         bottomLabel: 'WhatsApp · Chatbots',
-        companyName: 'Veloce Footwear',
         accountType: 'Enterprise',
         headerSubline: 'Automated catalog',
         userGreeting: 'Hi',
         botGreeting: 'Hello! How are you? What are you looking for today?',
-        userRequest: 'I want to see the white sneakers catalog',
-        botResultText: 'Here is what we have available in our catalog.',
+        userRequest: 'I want to see the white footwear catalog',
+        botResultText: 'Here are the matching items in our catalog.',
         products: [
-          { id: 'wa-court', name: 'Veloce Court', subtitle: 'White leather' },
-          { id: 'wa-runner', name: 'Veloce Runner', subtitle: 'Ivory knit' },
+          { name: 'Veloce Court', subtitle: 'White leather' },
+          { name: 'Veloce Runner', subtitle: 'Ivory knit' },
         ],
       },
       telegram: {
-        id: 'telegram',
         bottomLabel: 'Telegram · Bots',
-        companyName: 'Apex Motors',
         accountType: 'Official Bot',
         headerSubline: 'Digital dealership',
         userGreeting: 'Hi, looking for cars',
-        botGreeting: 'Welcome! Do you prefer an electric sedan or SUV?',
+        botGreeting: 'Welcome! Do you prefer an electric sedan or an SUV?',
         userRequest: 'Show me what is available today',
         botResultText: 'These two models are ready for delivery.',
         products: [
-          { id: 'tg-sedan', name: 'Apex Air EV', subtitle: 'Electric sedan' },
-          { id: 'tg-suv', name: 'Apex Terra', subtitle: 'Hybrid SUV' },
+          { name: 'Apex Air EV', subtitle: 'Electric sedan' },
+          { name: 'Apex Terra', subtitle: 'Hybrid SUV' },
         ],
       },
       instagram: {
-        id: 'instagram',
         bottomLabel: 'Instagram · DM Bot',
-        companyName: 'Núa Studio',
         accountType: 'Shop',
-        headerSubline: 'DM automation',
+        headerSubline: 'Automated DM replies',
         userGreeting: 'Hi, loved your reel',
         botGreeting: 'Thanks! Which accessory would you like to check?',
         userRequest: 'Watches and sunglasses for a gift',
         botResultText: 'Here are our seasonal favorites.',
         products: [
-          { id: 'ig-watch', name: 'Chrono Leather', subtitle: 'Classic edition' },
-          { id: 'ig-glasses', name: 'Tortoise Shades', subtitle: 'UV400 filter' },
+          { name: 'Chrono Leather', subtitle: 'Classic edition' },
+          { name: 'Tortoise Shades', subtitle: 'UV400 filter' },
         ],
       },
       messenger: {
-        id: 'messenger',
         bottomLabel: 'Messenger · Meta Bot',
-        companyName: 'Nordic Home',
         accountType: 'Home',
-        headerSubline: 'Interior advisor',
-        userGreeting: 'Hi, I saw your ad',
+        headerSubline: 'Space advisor',
+        userGreeting: 'Hi there, saw your ad',
         botGreeting: 'Hello! Which room are you shopping for?',
-        userRequest: 'Something minimalist for the living room',
-        botResultText: 'These two pieces pair together seamlessly.',
+        userRequest: 'Something minimal for the living room',
+        botResultText: 'These two pieces pair effortlessly together.',
         products: [
-          { id: 'ms-chair', name: 'Oak Lounge Chair', subtitle: 'Beige weave' },
-          { id: 'ms-plant', name: 'Monstera Planter', subtitle: 'Matte ceramic' },
+          { name: 'Oak Chair', subtitle: 'Beige fabric' },
+          { name: 'Potted Monstera', subtitle: 'Matte ceramic' },
         ],
       },
       web: {
-        id: 'web',
         bottomLabel: 'Web Chat · Storefront',
-        companyName: 'Bistro Brasa',
         accountType: 'Web Widget',
-        headerSubline: 'Live menu',
+        headerSubline: 'Online menu',
         userGreeting: 'Hi, what do you recommend?',
-        botGreeting: 'Hi! Everything is freshly made. What are you craving?',
+        botGreeting: 'Hello! Everything is made fresh. What are you craving?',
         userRequest: 'Something quick for dinner tonight',
-        botResultText: 'Our two top-ordered dishes tonight.',
+        botResultText: 'Our two most popular dishes tonight.',
         products: [
-          { id: 'web-burger', name: 'Brioche Burger', subtitle: 'Aged cheddar' },
-          { id: 'web-pizza', name: 'Margherita Pizza', subtitle: 'Sourdough crust' },
+          { name: 'Brioche Burger', subtitle: 'Aged cheddar' },
+          { name: 'Margherita Pizza', subtitle: 'Sourdough crust' },
         ],
       },
       discord: {
-        id: 'discord',
         bottomLabel: 'Discord · Bot API',
-        companyName: 'Pulse Gear',
         accountType: 'APP',
         headerSubline: '#hardware-store',
-        userGreeting: 'Hey, looking for a dark setup',
-        botGreeting: 'Hey there! Audio gear or peripherals?',
-        userRequest: 'Show me a keyboard and headset',
-        botResultText: 'Both in stock with same-day dispatch.',
+        userGreeting: 'Hi, building a dark setup',
+        botGreeting: 'Hey! Looking for audio gear or peripherals?',
+        userRequest: 'Show me keyboard and headphones',
+        botResultText: 'Both in stock for same-day shipping.',
         products: [
-          { id: 'dc-audio', name: 'Pulse Audio Pro', subtitle: 'Matte black' },
-          { id: 'dc-kb', name: '65% Keyboard', subtitle: 'Amber aluminum' },
+          { name: 'Pulse Audio Pro', subtitle: 'Matte black' },
+          { name: '65% Keyboard', subtitle: 'Amber aluminum' },
         ],
       },
       slack: {
-        id: 'slack',
         bottomLabel: 'Slack · B2B App',
-        companyName: 'WorkCraft B2B',
-        accountType: 'Workspace',
+        accountType: 'Enterprise',
         headerSubline: '#office-procurement',
         userGreeting: 'Hi, refreshing our office',
-        botGreeting: 'Glad to help. What equipment do you need quoted?',
+        botGreeting: 'Happy to help. Which equipment should we quote?',
         userRequest: 'Ergonomic chairs and mugs',
-        botResultText: 'Corporate catalog ready for ordering.',
+        botResultText: 'Corporate catalog ready for your order.',
         products: [
-          { id: 'sl-chair', name: 'Mesh Chair Pro', subtitle: 'B2B aluminum' },
-          { id: 'sl-mug', name: 'Ceramic Set', subtitle: 'Office pack' },
+          { name: 'Mesh Pro Chair', subtitle: 'B2B aluminum' },
+          { name: 'Ceramic Set', subtitle: 'Office pack' },
         ],
       },
       line: {
-        id: 'line',
         bottomLabel: 'LINE · Official Account',
-        companyName: 'Sora Botanics',
         accountType: 'Official',
         headerSubline: 'Skincare assistant',
         userGreeting: 'Hi, looking for skincare',
-        botGreeting: 'Hello! Are you looking for serum or fragrance?',
+        botGreeting: 'Hello! Interested in a serum or fragrance?',
         userRequest: 'Show me both please',
-        botResultText: 'Here are our most requested formulas.',
+        botResultText: 'Here are our top-rated formulas.',
         products: [
-          { id: 'ln-serum', name: 'Amber Serum', subtitle: 'Night repair' },
-          { id: 'ln-perfume', name: 'Botanic Mist', subtitle: 'Warm notes' },
+          { name: 'Amber Serum', subtitle: 'Night repair' },
+          { name: 'Botanical Scent', subtitle: 'Warm notes' },
         ],
       },
     },
   },
+  sourceCode: {
+    sectionAria: 'Search Link Core source code',
+    sectionTitle: 'Source code · Search Link Core',
+    sectionSubtitle:
+      'Free starter kits ready to connect your repository, database, and live catalog in production',
+    whatsappCardAria: 'Free WhatsApp starter library',
+    whatsappTitle: 'WhatsApp Bot',
+    whatsappSubtitle: 'Meta Cloud API · TypeScript',
+    whatsappDescription:
+      'Full source code with web dashboard, multi-database support, and live catalog.',
+    actions: {
+      github: {
+        label: 'Connect with GitHub',
+        feedback: 'Official repository ready in the next step.',
+      },
+      zip: {
+        label: 'Download ZIP',
+        feedback: 'Archive bundle ready once source code generation finishes.',
+      },
+      editor: {
+        label: 'View code in editor',
+        feedback: 'The file explorer will open right here.',
+      },
+      preview: {
+        label: 'View preview',
+        feedback:
+          'First interactive preview we will build once this layout is approved.',
+      },
+    },
+  },
+  menu: {
+    account: 'Account',
+    accountCreatedOn: (date) => `Created on ${date}`,
+    accountMenuAria: 'Account menu',
+    accountOptionsAria: 'Account options',
+    backToMenuAria: 'Back to menu',
+    backToOrgAria: 'Back to Organization',
+    closeAccountModalAria: 'Close Google Account modal',
+    closeMenuAria: 'Close menu',
+    closeOrgAria: 'Close Organization',
+    closeStoreAria: 'Close My store',
+    confirmSignOutAria: 'Confirm sign out',
+    confirmSignOutDescDesktop:
+      'Your organization and saved services will remain safely stored until you return.',
+    confirmSignOutDescMobile:
+      'Your organization and services will remain safely saved.',
+    confirmSignOutTitle: 'Sign out now?',
+    createdAtLabel: 'Account created',
+    dateUnavailable: 'Date unavailable',
+    googleAccount: 'Google Account',
+    googleAccountDetailsAria: 'Google Account details',
+    googleAccountLabel: 'Email address',
+    language: 'Language',
+    languageAutoDetectedNote: (countryCode) =>
+      countryCode
+        ? `Auto-detected from your location (${countryCode}).`
+        : 'Auto-detected from your browser settings.',
+    languageLocalStorageHint:
+      'Your manual selection is saved locally on this device.',
+    languageManualSavedNote: 'Language manually selected.',
+    languageOptionsAria: 'Available languages',
+    languageSectionPrompt:
+      'Choose the language for the entire interface and Search Link AI.',
+    languagesTitle: 'Available languages',
+    myStore: 'My store',
+    organization: 'Organization',
+    signOut: 'Sign out',
+    signOutError: 'Could not sign out. Please try again.',
+    usernameLabel: 'Name',
+  },
+  auth: {
+    acceptTermsLabel: 'I accept the Search Link terms of service and privacy policy.',
+    accessPlanLine: (providerLabel, isPro) =>
+      `${providerLabel} · ${isPro ? 'Pro' : 'Free'} Plan`,
+    allMyCatalogs: 'All my catalogs',
+    associatedCatalogAria: 'Associated catalog',
+    bullet1: 'Encrypted Google authentication',
+    bullet2: 'Cloud-synced catalogs & optimized media',
+    bullet3: 'Instant Search Link Core API Keys & endpoints',
+    closePanelAria: 'Close account panel',
+    connectingGoogle: 'Connecting with Google…',
+    continueWithGoogle: 'Continue with Google',
+    copyFullJsonTitle: 'Copy full JSON',
+    copyUrl: 'Copy URL',
+    createApiKey: 'Create API Key',
+    deleteBatchAria: (title) => `Delete catalog ${title}`,
+    drawerAriaAuth: 'Search Link account panel',
+    drawerAriaGuest: 'Sign in to Search Link',
+    emailPasswordProvider: 'Email & password',
+    endpointsTab: (count) => `API & Endpoints (${count})`,
+    errCreateKey: 'Could not create the API Key.',
+    errCreateKeySchema:
+      'Supabase Core tables are required to create persistent API Keys.',
+    errDeleteBatch: 'Could not delete catalog.',
+    errDeleteKey: 'Could not revoke API Key.',
+    errLoadData: 'Error loading account data.',
+    errProviderNotEnabled:
+      'Google OAuth is not enabled yet on this Supabase project.',
+    errRateLimit: 'Too many requests. Please wait a moment.',
+    generateKeyTitle: 'Generate new API Key',
+    googleLinkError: 'Could not generate the Google OAuth link.',
+    googleSignInError: 'An error occurred while signing in with Google.',
+    googleSignedInSuccess: 'Signed in with Google successfully.',
+    keyNamePlaceholder: 'Name (e.g. WhatsApp Bot)',
+    loadingSupabase: 'Syncing with Supabase…',
+    loginHeading: 'Save your catalogs & get your API',
+    loginSubtitle:
+      'Connect your Google account in one click to sync products, endpoints, and live usage.',
+    myCatalogsTab: (count) => `My catalogs (${count})`,
+    newKeyCreatedHint:
+      'New API Key created (copy it now, it will not be shown in full again):',
+    noCatalogsDesc:
+      'Process any webpage or upload images from the home screen to store them here.',
+    noCatalogsTitle: 'No saved catalogs yet',
+    onlyCatalogPrefix: (title) => `Only: ${title}`,
+    openGoogleNewTab: 'Open Google in a new tab',
+    pendingBatchText: (count) =>
+      `You have ${count} product${count === 1 ? '' : 's'} ready to save to your account.`,
+    popupBlockedError:
+      'Your browser blocked the Google popup window. Use the link below instead.',
+    productsCount: (count) =>
+      `${count} product${count === 1 ? '' : 's'}`,
+    readEndpointDescMiddle: ' or ',
+    readEndpointDescPrefix: 'Query your JSON catalog from any chatbot by sending ',
+    readEndpointDescSuffix: ' header to:',
+    readEndpointTitle: 'Search Link Core Read Endpoint',
+    refreshAccountAria: 'Refresh account data',
+    revokeKeyAria: (name) => `Revoke API Key ${name}`,
+    saveNow: 'Save now',
+    sessionActive: 'Session active',
+    sessionMissingProfilesTable:
+      'Session active (profiles table pending in Supabase)',
+    sessionSynced: 'Account synced with Supabase',
+    signOutAria: 'Sign out',
+    signOutShort: 'Sign out',
+    step2PendingDesc:
+      'Run the catalog migration in Supabase to persist batches here.',
+    step2PendingTitle: 'Catalog tables pending',
+    step3PendingDesc:
+      'Run the API Keys migration in Supabase to manage keys here.',
+    step3PendingTitle: 'API Keys table pending',
+    supabaseMissingError:
+      'Supabase configuration is unavailable in this environment.',
+    termsError: 'Please accept the terms to continue with Google.',
+    urlCopied: 'URL copied',
+  },
+  chat: {
+    clearConversation: 'Reset conversation',
+    clearShort: 'New chat',
+    closeAria: 'Close test chat',
+    dailyLimitNotice:
+      'You reached your daily free test query on Search Link AI. Come back tomorrow or integrate your endpoint.',
+    dailyLimitPlaceholder: 'Daily limit reached...',
+    defaultRequestError: 'Could not get a response from Search Link AI.',
+    defaultStreamError: 'Error during live response stream.',
+    defaultSuccessReply: 'Query completed.',
+    inputAria: 'Ask a question to test your catalog',
+    inputPlaceholder: 'Ask about any product in the catalog...',
+    liveProducts: (count) =>
+      `${count} live product${count === 1 ? '' : 's'}`,
+    networkError: 'Connection error with Search Link AI. Please try again.',
+    preparingReply: 'Preparing reply…',
+    queryingCatalog: 'Querying live catalog…',
+    sendAria: 'Send message',
+  },
   org: {
-    unnamed: 'Unnamed',
-    welcomeTitle: 'Welcome to your organization',
-    welcomeSubtitle: "Let's set it up",
-    companyPlaceholder: 'Enter your company name',
-    uploadLogoAria: 'Upload organization logo',
-    uploadLogoTitle: 'Upload organization logo',
-    helperArrowPrompt: 'Add your organization logo and name',
-    logoUploadError: 'Could not upload logo.',
-    congratsTitle: 'Congratulations!',
-    congratsBoth:
-      'Your organization logo and name are ready to go.',
-    congratsLogoOnly:
-      'Your organization logo is ready. You can set a name anytime.',
-    congratsNameOnly:
-      'Your organization name is set. You can upload a logo anytime.',
-    congratsMobileFallback:
-      'Your organization is created. You can update your logo or name anytime.',
-    changeLogoAria: 'Change organization logo',
-    changeLogoTitle: 'Change organization logo',
-    orgNamePlaceholder: 'Organization name',
-    orgNameShortPlaceholder: 'Name',
-    saveOrgNameAria: 'Save organization name',
-    renameOrgAria: 'Rename organization',
-    renameOrgTitle: 'Rename',
-    openStoreServicesAria: 'Open store for your services',
-    openStoreAria: 'Open store',
-    viewStoreTitle: 'View store',
-    pickStoreAria: 'Select a service to view in your store',
-    viewStoreOf: 'View store for',
-    noServicesAvailable: 'No services available yet.',
-    myServices: 'My services',
-    newProduct: 'New product',
-    noServicesTitleDesktop: 'You do not have any services yet',
-    noServicesDescDesktop:
-      'Process and map your first catalog on the home screen to generate its service, API Key, and endpoint here.',
-    noServicesTitleMobile: 'No services yet',
-    noServicesDescMobile:
-      'Process a catalog from home to access its service, API Key, and endpoint here.',
-    saveServiceNameAria: 'Save service name',
-    renameServiceAria: (name) => `Rename ${name}`,
-    renameServiceTitle: 'Rename service',
-    productCount: (count) => `${count} ${count === 1 ? 'product' : 'products'}`,
-    productCountShort: (count) => `${count} items`,
-    serviceApiLink: 'Service API',
-    serviceEndpointLink: 'Service Endpoint',
-    testChatAria: (name) => `Test ${name} in Search Link IA`,
-    testChatTitle: 'Test in Search Link IA',
-    viewHistoryAria: (name) => `View automation history for ${name}`,
-    viewHistoryTitle: 'View automation process',
-    closeBoxAria: 'Close dialog',
-    apiHintRaw:
-      'Send this key in the x-api-key or Authorization: Bearer header.',
     apiHintPrefixDesktop:
-      'For security only the prefix is stored in the cloud. Regenerate the API Key if you need to copy it again.',
+      'For security, only the key prefix is stored in the cloud. You can regenerate a full key anytime.',
     apiHintPrefixMobile:
-      'For security only the prefix is kept. Regenerate the API Key if you need to copy it again.',
-    serviceActiveDesktop: 'Service active',
-    servicePausedDesktop: 'Service paused',
-    serviceActiveMobile: 'Active',
-    servicePausedMobile: 'Paused',
-    regenerateKeyDesktop: 'Regenerate API Key',
-    regenerateKeyMobile: 'Regenerate',
-    pasteKeyPlaceholder: 'Paste your sl_core_... API Key to test',
+      'Only the prefix is stored for security. You can regenerate your key anytime.',
+    apiHintRaw:
+      'Include this key in Authorization: Bearer <API_KEY> or x-api-key to query this service.',
+    changeLogoAria: 'Change organization logo',
+    changeLogoTitle: 'Change logo',
+    closeBoxAria: 'Close dialog',
+    companyPlaceholder: 'Your company or brand name',
+    congratsBoth:
+      'Both your logo and organization name are saved. Everything is ready to manage your services.',
+    congratsLogoOnly:
+      'Your logo has been saved. You can add or update your organization name anytime.',
+    congratsMobileFallback:
+      'Your organization is configured and ready to publish catalogs and endpoints.',
+    congratsNameOnly:
+      'Your organization name is saved. You can also upload a logo later.',
+    congratsTitle: 'Organization ready!',
     copyCurlDesktop: 'Copy cURL command',
     copyCurlMobile: 'Copy cURL',
     curlCopied: 'cURL copied',
+    helperArrowPrompt:
+      'Upload your logo or type your business name to brand your endpoints and storefront.',
+    logoUploadError: 'Could not upload the logo.',
+    myServices: 'My services',
+    newProduct: 'New product',
+    noServicesAvailable: 'No active services yet',
+    noServicesDescDesktop:
+      'Process a URL or upload images from the home screen to generate your first live endpoint.',
+    noServicesDescMobile:
+      'Process a URL or upload images from home to see your services here.',
+    noServicesTitleDesktop: 'You do not have any services yet',
+    noServicesTitleMobile: 'No services yet',
+    openStoreAria: 'Open service storefront',
+    openStoreServicesAria: 'Open My store picker',
+    orgNamePlaceholder: 'Organization name',
+    orgNameShortPlaceholder: 'Your brand name',
+    pasteKeyPlaceholder: 'Paste your full API Key here to test...',
+    pickStoreAria: 'Select service store',
+    productCount: (count) =>
+      `${count} product${count === 1 ? '' : 's'}`,
+    productCountShort: (count) => `${count} items`,
+    regenerateKeyDesktop: 'Regenerate API Key',
+    regenerateKeyMobile: 'Regenerate key',
+    renameOrgAria: 'Rename organization',
+    renameOrgTitle: 'Rename',
+    renameServiceAria: (name) => `Rename service ${name}`,
+    renameServiceTitle: 'Rename service',
+    saveOrgNameAria: 'Save organization name',
+    saveServiceNameAria: 'Save service name',
+    serviceActiveDesktop: 'Service active',
+    serviceActiveMobile: 'Active',
+    serviceApiLink: 'View API Key',
+    serviceEndpointLink: 'Endpoint & Live Test',
+    servicePausedDesktop: 'Service paused',
+    servicePausedMobile: 'Paused',
+    testChatAria: (name) => `Test ${name} with Search Link AI`,
+    testChatTitle: 'Test with Search Link AI',
     testLive: 'Test live',
+    unnamed: 'Unnamed',
+    uploadLogoAria: 'Upload organization logo',
+    uploadLogoTitle: 'Upload logo',
+    viewHistoryAria: (name) => `View full catalog of ${name}`,
+    viewHistoryTitle: 'View service history',
+    viewStoreOf: 'Open My store for:',
+    viewStoreTitle: 'My store',
+    welcomeSubtitle:
+      'Centralize your catalogs, API Keys, and Search Link AI chatbot in one place.',
+    welcomeTitle: 'Welcome to your Organization',
   },
   store: {
-    emptyTitle: 'This service does not have visible products yet',
-    emptyDescDesktop:
-      'Process a new batch of images to display them in your visual store.',
-    emptyDescMobile: 'Process a new batch of images to view them here.',
+    emptyDescDesktop: 'This service does not have any saved products yet.',
+    emptyDescMobile: 'This service has no products to display yet.',
+    emptyTitle: 'No products in this store',
     noImage: 'No image',
-    tapToCollapse: 'Tap to collapse',
-    tapToExpandFull: (name) => `${name} (tap for full name)`,
-    unnamedProduct: 'Untitled product',
-  },
-  chat: {
-    closeAria: 'Close Search Link IA',
-    clearConversation: 'Clear conversation',
-    clearShort: 'Clear',
-    liveProducts: (count) =>
-      `${count} live ${count === 1 ? 'product' : 'products'}`,
-    preparingReply: 'Preparing response...',
-    queryingCatalog: 'Querying catalog...',
-    dailyLimitNotice:
-      'Daily preview used (1/1 today). Come back tomorrow to test again.',
-    dailyLimitPlaceholder: 'Daily limit of 1 test reached for today',
-    inputPlaceholder: 'Type your message...',
-    inputAria: 'Type your message for Search Link IA',
-    sendAria: 'Send message',
-    defaultSuccessReply: 'Here are the matching options from your catalog.',
-    defaultRequestError:
-      'Unable to get a response from Search Link IA right now.',
-    defaultStreamError: 'Error generating response.',
-    networkError: 'Network error connecting to Search Link IA. Please try again.',
-  },
-  auth: {
-    drawerAriaAuth: 'Your Search Link workspace',
-    drawerAriaGuest: 'Sign in to Search Link',
-    signOutAria: 'Sign out',
-    signOutShort: 'Sign out',
-    closePanelAria: 'Close panel',
-    emailPasswordProvider: 'Email & password',
-    accessPlanLine: (provider, isPro) =>
-      `Access: ${provider} · ${isPro ? 'Pro' : 'Free'} Plan`,
-    refreshAccountAria: 'Refresh account',
-    sessionSynced:
-      'Active session synced with Supabase (profiles table).',
-    sessionMissingProfilesTable:
-      'Active session. Run Step 1 SQL to create the profiles table.',
-    sessionActive: 'Active session on Supabase Auth.',
-    pendingBatchText: (count) =>
-      `You have a newly mapped catalog ready to save (${count} items).`,
-    saveNow: 'Save now',
-    myCatalogsTab: (count) => `My catalogs (${count})`,
-    endpointsTab: (count) => `Endpoints & API Keys (${count})`,
-    loadingSupabase: 'Loading data from Supabase...',
-    step2PendingTitle: 'Step 2 pending: Save catalogs',
-    step2PendingDesc:
-      'We are verifying your sign-in first (Step 1). Once Google login is verified, catalog tables will store batches here.',
-    noCatalogsTitle: 'No saved catalogs yet',
-    noCatalogsDesc:
-      'Process images or a webpage while signed in and they will appear automatically here.',
-    productsCount: (count) => `${count} products`,
-    copyFullJsonTitle: 'Copy full JSON',
-    deleteBatchAria: (title) => `Delete ${title}`,
-    step3PendingTitle: 'Step 3 pending: Endpoints & API Keys',
-    step3PendingDesc:
-      'Complete Steps 1 & 2 first to enable API Keys and chatbot JSON endpoints.',
-    readEndpointTitle: 'JSON Read Endpoint',
-    readEndpointDescPrefix:
-      'Connect this link to your chatbot, n8n, or Make by sending your API Key via ',
-    readEndpointDescMiddle: ' or header ',
-    readEndpointDescSuffix: '.',
-    generateKeyTitle: 'Generate new API Key',
-    keyNamePlaceholder: 'Name (e.g. WhatsApp Bot)',
-    associatedCatalogAria: 'Associated catalog',
-    allMyCatalogs: 'All my catalogs',
-    onlyCatalogPrefix: (title) => `Only: ${title}`,
-    createApiKey: 'Create API Key',
-    newKeyCreatedHint:
-      'Your new API Key (copy it now, it will not be shown in full again)',
-    copyUrl: 'Copy URL',
-    urlCopied: 'URL copied',
-    revokeKeyAria: (name) => `Revoke ${name}`,
-    loginHeading: 'Your Search Link account',
-    loginSubtitle:
-      'Sign in with one tap using Google to save your processed catalogs and connect your API.',
-    acceptTermsLabel: 'Accept Terms & Conditions and Privacy Policy',
-    termsError:
-      'You must accept the Terms & Conditions and Privacy Policy before continuing.',
-    supabaseMissingError: 'Supabase is not configured in this environment.',
-    googleLinkError: 'Could not generate Google sign-in link.',
-    popupBlockedError:
-      'Your browser blocked the popup window. Click the link below to open Google.',
-    googleSignInError: 'Could not sign in with Google.',
-    googleSignedInSuccess: 'Signed in with Google successfully.',
-    connectingGoogle: 'Connecting with Google…',
-    continueWithGoogle: 'Continue with Google',
-    openGoogleNewTab: 'Open Google sign-in in a new tab',
-    bullet1: 'Instant access without extra passwords or emails',
-    bullet2: 'Your images and JSON safely stored in your workspace',
-    bullet3: 'Ready to generate your Endpoint and API Keys',
-    errProviderNotEnabled: 'Google sign-in is not enabled in Supabase.',
-    errRateLimit: 'Too many requests. Please wait a few seconds.',
-    errLoadData: 'Could not load your data.',
-    errDeleteBatch: 'Could not delete catalog.',
-    errCreateKey: 'Could not create API Key.',
-    errCreateKeySchema: 'Run the SQL setup in Supabase to enable API Keys first.',
-    errDeleteKey: 'Could not revoke API Key.',
-  },
-};
-
-const PT_DICT: TranslationDictionary = {
-  common: {
-    userFallback: 'Usuário',
-    productFallback: 'Produto',
-    generalCategory: 'Geral',
-    copy: 'Copiar',
-    copied: 'Copiado',
-    copiedFem: 'Copiada',
-    cancel: 'Cancelar',
-    accept: 'Aceitar',
-    edit: 'Editar',
-    continueBtn: 'Continuar',
-    nextBtn: 'Avançar',
-    skip: 'Pular',
-    close: 'Fechar',
-    save: 'Salvar',
-  },
-  menu: {
-    account: 'Conta',
-    googleAccount: 'Sua conta do Google',
-    googleAccountDetailsAria: 'Detalhes da sua conta do Google',
-    organization: 'Organização',
-    myStore: 'Minha loja',
-    language: 'Idioma',
-    languagesTitle: 'Idiomas',
-    accountMenuAria: 'Menu da conta',
-    accountOptionsAria: 'Opções da conta',
-    languageOptionsAria: 'Idiomas disponíveis',
-    backToMenuAria: 'Voltar ao menu',
-    backToOrgAria: 'Voltar para Organização',
-    closeMenuAria: 'Fechar menu',
-    closeAccountModalAria: 'Fechar detalhes da conta',
-    closeStoreAria: 'Fechar loja',
-    closeOrgAria: 'Fechar organização',
-    usernameLabel: 'Nome de usuário',
-    googleAccountLabel: 'Conta do Google',
-    createdAtLabel: 'Data de criação',
-    accountCreatedOn: (formattedDate) => `Conta criada em ${formattedDate}`,
-    dateUnavailable: 'Data indisponível',
-    signOut: 'Sair da conta',
-    confirmSignOutAria: 'Confirmar saída da conta',
-    confirmSignOutTitle: 'Tem certeza de que deseja sair da conta?',
-    confirmSignOutDescDesktop:
-      'Você precisará entrar novamente com o Google para acessar seu espaço.',
-    confirmSignOutDescMobile:
-      'Você precisará entrar novamente com o Google.',
-    signOutError: 'Não foi possível encerrar a sessão. Tente novamente.',
-    languageSectionPrompt:
-      'Escolha o idioma oficial de toda a plataforma e da Search Link IA.',
-    languageSelectedLabel: (label) => `${label} selecionado`,
-    languageAutoDetectedNote: (countryCode) =>
-      countryCode
-        ? `Idioma ajustado automaticamente pelo seu IP (${countryCode}).`
-        : 'Idioma ajustado automaticamente pela sua localização.',
-    languageManualSavedNote:
-      'Preferência salva neste navegador. Não será alterada automaticamente.',
-    languageLocalStorageHint:
-      'Você pode alternar entre Espanhol, Inglês e Português quando quiser.',
-  },
-  home: {
-    uploadDeviceAria: 'Enviar imagens do dispositivo',
-    uploadDeviceTitle: 'Enviar imagens do seu dispositivo',
-    urlFormAria: 'Colar URL do site',
-    urlInputPlaceholder: 'Cole aqui a URL do seu site...',
-    urlInputAria: 'URL do seu site',
-    extractingAria: 'Extraindo imagens',
-    clearUrlAria: 'Limpar URL',
-    invalidUrlError:
-      'Não foi possível encontrar imagens válidas neste endereço web.',
-    connectUrlError:
-      'Não foi possível conectar com a página. Verifique a URL e tente novamente.',
-    invalidFilesError: 'Por favor, selecione arquivos de imagem válidos.',
-    freePlanNotice: (max) =>
-      `Plano gratuito: as primeiras ${max} imagens serão processadas.`,
-    defaultServicePrefix: 'Serviço',
-    catalogBatchTitle: (count) => `Catálogo (${count} imagens)`,
-    savedToCoreNotice: 'Serviço e API salvos no Search Link Core.',
-    openAccountMenuAria: (name) => `Abrir menu da conta (${name})`,
-    connectedAccountAria: (name) => `Conta conectada (${name})`,
-    openAuthAria: 'Abrir cadastro ou login',
-    openAuthTitle: 'Criar conta ou entrar',
-    uploadImageFallbackError: 'Erro ao enviar a imagem.',
-    mapImageFallbackError: 'Erro ao renderizar e mapear a imagem com IA.',
-    imageLabel: (index) => `Imagem ${index}`,
-    productLabel: (index) => `Produto ${index}`,
+    tapToCollapse: 'Tap to collapse name',
+    tapToExpandFull: (name) => `Tap to view full name: ${name}`,
+    unnamedProduct: 'Unnamed product',
   },
   pipeline: {
-    stageImagesTitle: 'Aqui você verá suas imagens',
-    stageMetadataTitle: 'Aqui você pode ver seus metadados',
-    stageCompressingTitle: 'Comprimindo',
-    stageUploadingTitle: 'Enviando para o banco',
-    stageReceivingTitle: 'Recebendo',
-    stageMappingTitle: 'Renderizar e mapear',
-    stageMappedDoneTitle: 'Renderizado e mapeado',
-    stageLifecycleTitle: 'Ciclo de vida',
-    stageLifecycleFullTitle: 'Ciclo de vida, API e endpoint',
-    stageViewApiTitle: 'Ver sua API',
-    stageProductivityTitle: 'Produtividade',
-    stageEditorTitle: 'Editor JSON',
-    congratsTitleDesktop: 'Parabéns!',
-    congratsTitleMobile: 'Parabéns!',
-    congratsBodyDesktop: (count) =>
-      `Você já tem ${
-        count === 1
-          ? '1 imagem processada e salva'
-          : `${count} imagens processadas e salvas`
-      } no nosso R2. Seu endpoint e sua API conectam seu chatbot ao site da sua empresa.`,
-    congratsBodyMobile: (count) =>
-      `Você já tem ${
-        count === 1
-          ? '1 imagem processada e salva'
-          : `${count} imagens processadas e salvas`
-      } no nosso R2, prontas para conectar seu chatbot e site.`,
-    generatedApiTitle: 'Sua API e endpoint gerados',
-    generatedApisLink: 'APIs geradas',
-    generatedEndpointLink: 'Endpoint gerado',
-    credentialsReadyTitle: 'Suas credenciais prontas',
-    credentialsReadyHint:
-      'Toque no ícone ao lado para copiar sua API Key ou endpoint.',
-    viewYourOrg: 'Ver sua organização',
-    generatingApiKey: 'Gerando API Key...',
-    generatingEndpoint: 'Gerando endpoint...',
-    copyApiAria: 'Copiar API',
-    copyApiTitle: 'Copiar API Key',
-    copyEndpointAria: 'Copiar endpoint',
-    copyEndpointTitle: 'Copiar endpoint',
-    backToMappedAria: 'Voltar para Renderizado e mapeado',
-    goToLifecycleAria: 'Ir para Ciclo de vida, API e endpoint',
-    couldNotReceive: 'Não foi possível receber',
-    couldNotMap: 'Não foi possível mapear esta imagem.',
-    tapBorderToExpand: 'Toque na borda branca para ampliar',
-    expandedImagesAria: 'Visualização ampliada de imagens',
-    expandedMetadataAria: 'Visualização ampliada de metadados',
-    elementsCount: (count) => `${count} itens`,
-    closeExpandedAria: 'Fechar visualização ampliada',
-    doubleClickFullscreen: (alt) =>
-      `Clique duas vezes para ver ${alt} em tela cheia`,
-    useAsBackgroundAria: (alt) => `Usar ${alt} como fundo`,
-    openOriginalImageTitle: (alt) => `Abrir imagem original: ${alt}`,
-    copyUrlOfAria: (alt) => `Copiar URL de ${alt}`,
-    copyUrlTitle: 'Copiar URL',
-    viewInBackgroundTitle: (alt) => `Ver ${alt} no fundo`,
-    enlargeLeftAria: (alt) => `Ampliar ${alt} no lado esquerdo`,
-    clickToViewTitle: (alt) => `Clique para ver ${alt}`,
-    viewProductAria: (alt) => `Ver ${alt}`,
-    closeFullscreenAria: 'Fechar imagem em tela cheia',
-    closeImageAria: 'Fechar imagem',
-    searchingImages: 'Buscando imagens...',
-    whyUseSearchLink: 'Por que usar o Search Link?',
-    whyUseSearchLinkAria: 'Por que usar o Search Link',
-    mobileCarouselAria: 'Visualização móvel de imagens, URLs e benefícios',
-    mobileCompressionAria: 'Imagens e processo de compressão',
-    productJsonLabel: 'JSON do produto',
-    showJsonAria: (expanded, name) =>
-      `${expanded ? 'Ocultar' : 'Ver'} JSON de ${name}`,
-    copyJsonOfAria: (name) => `Copiar JSON de ${name}`,
-    copyAllJsonAria: 'Copiar todo o JSON',
-    copyJsonTitle: 'Copiar JSON',
-    closeEditorBackAria: 'Fechar editor e voltar para Ciclo de vida',
-    closeEditorTitle: 'Fechar editor',
-    readOnlyEditorAria: 'Editor JSON somente leitura',
-    pdfActions: {
-      json: 'Baixar mapeamento JSON',
-      images: 'Baixar imagens',
-      urls: 'Baixar URLs',
-      metadata: 'Baixar metadados',
-      all: 'Baixar tudo',
-      openEditor: 'Ver no editor',
-    },
+    backToMappedAria: 'Back to JSON mapping',
     benefits: [
       {
         id: 'speed',
-        title: 'Rapidez',
+        title: 'Ready in seconds',
         description:
-          'Extrai e organiza imagens em segundos, leve e sem esperas.',
+          'Optimizes images to WebP and uploads straight to CDN with zero setup.',
       },
       {
         id: 'clean-urls',
-        title: 'URLs limpas',
+        title: 'Clean URLs for bots',
         description:
-          'Converte caminhos longos em links curtos, claros e organizados.',
+          'Short, immutable links tailored for WhatsApp, Telegram, or any API.',
       },
       {
         id: 'easy-anywhere',
-        title: 'Fácil no celular ou PC',
+        title: 'Easy on mobile',
         description:
-          'Use com conforto pelo telefone ou computador sem complicações.',
+          'Upload photos from your gallery or extract any website instantly.',
       },
       {
         id: 'ready-to-share',
-        title: 'Prontas para compartilhar',
+        title: 'Structured catalog',
         description:
-          'Revise cada foto e tenha seus links prontos em um toque.',
+          'AI extracts titles, categories, and descriptions ready in JSON or PDF.',
       },
     ],
+    clickToViewTitle: (alt) => `Click to enlarge: ${alt}`,
+    closeEditorBackAria: 'Close editor and go back',
+    closeEditorTitle: 'Close editor',
+    closeExpandedAria: 'Collapse expanded view',
+    closeFullscreenAria: 'Close fullscreen image',
+    closeImageAria: 'Close image',
+    congratsBodyDesktop: (count) =>
+      `Your catalog with ${count} product${count === 1 ? '' : 's'} is optimized, mapped in Search Link Core, and ready to connect to any channel.`,
+    congratsBodyMobile: (count) =>
+      `${count} product${count === 1 ? '' : 's'} optimized and ready to use in your chatbot or store.`,
+    congratsTitleDesktop: 'Automation complete!',
+    congratsTitleMobile: 'All set!',
+    copyAllJsonAria: 'Copy entire catalog JSON',
+    copyApiAria: 'Copy API Key',
+    copyApiTitle: 'Copy API Key',
+    copyEndpointAria: 'Copy endpoint URL',
+    copyEndpointTitle: 'Copy endpoint',
+    copyJsonOfAria: (name) => `Copy JSON for ${name}`,
+    copyJsonTitle: 'Copy JSON',
+    copyUrlOfAria: (label) => `Copy URL for ${label}`,
+    copyUrlTitle: 'Copy URL',
+    couldNotMap: 'Could not map this item.',
+    couldNotReceive: 'Could not retrieve the final URL.',
+    credentialsReadyHint:
+      'Use this key and endpoint in WhatsApp, Telegram, or your backend server.',
+    credentialsReadyTitle: 'Live credentials ready',
+    doubleClickFullscreen: (alt) => `Double-click for fullscreen: ${alt}`,
+    elementsCount: (count) => `${count} item${count === 1 ? '' : 's'}`,
+    enlargeLeftAria: (alt) => `Enlarge image ${alt}`,
+    expandedImagesAria: 'Expanded images view',
+    expandedMetadataAria: 'Expanded metadata view',
+    generatedApiTitle: 'Generated API Key & Endpoint',
+    generatedApisLink: 'View generated API Key',
+    generatedEndpointLink: 'View live Endpoint',
+    generatingApiKey: 'Generating API Key…',
+    generatingEndpoint: 'Generating endpoint…',
+    goToLifecycleAria: 'View lifecycle and credentials',
+    mobileCarouselAria: 'Catalog & AI carousel',
+    mobileCompressionAria: 'Compression and upload progress',
+    openOriginalImageTitle: (alt) => `Open original image: ${alt}`,
+    pdfActions: {
+      json: 'Download JSON PDF',
+      images: 'Download Images PDF',
+      urls: 'Download URLs PDF',
+      metadata: 'Download Metadata PDF',
+      all: 'Download Full Catalog (PDF)',
+      openEditor: 'View JSON in editor',
+    },
+    productJsonLabel: 'Product JSON',
+    readOnlyEditorAria: 'Read-only JSON editor',
+    searchingImages: 'Extracting images…',
+    showJsonAria: (isExpanded, name) =>
+      isExpanded ? `Hide JSON for ${name}` : `View JSON for ${name}`,
+    stageCompressingTitle: 'Compressing images…',
+    stageEditorTitle: 'JSON Editor',
+    stageImagesTitle: 'Catalog images',
+    stageLifecycleFullTitle: 'Lifecycle · Search Link Core',
+    stageLifecycleTitle: 'Lifecycle',
+    stageMappedDoneTitle: 'Mapping complete',
+    stageMappingTitle: 'Mapping with AI…',
+    stageMetadataTitle: 'Clean URLs',
+    stageProductivityTitle: 'Productivity',
+    stageReceivingTitle: 'Receiving final URLs…',
+    stageUploadingTitle: 'Uploading to Search Link Cloud…',
+    stageViewApiTitle: 'Your API ready',
+    tapBorderToExpand: 'Tap border to expand',
+    useAsBackgroundAria: (alt) => `Use ${alt} as background`,
+    viewInBackgroundTitle: (alt) => `Preview ${alt} as background`,
+    viewProductAria: (name) => `View product ${name}`,
+    viewYourOrg: 'Open Organization & test in AI',
+    whyUseSearchLink: 'Why use Search Link?',
+    whyUseSearchLinkAria: 'Search Link benefits',
+  },
+};
+
+const PT_DICTIONARY: TranslationDictionary = {
+  common: {
+    accept: 'Aceitar',
+    cancel: 'Cancelar',
+    close: 'Fechar',
+    continueBtn: 'Continuar',
+    copied: 'Copiado',
+    copiedFem: 'Copiada',
+    copy: 'Copiar',
+    edit: 'Editar',
+    generalCategory: 'Geral',
+    nextBtn: 'Próximo',
+    productFallback: 'Produto',
+    skip: 'Pular',
+    userFallback: 'Usuário',
+  },
+  app: {
+    uploadImagesAria: 'Enviar imagens do dispositivo',
+    uploadImagesTitle: 'Enviar imagens do seu dispositivo',
+    pasteUrlFormAria: 'Colar URL do site',
+    urlPlaceholder: 'Cole aqui a URL do seu site...',
+    urlInputAria: 'URL do seu site',
+    extractingAria: 'Extraindo imagens',
+    clearUrlAria: 'Limpar URL',
+    extractEmptyError: 'Não encontramos imagens válidas nesse endereço web.',
+    extractNetworkError:
+      'Não foi possível conectar ao site. Verifique a URL e tente novamente.',
+    freePlanLimitNotice: (max) =>
+      `Plano gratuito: as primeiras ${max} imagens serão processadas.`,
+    invalidImageFilesError: 'Por favor, selecione arquivos de imagem válidos.',
+    uploadImageError: 'Erro ao enviar a imagem.',
+    mapImageError: 'Erro ao renderizar e mapear a imagem com IA.',
+    serviceDefaultPrefix: (name) => `Serviço ${name}`,
+    batchTitleFallback: (count) => `Catálogo (${count} imagens)`,
+    coreSavedNotice: 'Serviço e API salvos no Search Link Core.',
+    imageFallbackAlt: (index) => `Imagem ${index}`,
+    openAccountMenuAria: (name) => `Abrir menu da conta (${name})`,
+    connectedAccountAria: (name) => `Conta conectada (${name})`,
+    openAuthAria: 'Abrir cadastro de conta',
+    openAuthTitle: 'Criar conta ou entrar',
+    untitledOrgSentinel: 'Sin nombre',
+    imageUploadAria: (status, alt) =>
+      status === 'pending'
+        ? `Na fila para salvar ${alt}`
+        : status === 'uploading'
+          ? `Salvando ${alt} na nuvem`
+          : status === 'done'
+            ? `${alt} salva`
+            : `Erro ao salvar ${alt}`,
+    receiveStatusAria: (status, alt) =>
+      status === 'waiting'
+        ? `Recebendo URL de ${alt}`
+        : status === 'received'
+          ? `URL recebida para ${alt}`
+          : `Erro ao receber ${alt}`,
+    compressionStatusAria: (status, alt) =>
+      status === 'rendering'
+        ? `Renderizando ${alt}`
+        : status === 'compressing'
+          ? `Comprimindo ${alt}`
+          : status === 'done'
+            ? `${alt} comprimida`
+            : `Erro ao comprimir ${alt}`,
   },
   examples: {
     sectionAria: 'Exemplos de automações',
-    heading: 'Exemplos de automações',
-    subtitle: 'Como o Search Link atua em diferentes plataformas',
-    cardAria: (label) => `Exemplo no ${label}`,
-    discordVisitor: 'Visitante',
+    sectionTitle: 'Exemplos de automações',
+    sectionSubtitle: 'Como o Search Link atua em diferentes plataformas',
+    cardAria: (platformLabel) => `Exemplo no ${platformLabel}`,
+    visitorName: 'Visitante',
     items: {
       whatsapp: {
-        id: 'whatsapp',
         bottomLabel: 'WhatsApp · Chatbots',
-        companyName: 'Veloce Calçados',
         accountType: 'Enterprise',
         headerSubline: 'Catálogo automático',
         userGreeting: 'Olá',
-        botGreeting: 'Olá! Tudo bem? O que você procura hoje?',
-        userRequest: 'Quero ver o catálogo de tênis brancos',
-        botResultText: 'Aqui estão os modelos disponíveis em catálogo.',
+        botGreeting: 'Olá! Tudo bem? O que você está procurando hoje?',
+        userRequest: 'Quero ver o catálogo de calçados brancos',
+        botResultText: 'Aqui estão as opções do nosso catálogo.',
         products: [
-          { id: 'wa-court', name: 'Veloce Court', subtitle: 'Couro branco' },
-          { id: 'wa-runner', name: 'Veloce Runner', subtitle: 'Knit marfim' },
+          { name: 'Veloce Court', subtitle: 'Couro branco' },
+          { name: 'Veloce Runner', subtitle: 'Knit marfim' },
         ],
       },
       telegram: {
-        id: 'telegram',
         bottomLabel: 'Telegram · Bots',
-        companyName: 'Apex Motors',
         accountType: 'Bot Oficial',
         headerSubline: 'Concessionária digital',
         userGreeting: 'Olá, procuro carros',
@@ -1636,334 +1535,538 @@ const PT_DICT: TranslationDictionary = {
         userRequest: 'Mostre os disponíveis hoje',
         botResultText: 'Estes dois modelos estão prontos para entrega.',
         products: [
-          { id: 'tg-sedan', name: 'Apex Air EV', subtitle: 'Sedã elétrico' },
-          { id: 'tg-suv', name: 'Apex Terra', subtitle: 'SUV híbrido' },
+          { name: 'Apex Air EV', subtitle: 'Sedã elétrico' },
+          { name: 'Apex Terra', subtitle: 'SUV híbrida' },
         ],
       },
       instagram: {
-        id: 'instagram',
         bottomLabel: 'Instagram · DM Bot',
-        companyName: 'Núa Studio',
         accountType: 'Loja',
         headerSubline: 'Respostas no DM',
-        userGreeting: 'Olá, curti o seu reel',
-        botGreeting: 'Obrigado! Qual acessório você quer ver?',
+        userGreeting: 'Olá, gostei do reel',
+        botGreeting: 'Obrigado! Qual acessório você quer conferir?',
         userRequest: 'Relógios e óculos para presente',
-        botResultText: 'Aqui estão os nossos favoritos da temporada.',
+        botResultText: 'Aqui estão nossos favoritos da temporada.',
         products: [
-          { id: 'ig-watch', name: 'Crono Couro', subtitle: 'Edição clássica' },
-          { id: 'ig-glasses', name: 'Óculos Tartaruga', subtitle: 'Filtro UV400' },
+          { name: 'Crono Couro', subtitle: 'Edição clássica' },
+          { name: 'Óculos Tartaruga', subtitle: 'Filtro UV400' },
         ],
       },
       messenger: {
-        id: 'messenger',
         bottomLabel: 'Messenger · Meta Bot',
-        companyName: 'Casa Nórdica',
         accountType: 'Casa',
         headerSubline: 'Consultor de espaços',
-        userGreeting: 'Olá, vi o anúncio',
-        botGreeting: 'Oi! Para qual ambiente procura peças?',
+        userGreeting: 'Oi, vi o anúncio de vocês',
+        botGreeting: 'Olá! Para qual ambiente está procurando peças?',
         userRequest: 'Algo minimalista para a sala',
-        botResultText: 'Estas duas peças combinam perfeitamente juntas.',
+        botResultText: 'Essas duas peças combinam perfeitamente juntas.',
         products: [
-          { id: 'ms-chair', name: 'Poltrona Carvalho', subtitle: 'Linho bege' },
-          { id: 'ms-plant', name: 'Vaso Monstera', subtitle: 'Cerâmica fosca' },
+          { name: 'Cadeira Carvalho', subtitle: 'Tecido bege' },
+          { name: 'Monstera Vaso', subtitle: 'Cerâmica fosca' },
         ],
       },
       web: {
-        id: 'web',
         bottomLabel: 'Chat Web · Loja',
-        companyName: 'Bistro Brasa',
         accountType: 'Web Widget',
-        headerSubline: 'Cardápio on-line',
+        headerSubline: 'Cardápio online',
         userGreeting: 'Olá, o que recomendam?',
-        botGreeting: 'Oi! Tudo sai fresco na hora. O que prefere?',
-        userRequest: 'Algo rápido para o jantar hoje',
+        botGreeting: 'Olá! Tudo sai fresquinho. O que você deseja hoje?',
+        userRequest: 'Algo rápido para jantar hoje',
         botResultText: 'Nossos dois pratos mais pedidos esta noite.',
         products: [
-          { id: 'web-burger', name: 'Burger Brioche', subtitle: 'Cheddar curado' },
-          { id: 'web-pizza', name: 'Pizza Margherita', subtitle: 'Fermentação natural' },
+          { name: 'Burger Brioche', subtitle: 'Cheddar maturado' },
+          { name: 'Pizza Margherita', subtitle: 'Fermentação natural' },
         ],
       },
       discord: {
-        id: 'discord',
         bottomLabel: 'Discord · Bot API',
-        companyName: 'Pulse Gear',
         accountType: 'APP',
         headerSubline: '#loja-hardware',
         userGreeting: 'Olá, busco setup escuro',
         botGreeting: 'E aí! Procura áudio ou periféricos?',
-        userRequest: 'Mostre teclado e headset',
+        userRequest: 'Mostre teclado e fones de ouvido',
         botResultText: 'Ambos disponíveis com envio imediato.',
         products: [
-          { id: 'dc-audio', name: 'Pulse Audio Pro', subtitle: 'Preto fosco' },
-          { id: 'dc-kb', name: 'Teclado 65%', subtitle: 'Alumínio âmbar' },
+          { name: 'Pulse Audio Pro', subtitle: 'Preto fosco' },
+          { name: 'Teclado 65%', subtitle: 'Alumínio âmbar' },
         ],
       },
       slack: {
-        id: 'slack',
         bottomLabel: 'Slack · App B2B',
-        companyName: 'WorkCraft B2B',
         accountType: 'Empresa',
         headerSubline: '#compras-escritorio',
-        userGreeting: 'Olá, renovando escritório',
+        userGreeting: 'Olá, estamos renovando o escritório',
         botGreeting: 'Com certeza. Quais itens precisam cotar?',
         userRequest: 'Cadeiras ergonômicas e canecas',
         botResultText: 'Catálogo corporativo pronto para pedido.',
         products: [
-          { id: 'sl-chair', name: 'Cadeira Mesh Pro', subtitle: 'Alumínio B2B' },
-          { id: 'sl-mug', name: 'Kit Cerâmica', subtitle: 'Lote escritório' },
+          { name: 'Cadeira Mesh Pro', subtitle: 'Alumínio B2B' },
+          { name: 'Kit Cerâmica', subtitle: 'Lote escritório' },
         ],
       },
       line: {
-        id: 'line',
         bottomLabel: 'LINE · Official Account',
-        companyName: 'Sora Botanics',
         accountType: 'Oficial',
-        headerSubline: 'Assistente skincare',
+        headerSubline: 'Assistente cosmético',
         userGreeting: 'Olá, procuro skincare',
-        botGreeting: 'Oi! Prefere sérum ou fragrância?',
+        botGreeting: 'Olá! Tem interesse em sérum ou fragrância?',
         userRequest: 'Mostre os dois por favor',
         botResultText: 'Aqui estão nossas fórmulas mais procuradas.',
         products: [
-          { id: 'ln-serum', name: 'Sérum Âmbar', subtitle: 'Uso noturno' },
-          { id: 'ln-perfume', name: 'Essência Botânica', subtitle: 'Notas quentes' },
+          { name: 'Sérum Âmbar', subtitle: 'Uso noturno' },
+          { name: 'Essência Botânica', subtitle: 'Notas quentes' },
         ],
       },
     },
   },
+  sourceCode: {
+    sectionAria: 'Código-fonte do Search Link Core',
+    sectionTitle: 'Código-fonte · Search Link Core',
+    sectionSubtitle:
+      'Bibliotecas gratuitas prontas para conectar seu repositório, banco de dados e catálogo em produção',
+    whatsappCardAria: 'Biblioteca gratuita para WhatsApp',
+    whatsappTitle: 'WhatsApp Bot',
+    whatsappSubtitle: 'Meta Cloud API · TypeScript',
+    whatsappDescription:
+      'Código completo com painel web, múltiplos bancos de dados e catálogo ao vivo.',
+    actions: {
+      github: {
+        label: 'Conectar com GitHub',
+        feedback: 'Repositório oficial pronto na próxima etapa.',
+      },
+      zip: {
+        label: 'Baixar ZIP',
+        feedback: 'Pacote compactado pronto ao concluir o código-fonte.',
+      },
+      editor: {
+        label: 'Ver código no editor',
+        feedback: 'O explorador de arquivos será habilitado aqui.',
+      },
+      preview: {
+        label: 'Ver preview',
+        feedback:
+          'Primeira visualização interativa que construiremos ao aprovar este layout.',
+      },
+    },
+  },
+  menu: {
+    account: 'Conta',
+    accountCreatedOn: (date) => `Criada em ${date}`,
+    accountMenuAria: 'Menu da conta',
+    accountOptionsAria: 'Opções da conta',
+    backToMenuAria: 'Voltar ao menu',
+    backToOrgAria: 'Voltar para Organização',
+    closeAccountModalAria: 'Fechar conta Google',
+    closeMenuAria: 'Fechar menu',
+    closeOrgAria: 'Fechar Organização',
+    closeStoreAria: 'Fechar Minha loja',
+    confirmSignOutAria: 'Confirmar saída',
+    confirmSignOutDescDesktop:
+      'Sua organização e serviços salvos continuarão seguros para quando você voltar.',
+    confirmSignOutDescMobile:
+      'Sua organização e serviços continuarão salvos.',
+    confirmSignOutTitle: 'Sair agora?',
+    createdAtLabel: 'Criação da conta',
+    dateUnavailable: 'Data indisponível',
+    googleAccount: 'Conta Google',
+    googleAccountDetailsAria: 'Detalhes da conta Google',
+    googleAccountLabel: 'E-mail',
+    language: 'Idioma',
+    languageAutoDetectedNote: (countryCode) =>
+      countryCode
+        ? `Detectado automaticamente pela sua localização (${countryCode}).`
+        : 'Detectado automaticamente pelo seu navegador.',
+    languageLocalStorageHint:
+      'Sua escolha manual fica salva localmente neste dispositivo.',
+    languageManualSavedNote: 'Idioma selecionado manualmente.',
+    languageOptionsAria: 'Idiomas disponíveis',
+    languageSectionPrompt:
+      'Escolha o idioma de toda a interface e do Search Link IA.',
+    languagesTitle: 'Idiomas disponíveis',
+    myStore: 'Minha loja',
+    organization: 'Organização',
+    signOut: 'Sair',
+    signOutError: 'Não foi possível sair. Tente novamente.',
+    usernameLabel: 'Nome',
+  },
+  auth: {
+    acceptTermsLabel:
+      'Aceito os termos de serviço e a política de privacidade do Search Link.',
+    accessPlanLine: (providerLabel, isPro) =>
+      `${providerLabel} · Plano ${isPro ? 'Pro' : 'Gratuito'}`,
+    allMyCatalogs: 'Todos os meus catálogos',
+    associatedCatalogAria: 'Catálogo associado',
+    bullet1: 'Sessão segura e criptografada com Google',
+    bullet2: 'Catálogos e mídias sincronizados na nuvem',
+    bullet3: 'API Keys e endpoints Search Link Core na hora',
+    closePanelAria: 'Fechar painel da conta',
+    connectingGoogle: 'Conectando com o Google…',
+    continueWithGoogle: 'Continuar com o Google',
+    copyFullJsonTitle: 'Copiar JSON completo',
+    copyUrl: 'Copiar URL',
+    createApiKey: 'Criar API Key',
+    deleteBatchAria: (title) => `Excluir catálogo ${title}`,
+    drawerAriaAuth: 'Painel da conta Search Link',
+    drawerAriaGuest: 'Entrar no Search Link',
+    emailPasswordProvider: 'E-mail e senha',
+    endpointsTab: (count) => `API e Endpoints (${count})`,
+    errCreateKey: 'Não foi possível criar a API Key.',
+    errCreateKeySchema:
+      'É necessário criar as tabelas do Supabase Core para gerar API Keys persistentes.',
+    errDeleteBatch: 'Não foi possível excluir o catálogo.',
+    errDeleteKey: 'Não foi possível revogar a API Key.',
+    errLoadData: 'Erro ao carregar os dados da sua conta.',
+    errProviderNotEnabled:
+      'O Google OAuth ainda não está ativado neste projeto Supabase.',
+    errRateLimit: 'Muitas tentativas seguidas. Aguarde um instante.',
+    generateKeyTitle: 'Gerar nova API Key',
+    googleLinkError: 'Não foi possível gerar o link do Google OAuth.',
+    googleSignInError: 'Ocorreu um erro ao entrar com o Google.',
+    googleSignedInSuccess: 'Login com Google realizado com sucesso.',
+    keyNamePlaceholder: 'Nome (ex. Bot WhatsApp)',
+    loadingSupabase: 'Sincronizando com Supabase…',
+    loginHeading: 'Salve seus catálogos e gere sua API',
+    loginSubtitle:
+      'Conecte sua conta Google em um clique para sincronizar produtos, endpoints e uso em tempo real.',
+    myCatalogsTab: (count) => `Meus catálogos (${count})`,
+    newKeyCreatedHint:
+      'Nova API Key criada (copie agora, não será exibida completa novamente):',
+    noCatalogsDesc:
+      'Processe qualquer site ou envie imagens na tela inicial para salvá-las aqui.',
+    noCatalogsTitle: 'Você ainda não tem catálogos salvos',
+    onlyCatalogPrefix: (title) => `Somente: ${title}`,
+    openGoogleNewTab: 'Abrir Google em nova aba',
+    pendingBatchText: (count) =>
+      `Você tem ${count} produto${count === 1 ? '' : 's'} pronto${count === 1 ? '' : 's'} para salvar na sua conta.`,
+    popupBlockedError:
+      'O navegador bloqueou a janela pop-up do Google. Use o link abaixo.',
+    productsCount: (count) =>
+      `${count} produto${count === 1 ? '' : 's'}`,
+    readEndpointDescMiddle: ' ou cabeçalho ',
+    readEndpointDescPrefix: 'Consulte seu catálogo JSON em qualquer chatbot enviando ',
+    readEndpointDescSuffix: ' para:',
+    readEndpointTitle: 'Endpoint de leitura Search Link Core',
+    refreshAccountAria: 'Atualizar dados da conta',
+    revokeKeyAria: (name) => `Revogar API Key ${name}`,
+    saveNow: 'Salvar agora',
+    sessionActive: 'Sessão ativa corretamente',
+    sessionMissingProfilesTable:
+      'Sessão ativa (tabela profiles pendente no Supabase)',
+    sessionSynced: 'Conta sincronizada com Supabase',
+    signOutAria: 'Sair',
+    signOutShort: 'Sair',
+    step2PendingDesc:
+      'Execute a migração de catálogos no Supabase para salvar lotes aqui.',
+    step2PendingTitle: 'Tabelas de catálogos pendentes',
+    step3PendingDesc:
+      'Execute a migração de API Keys no Supabase para gerenciar chaves aqui.',
+    step3PendingTitle: 'Tabela de API Keys pendente',
+    supabaseMissingError:
+      'A configuração do Supabase não está disponível neste ambiente.',
+    termsError: 'Aceite os termos para continuar com o Google.',
+    urlCopied: 'URL copiada',
+  },
+  chat: {
+    clearConversation: 'Reiniciar conversa',
+    clearShort: 'Nova conversa',
+    closeAria: 'Fechar chat de teste',
+    dailyLimitNotice:
+      'Você atingiu seu limite diário gratuito no Search Link IA. Volte amanhã ou integre seu endpoint.',
+    dailyLimitPlaceholder: 'Limite diário atingido...',
+    defaultRequestError: 'Não foi possível obter resposta do Search Link IA.',
+    defaultStreamError: 'Erro durante a resposta ao vivo.',
+    defaultSuccessReply: 'Consulta concluída.',
+    inputAria: 'Digite uma pergunta para testar o catálogo',
+    inputPlaceholder: 'Pergunte sobre qualquer produto do catálogo...',
+    liveProducts: (count) =>
+      `${count} produto${count === 1 ? '' : 's'} ao vivo`,
+    networkError: 'Erro de conexão com o Search Link IA. Tente novamente.',
+    preparingReply: 'Preparando resposta…',
+    queryingCatalog: 'Consultando catálogo ao vivo…',
+    sendAria: 'Enviar mensagem',
+  },
   org: {
-    unnamed: 'Sem nome',
-    welcomeTitle: 'Bem-vindo à sua organização',
-    welcomeSubtitle: 'Vamos criá-la',
-    companyPlaceholder: 'Digite o nome da sua empresa',
-    uploadLogoAria: 'Enviar logo da organização',
-    uploadLogoTitle: 'Enviar logo da organização',
-    helperArrowPrompt: 'Adicione o logo da sua organização e o nome',
-    logoUploadError: 'Não foi possível enviar o logo.',
-    congratsTitle: 'Parabéns!',
-    congratsBoth:
-      'O logo e o nome da sua organização já estão prontos para começar.',
-    congratsLogoOnly:
-      'O logo da sua organização já está pronto. Você pode definir o nome quando quiser.',
-    congratsNameOnly:
-      'O nome da sua organização já está pronto. Você pode enviar o logo quando quiser.',
-    congratsMobileFallback:
-      'Sua organização foi criada. Você pode ajustar o logo ou o nome quando quiser.',
-    changeLogoAria: 'Alterar logo da organização',
-    changeLogoTitle: 'Alterar logo da organização',
-    orgNamePlaceholder: 'Nome da sua organização',
-    orgNameShortPlaceholder: 'Nome',
-    saveOrgNameAria: 'Salvar nome da organização',
-    renameOrgAria: 'Alterar nome da organização',
-    renameOrgTitle: 'Alterar nome',
-    openStoreServicesAria: 'Abrir loja dos seus serviços',
-    openStoreAria: 'Abrir loja',
-    viewStoreTitle: 'Ver loja',
-    pickStoreAria: 'Selecione um serviço para ver na sua loja',
-    viewStoreOf: 'Ver loja de',
-    noServicesAvailable: 'Você ainda não tem serviços disponíveis.',
-    myServices: 'Meus serviços',
-    newProduct: 'Novo produto',
-    noServicesTitleDesktop: 'Você ainda não tem serviços na sua organização',
-    noServicesDescDesktop:
-      'Processe e mapeie seu primeiro catálogo na tela inicial para ter aqui seu serviço, API e endpoint.',
-    noServicesTitleMobile: 'Você ainda não tem serviços',
-    noServicesDescMobile:
-      'Processe um produto na tela inicial para ver aqui seu serviço, API e endpoint.',
-    saveServiceNameAria: 'Salvar nome do serviço',
-    renameServiceAria: (name) => `Renomear ${name}`,
-    renameServiceTitle: 'Renomear serviço',
-    productCount: (count) => `${count} ${count === 1 ? 'produto' : 'produtos'}`,
-    productCountShort: (count) => `${count} prod.`,
-    serviceApiLink: 'API do serviço',
-    serviceEndpointLink: 'Endpoint deste serviço',
-    testChatAria: (name) => `Testar ${name} na Search Link IA`,
-    testChatTitle: 'Testar na Search Link IA',
-    viewHistoryAria: (name) => `Ver histórico do processo de ${name}`,
-    viewHistoryTitle: 'Ver processo de automação',
-    closeBoxAria: 'Fechar quadro',
-    apiHintRaw:
-      'Envie esta chave no header x-api-key ou Authorization: Bearer.',
     apiHintPrefixDesktop:
-      'Por segurança apenas o prefixo é salvo na nuvem. Gere uma nova API Key se precisar copiá-la completa.',
+      'Por segurança, salvamos apenas o prefixo na nuvem. Se precisar da chave completa, você pode regenerá-la na hora.',
     apiHintPrefixMobile:
-      'Por segurança apenas o prefixo é guardado. Gere uma nova API Key se precisar copiá-la completa.',
-    serviceActiveDesktop: 'Serviço ativo',
-    servicePausedDesktop: 'Serviço pausado',
-    serviceActiveMobile: 'Ativo',
-    servicePausedMobile: 'Pausado',
-    regenerateKeyDesktop: 'Regenerar API Key',
-    regenerateKeyMobile: 'Regenerar',
-    pasteKeyPlaceholder: 'Cole sua API Key sl_core_... para testar',
+      'Armazenamos apenas o prefixo por segurança. Você pode regenerar a chave quando quiser.',
+    apiHintRaw:
+      'Envie esta chave em Authorization: Bearer <API_KEY> ou x-api-key para consultar este serviço.',
+    changeLogoAria: 'Alterar logo da organização',
+    changeLogoTitle: 'Alterar logo',
+    closeBoxAria: 'Fechar janela',
+    companyPlaceholder: 'Nome da sua empresa ou marca',
+    congratsBoth:
+      'Seu logo e o nome da organização foram salvos. Tudo pronto para gerenciar seus serviços.',
+    congratsLogoOnly:
+      'Seu logo foi salvo com sucesso. Você pode adicionar ou editar o nome quando quiser.',
+    congratsMobileFallback:
+      'Sua organização está configurada para publicar catálogos e endpoints.',
+    congratsNameOnly:
+      'O nome da organização foi salvo. Você também pode enviar um logo depois.',
+    congratsTitle: 'Organização configurada!',
     copyCurlDesktop: 'Copiar comando cURL',
     copyCurlMobile: 'Copiar cURL',
     curlCopied: 'cURL copiado',
+    helperArrowPrompt:
+      'Envie o logo ou digite o nome do seu negócio para personalizar seus endpoints e loja.',
+    logoUploadError: 'Não foi possível enviar o logo.',
+    myServices: 'Meus serviços',
+    newProduct: 'Novo produto',
+    noServicesAvailable: 'Nenhum serviço ativo ainda',
+    noServicesDescDesktop:
+      'Processe uma URL ou envie suas imagens pela tela inicial para gerar seu primeiro endpoint ao vivo.',
+    noServicesDescMobile:
+      'Processe uma URL ou envie imagens no início para ver seus serviços aqui.',
+    noServicesTitleDesktop: 'Você ainda não tem serviços gerados',
+    noServicesTitleMobile: 'Nenhum serviço ainda',
+    openStoreAria: 'Abrir loja do serviço',
+    openStoreServicesAria: 'Abrir seletor de Minha loja',
+    orgNamePlaceholder: 'Nome da organização',
+    orgNameShortPlaceholder: 'Nome da sua marca',
+    pasteKeyPlaceholder: 'Cole aqui sua API Key completa para testar...',
+    pickStoreAria: 'Selecionar loja de serviço',
+    productCount: (count) =>
+      `${count} produto${count === 1 ? '' : 's'}`,
+    productCountShort: (count) => `${count} itens`,
+    regenerateKeyDesktop: 'Regenerar API Key',
+    regenerateKeyMobile: 'Regenerar chave',
+    renameOrgAria: 'Renomear organização',
+    renameOrgTitle: 'Renomear',
+    renameServiceAria: (name) => `Renomear serviço ${name}`,
+    renameServiceTitle: 'Renomear serviço',
+    saveOrgNameAria: 'Salvar nome da organização',
+    saveServiceNameAria: 'Salvar nome do serviço',
+    serviceActiveDesktop: 'Serviço ativo',
+    serviceActiveMobile: 'Ativo',
+    serviceApiLink: 'Ver API Key',
+    serviceEndpointLink: 'Endpoint & Teste ao vivo',
+    servicePausedDesktop: 'Serviço pausado',
+    servicePausedMobile: 'Pausado',
+    testChatAria: (name) => `Testar ${name} com Search Link IA`,
+    testChatTitle: 'Testar com Search Link IA',
     testLive: 'Testar ao vivo',
+    unnamed: 'Sem nome',
+    uploadLogoAria: 'Enviar logo da organização',
+    uploadLogoTitle: 'Enviar logo',
+    viewHistoryAria: (name) => `Ver catálogo completo de ${name}`,
+    viewHistoryTitle: 'Ver histórico do serviço',
+    viewStoreOf: 'Abrir Minha loja de:',
+    viewStoreTitle: 'Minha loja',
+    welcomeSubtitle:
+      'Centralize seus catálogos, API Keys e chatbot Search Link IA em um só lugar.',
+    welcomeTitle: 'Bem-vindo à sua Organização',
   },
   store: {
-    emptyTitle: 'Este serviço ainda não possui produtos visíveis na loja',
     emptyDescDesktop:
-      'Processe um novo lote de imagens para vê-las aqui na sua loja visual.',
-    emptyDescMobile: 'Processe um novo lote de imagens para vê-las aqui.',
+      'Este serviço ainda não possui produtos salvos para exibir.',
+    emptyDescMobile: 'Este serviço ainda não possui produtos para exibir.',
+    emptyTitle: 'Sem produtos nesta loja',
     noImage: 'Sem imagem',
-    tapToCollapse: 'Toque para recolher',
-    tapToExpandFull: (name) => `${name} (toque para ver completo)`,
+    tapToCollapse: 'Toque para recolher o nome',
+    tapToExpandFull: (name) => `Toque para ver completo: ${name}`,
     unnamedProduct: 'Produto sem nome',
   },
-  chat: {
-    closeAria: 'Fechar Search Link IA',
-    clearConversation: 'Limpar conversa',
-    clearShort: 'Limpar',
-    liveProducts: (count) =>
-      `${count} ${count === 1 ? 'produto' : 'produtos'} ao vivo`,
-    preparingReply: 'Preparando resposta...',
-    queryingCatalog: 'Consultando catálogo...',
-    dailyLimitNotice:
-      'Teste diário usado (1/1 hoje). Volte amanhã para testar novamente.',
-    dailyLimitPlaceholder: 'Limite diário de 1 teste atingido hoje',
-    inputPlaceholder: 'Digite sua mensagem...',
-    inputAria: 'Digite sua mensagem para a Search Link IA',
-    sendAria: 'Enviar mensagem',
-    defaultSuccessReply: 'Aqui estão as opções disponíveis no seu catálogo.',
-    defaultRequestError:
-      'Não foi possível obter resposta da Search Link IA neste momento.',
-    defaultStreamError: 'Erro ao gerar resposta.',
-    networkError:
-      'Erro de rede ao conectar com a Search Link IA. Tente novamente.',
-  },
-  auth: {
-    drawerAriaAuth: 'Seu espaço no Search Link',
-    drawerAriaGuest: 'Entrar no Search Link',
-    signOutAria: 'Sair',
-    signOutShort: 'Sair',
-    closePanelAria: 'Fechar painel',
-    emailPasswordProvider: 'E-mail e senha',
-    accessPlanLine: (provider, isPro) =>
-      `Acesso: ${provider} · Plano ${isPro ? 'Pro' : 'Gratuito'}`,
-    refreshAccountAria: 'Atualizar conta',
-    sessionSynced:
-      'Sessão ativa e perfil sincronizado no Supabase (tabela profiles).',
-    sessionMissingProfilesTable:
-      'Sessão ativa. Execute o SQL do Passo 1 para criar a tabela profiles.',
-    sessionActive: 'Sessão ativa no Supabase Auth.',
-    pendingBatchText: (count) =>
-      `Você tem um catálogo recém-mapeado pronto para salvar (${count} itens).`,
-    saveNow: 'Salvar agora',
-    myCatalogsTab: (count) => `Meus catálogos (${count})`,
-    endpointsTab: (count) => `Endpoint e API Keys (${count})`,
-    loadingSupabase: 'Carregando dados do Supabase...',
-    step2PendingTitle: 'Passo 2 pendente: Salvar catálogos',
-    step2PendingDesc:
-      'Estamos verificando seu login primeiro (Passo 1). Após confirmar o Google, os catálogos serão salvos aqui.',
-    noCatalogsTitle: 'Você ainda não tem catálogos salvos',
-    noCatalogsDesc:
-      'Processe imagens ou um site estando conectado e eles serão salvos automaticamente aqui.',
-    productsCount: (count) => `${count} produtos`,
-    copyFullJsonTitle: 'Copiar JSON completo',
-    deleteBatchAria: (title) => `Excluir ${title}`,
-    step3PendingTitle: 'Passo 3 pendente: Endpoint e API Keys',
-    step3PendingDesc:
-      'Conclua os Passos 1 e 2 antes para ativar suas chaves e seu link JSON para chatbots.',
-    readEndpointTitle: 'Endpoint de leitura JSON',
-    readEndpointDescPrefix:
-      'Conecte este link ao seu chatbot, n8n ou Make enviando sua API Key por parâmetro ',
-    readEndpointDescMiddle: ' ou cabeçalho ',
-    readEndpointDescSuffix: '.',
-    generateKeyTitle: 'Gerar nova API Key',
-    keyNamePlaceholder: 'Nome (ex. Bot WhatsApp)',
-    associatedCatalogAria: 'Catálogo associado',
-    allMyCatalogs: 'Todos os meus catálogos',
-    onlyCatalogPrefix: (title) => `Apenas: ${title}`,
-    createApiKey: 'Criar API Key',
-    newKeyCreatedHint:
-      'Sua nova API Key (salve agora, não será exibida completa novamente)',
-    copyUrl: 'Copiar URL',
-    urlCopied: 'URL copiada',
-    revokeKeyAria: (name) => `Revogar ${name}`,
-    loginHeading: 'Sua conta do Search Link',
-    loginSubtitle:
-      'Entre em um toque com o Google para salvar seus catálogos processados e conectar sua API.',
-    acceptTermsLabel:
-      'Aceitar Termos e Condições e Política de Privacidade',
-    termsError:
-      'Você deve aceitar os Termos e Condições e a Política de Privacidade antes de continuar.',
-    supabaseMissingError: 'O Supabase não está configurado neste ambiente.',
-    googleLinkError: 'Não foi possível gerar o link de acesso com o Google.',
-    popupBlockedError:
-      'Seu navegador bloqueou a janela pop-up. Clique no link abaixo para abrir o Google.',
-    googleSignInError: 'Não foi possível entrar com o Google.',
-    googleSignedInSuccess: 'Login com Google realizado com sucesso.',
-    connectingGoogle: 'Conectando com o Google…',
-    continueWithGoogle: 'Continuar com o Google',
-    openGoogleNewTab: 'Abrir acesso com Google em uma nova aba',
-    bullet1: 'Acesso imediato sem senhas ou e-mails extras',
-    bullet2: 'Suas imagens e JSON salvos no seu espaço',
-    bullet3: 'Pronto para gerar seu Endpoint e API Keys',
-    errProviderNotEnabled: 'O login com Google não está ativado no Supabase.',
-    errRateLimit: 'Muitas tentativas seguidas. Aguarde alguns segundos.',
-    errLoadData: 'Não foi possível carregar seus dados.',
-    errDeleteBatch: 'Não foi possível excluir o catálogo.',
-    errCreateKey: 'Não foi possível criar a API Key.',
-    errCreateKeySchema:
-      'Execute primeiro o script SQL no Supabase para habilitar as API Keys.',
-    errDeleteKey: 'Não foi possível revogar a API Key.',
+  pipeline: {
+    backToMappedAria: 'Voltar ao mapeamento JSON',
+    benefits: [
+      {
+        id: 'speed',
+        title: 'Pronto em segundos',
+        description:
+          'Otimiza imagens em WebP e envia direto para a CDN sem configuração manual.',
+      },
+      {
+        id: 'clean-urls',
+        title: 'URLs limpas para bots',
+        description:
+          'Links curtos e imutáveis prontos para WhatsApp, Telegram ou qualquer API.',
+      },
+      {
+        id: 'easy-anywhere',
+        title: 'Fácil pelo celular',
+        description:
+          'Envie fotos da galeria ou extraia qualquer site instantaneamente.',
+      },
+      {
+        id: 'ready-to-share',
+        title: 'Catálogo estruturado',
+        description:
+          'A IA identifica nomes, categorias e descrições prontos em JSON ou PDF.',
+      },
+    ],
+    clickToViewTitle: (alt) => `Clique para ampliar: ${alt}`,
+    closeEditorBackAria: 'Fechar editor e voltar',
+    closeEditorTitle: 'Fechar editor',
+    closeExpandedAria: 'Recolher visualização ampliada',
+    closeFullscreenAria: 'Fechar imagem em tela cheia',
+    closeImageAria: 'Fechar imagem',
+    congratsBodyDesktop: (count) =>
+      `Seu catálogo com ${count} produto${count === 1 ? '' : 's'} está otimizado, mapeado no Search Link Core e pronto para conectar a qualquer canal.`,
+    congratsBodyMobile: (count) =>
+      `${count} produto${count === 1 ? '' : 's'} otimizado${count === 1 ? '' : 's'} e pronto${count === 1 ? '' : 's'} para usar no seu chatbot ou loja.`,
+    congratsTitleDesktop: 'Automação concluída!',
+    congratsTitleMobile: 'Tudo pronto!',
+    copyAllJsonAria: 'Copiar todo o JSON do catálogo',
+    copyApiAria: 'Copiar API Key',
+    copyApiTitle: 'Copiar API Key',
+    copyEndpointAria: 'Copiar URL do endpoint',
+    copyEndpointTitle: 'Copiar endpoint',
+    copyJsonOfAria: (name) => `Copiar JSON de ${name}`,
+    copyJsonTitle: 'Copiar JSON',
+    copyUrlOfAria: (label) => `Copiar URL de ${label}`,
+    copyUrlTitle: 'Copiar URL',
+    couldNotMap: 'Não foi possível mapear este item.',
+    couldNotReceive: 'Não foi possível obter a URL final.',
+    credentialsReadyHint:
+      'Use esta chave e endpoint no WhatsApp, Telegram ou no seu servidor backend.',
+    credentialsReadyTitle: 'Credenciais ao vivo prontas',
+    doubleClickFullscreen: (alt) => `Clique duplo para tela cheia: ${alt}`,
+    elementsCount: (count) => `${count} ite${count === 1 ? 'm' : 'ns'}`,
+    enlargeLeftAria: (alt) => `Ampliar imagem ${alt}`,
+    expandedImagesAria: 'Visualização ampliada de imagens',
+    expandedMetadataAria: 'Visualização ampliada de metadados',
+    generatedApiTitle: 'API Key e Endpoint gerados',
+    generatedApisLink: 'Ver API Key gerada',
+    generatedEndpointLink: 'Ver Endpoint ao vivo',
+    generatingApiKey: 'Gerando API Key…',
+    generatingEndpoint: 'Gerando endpoint…',
+    goToLifecycleAria: 'Ver ciclo de vida e credenciais',
+    mobileCarouselAria: 'Carrossel de catálogo e IA',
+    mobileCompressionAria: 'Progresso de compressão e envio',
+    openOriginalImageTitle: (alt) => `Abrir imagem original: ${alt}`,
+    pdfActions: {
+      json: 'Baixar PDF JSON',
+      images: 'Baixar PDF de Imagens',
+      urls: 'Baixar PDF de URLs',
+      metadata: 'Baixar PDF de Metadados',
+      all: 'Baixar Catálogo Completo (PDF)',
+      openEditor: 'Ver JSON no editor',
+    },
+    productJsonLabel: 'JSON do produto',
+    readOnlyEditorAria: 'Editor JSON somente leitura',
+    searchingImages: 'Extraindo imagens…',
+    showJsonAria: (isExpanded, name) =>
+      isExpanded ? `Ocultar JSON de ${name}` : `Ver JSON de ${name}`,
+    stageCompressingTitle: 'Comprimindo imagens…',
+    stageEditorTitle: 'Editor JSON',
+    stageImagesTitle: 'Imagens do catálogo',
+    stageLifecycleFullTitle: 'Ciclo de vida · Search Link Core',
+    stageLifecycleTitle: 'Ciclo de vida',
+    stageMappedDoneTitle: 'Mapeamento concluído',
+    stageMappingTitle: 'Mapeando com IA…',
+    stageMetadataTitle: 'URLs limpas',
+    stageProductivityTitle: 'Produtividade',
+    stageReceivingTitle: 'Recebendo URLs finais…',
+    stageUploadingTitle: 'Enviando para o Search Link Cloud…',
+    stageViewApiTitle: 'Sua API pronta',
+    tapBorderToExpand: 'Toque na borda para ampliar',
+    useAsBackgroundAria: (alt) => `Usar ${alt} como fundo`,
+    viewInBackgroundTitle: (alt) => `Ver ${alt} como fundo`,
+    viewProductAria: (name) => `Ver produto ${name}`,
+    viewYourOrg: 'Abrir Organização e testar na IA',
+    whyUseSearchLink: 'Por que usar o Search Link?',
+    whyUseSearchLinkAria: 'Benefícios do Search Link',
   },
 };
 
 const DICTIONARIES: Record<SupportedLocale, TranslationDictionary> = {
-  es: ES_DICT,
-  en: EN_DICT,
-  pt: PT_DICT,
+  es: ES_DICTIONARY,
+  en: EN_DICTIONARY,
+  pt: PT_DICTIONARY,
 };
+
+const LOCALE_STORAGE_KEY = 'searchlink_locale_override';
+
+function normalizeLocale(raw: string | null | undefined): SupportedLocale | null {
+  if (!raw) return null;
+  const base = raw.trim().toLowerCase().split(/[-_]/)[0];
+  if (base === 'es' || base === 'en' || base === 'pt') return base;
+  return null;
+}
+
+function getDateLocaleTag(locale: SupportedLocale): string {
+  if (locale === 'en') return 'en-US';
+  if (locale === 'pt') return 'pt-BR';
+  return 'es-ES';
+}
+
+export function formatCreationDate(
+  iso: string | undefined | null,
+  locale: SupportedLocale,
+  unavailableLabel: string,
+): string {
+  if (!iso) return unavailableLabel;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return unavailableLabel;
+  try {
+    return new Intl.DateTimeFormat(getDateLocaleTag(locale), {
+      dateStyle: 'long',
+    }).format(date);
+  } catch {
+    return unavailableLabel;
+  }
+}
+
+export function formatShortDateTime(
+  iso: string | undefined | null,
+  locale: SupportedLocale,
+): string {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat(getDateLocaleTag(locale), {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(date);
+  } catch {
+    return '';
+  }
+}
 
 interface I18nContextValue {
   locale: SupportedLocale;
   source: LocaleSource;
   countryCode: string | null;
-  isDetecting: boolean;
-  intlLocale: string;
   setManualLocale: (next: SupportedLocale) => void;
   t: TranslationDictionary;
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-function readInitialLocaleState(): {
-  locale: SupportedLocale;
-  source: LocaleSource;
-  isManual: boolean;
-} {
-  if (typeof window === 'undefined') {
-    return { locale: 'es', source: 'default', isManual: false };
-  }
-
+function readSavedManualLocale(): SupportedLocale | null {
+  if (typeof window === 'undefined') return null;
   try {
-    const storedLocale = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    const storedManual =
-      window.localStorage.getItem(LOCALE_MANUAL_STORAGE_KEY) === 'true';
-
-    if (storedManual && isSupportedLocale(storedLocale)) {
-      return { locale: storedLocale, source: 'manual', isManual: true };
-    }
-
-    if (isSupportedLocale(storedLocale)) {
-      return { locale: storedLocale, source: 'ip', isManual: false };
-    }
+    return normalizeLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
   } catch {
-    // Ignore storage read restrictions
+    return null;
   }
+}
 
-  return { locale: 'es', source: 'default', isManual: false };
+function getBrowserFallbackLocale(): SupportedLocale {
+  if (typeof navigator === 'undefined') return 'es';
+  const candidates = Array.isArray(navigator.languages) && navigator.languages.length > 0
+    ? navigator.languages
+    : [navigator.language];
+
+  for (const lang of candidates) {
+    const matched = normalizeLocale(lang);
+    if (matched) return matched;
+  }
+  return 'es';
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const initial = useMemo(() => readInitialLocaleState(), []);
-  const [locale, setLocale] = useState<SupportedLocale>(initial.locale);
-  const [source, setSource] = useState<LocaleSource>(initial.source);
+  const initialManual = readSavedManualLocale();
+
+  const [locale, setLocale] = useState<SupportedLocale>(
+    () => initialManual ?? getBrowserFallbackLocale(),
+  );
+  const [source, setSource] = useState<LocaleSource>(() =>
+    initialManual ? 'manual' : 'default',
+  );
   const [countryCode, setCountryCode] = useState<string | null>(null);
-  const [isDetecting, setIsDetecting] = useState(!initial.isManual);
-  const hasManualOverrideRef = useRef<boolean>(initial.isManual);
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -1972,65 +2075,64 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [locale]);
 
   useEffect(() => {
-    if (hasManualOverrideRef.current) {
-      setIsDetecting(false);
-      return;
-    }
+    if (initialManual) return;
 
-    let cancelled = false;
+    let active = true;
+    const controller = new AbortController();
 
     void (async () => {
       try {
-        const res = await fetch('/api/locale', { cache: 'no-store' });
-        if (!res.ok) return;
+        const res = await fetch('/api/locale', {
+          method: 'GET',
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+        if (!res.ok || !active) return;
+
         const data = (await res.json()) as {
           ok?: boolean;
           locale?: string;
           countryCode?: string | null;
-          source?: string;
+          source?: LocaleSource;
         };
 
-        if (cancelled || hasManualOverrideRef.current) return;
+        if (!active || readSavedManualLocale()) return;
 
-        if (data.countryCode) {
-          setCountryCode(data.countryCode);
+        const detected = normalizeLocale(data.locale);
+        if (detected) {
+          setLocale(detected);
         }
-
-        if (isSupportedLocale(data.locale)) {
-          setLocale(data.locale);
-          setSource(data.source === 'accept-language' ? 'browser' : 'ip');
-          try {
-            window.localStorage.setItem(LOCALE_STORAGE_KEY, data.locale);
-          } catch {
-            // Ignore storage write errors
-          }
+        if (typeof data.countryCode === 'string' && data.countryCode.trim()) {
+          setCountryCode(data.countryCode.trim().toUpperCase());
+        } else {
+          setCountryCode(null);
+        }
+        if (
+          data.source === 'geo' ||
+          data.source === 'header' ||
+          data.source === 'default'
+        ) {
+          setSource(data.source);
         }
       } catch {
-        // Keep fallback locale silently
-      } finally {
-        if (!cancelled) {
-          setIsDetecting(false);
-        }
+        // Silently keep navigator/default locale if request fails
       }
     })();
 
     return () => {
-      cancelled = true;
+      active = false;
+      controller.abort();
     };
-  }, []);
+  }, [initialManual]);
 
   const setManualLocale = useCallback((next: SupportedLocale) => {
-    hasManualOverrideRef.current = true;
-    setLocale(next);
-    setSource('manual');
-    setIsDetecting(false);
-
     try {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, next);
-      window.localStorage.setItem(LOCALE_MANUAL_STORAGE_KEY, 'true');
     } catch {
-      // Ignore storage quota errors
+      // Ignore storage quota errors cleanly
     }
+    setLocale(next);
+    setSource('manual');
   }, []);
 
   const value = useMemo<I18nContextValue>(
@@ -2038,12 +2140,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       locale,
       source,
       countryCode,
-      isDetecting,
-      intlLocale: getIntlLocale(locale),
       setManualLocale,
-      t: DICTIONARIES[locale],
+      t: DICTIONARIES[locale] ?? ES_DICTIONARY,
     }),
-    [locale, source, countryCode, isDetecting, setManualLocale],
+    [locale, source, countryCode, setManualLocale],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
@@ -2056,10 +2156,8 @@ export function useI18n(): I18nContextValue {
       locale: 'es',
       source: 'default',
       countryCode: null,
-      isDetecting: false,
-      intlLocale: 'es-ES',
       setManualLocale: () => {},
-      t: ES_DICT,
+      t: ES_DICTIONARY,
     };
   }
   return ctx;

@@ -28,6 +28,7 @@ import {
 import { SearchLinkChatDrawer } from './components/SearchLinkChatDrawer';
 import { SearchLinkLogo } from './components/SearchLinkLogo';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
+import { useI18n } from './lib/i18n';
 import {
   compressImageToWebp,
   mapUploadedImageWithAi,
@@ -90,6 +91,7 @@ export default function App() {
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileAccountModalOpen, setIsMobileAccountModalOpen] = useState(false);
+  const [isMobileLanguageModalOpen, setIsMobileLanguageModalOpen] = useState(false);
   const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false);
   const [batchNotice, setBatchNotice] = useState<string | null>(null);
   const [isFileUploadFlow, setIsFileUploadFlow] = useState(false);
@@ -139,6 +141,7 @@ export default function App() {
   const compressionTimerRef = useRef<number | null>(null);
   const objectUrlsRef = useRef<string[]>([]);
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useI18n();
 
   const cancelOngoingCompression = () => {
     if (compressionTimerRef.current !== null) {
@@ -401,6 +404,7 @@ export default function App() {
     setIsDesktopMenuOpen(false);
     setIsMobileMenuOpen(false);
     setIsMobileAccountModalOpen(false);
+    setIsMobileLanguageModalOpen(false);
     setIsMobilePanelOpen(false);
     setIsExtracting(false);
     setExtractError(null);
@@ -435,7 +439,7 @@ export default function App() {
       id: prod.id || `replay-${service.id}-${idx}`,
       url: prod.url,
       cleanUrl: prod.url,
-      alt: prod.nombre || `Producto ${idx + 1}`,
+      alt: prod.nombre || `${t.common.productFallback} ${idx + 1}`,
     }));
 
     const nextCompressionStatuses: Record<string, ImageCompressionStatus> = {};
@@ -488,6 +492,7 @@ export default function App() {
     setIsDesktopMenuOpen(false);
     setIsMobileMenuOpen(false);
     setIsMobileAccountModalOpen(false);
+    setIsMobileLanguageModalOpen(false);
     setIsMobilePanelOpen(false);
     setIsExtracting(false);
     setExtractError(null);
@@ -570,6 +575,7 @@ export default function App() {
           setIsDesktopMenuOpen(false);
           setIsMobileMenuOpen(false);
           setIsMobileAccountModalOpen(false);
+          setIsMobileLanguageModalOpen(false);
           setIsMobilePanelOpen(false);
         }
       }
@@ -612,6 +618,7 @@ export default function App() {
     setIsDesktopMenuOpen(false);
     setIsMobileMenuOpen(false);
     setIsMobileAccountModalOpen(false);
+    setIsMobileLanguageModalOpen(false);
     setIsMobilePanelOpen(false);
   };
 
@@ -621,6 +628,7 @@ export default function App() {
       !isDesktopMenuOpen &&
       !isMobileMenuOpen &&
       !isMobileAccountModalOpen &&
+      !isMobileLanguageModalOpen &&
       !isMobilePanelOpen &&
       !activeChatServiceId
     ) {
@@ -638,6 +646,7 @@ export default function App() {
         if (isDesktopMenuOpen) setIsDesktopMenuOpen(false);
         if (isMobileMenuOpen) setIsMobileMenuOpen(false);
         if (isMobileAccountModalOpen) setIsMobileAccountModalOpen(false);
+        if (isMobileLanguageModalOpen) setIsMobileLanguageModalOpen(false);
         if (isMobilePanelOpen) setIsMobilePanelOpen(false);
         return;
       }
@@ -661,6 +670,7 @@ export default function App() {
     isDesktopMenuOpen,
     isMobileMenuOpen,
     isMobileAccountModalOpen,
+    isMobileLanguageModalOpen,
     isMobilePanelOpen,
     activeChatServiceId,
   ]);
@@ -709,17 +719,14 @@ export default function App() {
       };
 
       if (!response.ok || !Array.isArray(data.images) || data.images.length === 0) {
-        setExtractError(
-          data.error ||
-            'No pudimos encontrar imágenes válidas en esa dirección web.',
-        );
+        setExtractError(data.error || t.app.extractEmptyError);
         return;
       }
 
       const extractedImages = data.images.slice(0, MAX_FREE_UPLOAD_IMAGES);
       const overflowNotice =
         data.images.length > MAX_FREE_UPLOAD_IMAGES
-          ? `Plan gratuito: se procesarán las primeras ${MAX_FREE_UPLOAD_IMAGES} imágenes.`
+          ? t.app.freePlanLimitNotice(MAX_FREE_UPLOAD_IMAGES)
           : null;
 
       inputRef.current?.blur();
@@ -731,9 +738,7 @@ export default function App() {
       );
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      setExtractError(
-        'No se pudo conectar con la página. Verifica la URL e intenta de nuevo.',
-      );
+      setExtractError(t.app.extractNetworkError);
     } finally {
       if (extractAbortRef.current === controller) {
         setIsExtracting(false);
@@ -951,7 +956,7 @@ export default function App() {
                   controller.signal.aborted ||
                   (err instanceof DOMException && err.name === 'AbortError');
                 const errorMessage =
-                  err instanceof Error ? err.message : 'Error al subir la imagen.';
+                  err instanceof Error ? err.message : t.app.uploadImageError;
                 uploadResolvers[index]({ ok: false, aborted, errorMessage });
               }
             }
@@ -1106,9 +1111,7 @@ export default function App() {
                   controller.signal.aborted ||
                   (err instanceof DOMException && err.name === 'AbortError');
                 const errorMessage =
-                  err instanceof Error
-                    ? err.message
-                    : 'Error al renderizar y mapear la imagen con IA.';
+                  err instanceof Error ? err.message : t.app.mapImageError;
                 mapResolvers[index]({ ok: false, aborted, errorMessage });
               }
             }
@@ -1166,10 +1169,12 @@ export default function App() {
 
         if (collectedMappedItems.length > 0 && !controller.signal.aborted) {
           const firstProductName =
-            collectedMappedItems[0]?.nombre?.trim() || 'Producto';
-          const defaultServiceName = /^servicio\s+/i.test(firstProductName)
+            collectedMappedItems[0]?.nombre?.trim() || t.common.productFallback;
+          const defaultServiceName = /^(?:servicio|service|serviço)\s+/i.test(
+            firstProductName,
+          )
             ? firstProductName
-            : `Servicio ${firstProductName}`;
+            : t.app.serviceDefaultPrefix(firstProductName);
 
           const snapshotImages: CatalogImageItem[] = items.map((item, idx) => {
             const uploaded = uploadedPayloads[idx];
@@ -1271,7 +1276,7 @@ export default function App() {
             return updated;
           });
 
-          let batchTitle = `Catálogo (${collectedMappedItems.length} imágenes)`;
+          let batchTitle = t.app.batchTitleFallback(collectedMappedItems.length);
           if (originPageUrl) {
             try {
               batchTitle = new URL(originPageUrl).hostname.replace(/^www\./, '');
@@ -1319,7 +1324,7 @@ export default function App() {
               });
               setPendingSaveBatch(null);
               if (!firstMapError) {
-                setBatchNotice('Servicio y API guardados en Search Link Core.');
+                setBatchNotice(t.app.coreSavedNotice);
               }
             } else {
               // Fallback to legacy batch save if Core tables aren't installed yet
@@ -1356,14 +1361,14 @@ export default function App() {
     event.target.value = '';
 
     if (allValidFiles.length === 0) {
-      setExtractError('Por favor selecciona archivos de imagen válidos.');
+      setExtractError(t.app.invalidImageFilesError);
       return;
     }
 
     const validFiles = allValidFiles.slice(0, MAX_FREE_UPLOAD_IMAGES);
     const overflowNotice =
       allValidFiles.length > MAX_FREE_UPLOAD_IMAGES
-        ? `Plan gratuito: se procesarán las primeras ${MAX_FREE_UPLOAD_IMAGES} imágenes.`
+        ? t.app.freePlanLimitNotice(MAX_FREE_UPLOAD_IMAGES)
         : null;
 
     extractAbortRef.current?.abort();
@@ -1388,7 +1393,7 @@ export default function App() {
         file.name
           .replace(/\.[^/.]+$/, '')
           .replace(/[-_]+/g, ' ')
-          .trim() || `Imagen ${idx + 1}`;
+          .trim() || t.app.imageFallbackAlt(idx + 1);
 
       return {
         id: `local-${batchStamp}-${idx}-${file.lastModified}`,
@@ -1645,8 +1650,8 @@ export default function App() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isExtracting}
-              aria-label="Subir imágenes desde el dispositivo"
-              title="Subir imágenes desde tu dispositivo"
+              aria-label={t.app.uploadImagesAria}
+              title={t.app.uploadImagesTitle}
               className={`${
                 isDesktopSplitActive ? 'h-12 w-12 lg:h-11 lg:w-11' : 'h-12 w-12'
               } shrink-0 rounded-full flex items-center justify-center bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 text-blue-600/85 lg:text-slate-600 hover:bg-white/75 lg:hover:bg-white hover:text-blue-700 lg:hover:text-slate-900 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 lg:focus-visible:ring-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer`}
@@ -1668,7 +1673,7 @@ export default function App() {
             <form
               onSubmit={handleSubmit}
               role="search"
-              aria-label="Pegar URL de página web"
+              aria-label={t.app.pasteUrlFormAria}
               className="flex-1 min-w-0"
             >
               <div
@@ -1694,8 +1699,8 @@ export default function App() {
                       e.currentTarget.blur();
                     }
                   }}
-                  placeholder="Pega aquí la URL de tu página web..."
-                  aria-label="URL de tu página web"
+                  placeholder={t.app.urlPlaceholder}
+                  aria-label={t.app.urlInputAria}
                   autoComplete="url"
                   spellCheck={false}
                   className="flex-1 min-w-0 bg-transparent text-[14px] sm:text-[15px] font-normal text-slate-900 placeholder:text-slate-500 lg:placeholder:text-slate-400 focus:outline-none"
@@ -1703,7 +1708,7 @@ export default function App() {
                 {isExtracting ? (
                   <Loader2
                     className="w-4 h-4 text-blue-600 lg:text-slate-700 animate-spin shrink-0"
-                    aria-label="Extrayendo imágenes"
+                    aria-label={t.app.extractingAria}
                   />
                 ) : (
                   url.length > 0 && (
@@ -1713,7 +1718,7 @@ export default function App() {
                         setUrl('');
                         setExtractError(null);
                       }}
-                      aria-label="Limpiar URL"
+                      aria-label={t.app.clearUrlAria}
                       className="flex items-center justify-center w-7 h-7 -mr-1.5 rounded-full text-slate-500 lg:text-slate-400 hover:text-slate-800 hover:bg-white/60 lg:hover:bg-slate-100 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:focus-visible:ring-slate-400 shrink-0"
                     >
                       <X className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1849,6 +1854,7 @@ export default function App() {
         <MobileAccountMenu
           menuOpen={isMobileMenuOpen}
           accountModalOpen={isMobileAccountModalOpen}
+          languageModalOpen={isMobileLanguageModalOpen}
           panelOpen={isMobilePanelOpen}
           user={authUser}
           orgProfile={orgProfile}
@@ -1863,6 +1869,8 @@ export default function App() {
           onCloseMenu={() => setIsMobileMenuOpen(false)}
           onOpenAccountModal={() => setIsMobileAccountModalOpen(true)}
           onCloseAccountModal={() => setIsMobileAccountModalOpen(false)}
+          onOpenLanguageModal={() => setIsMobileLanguageModalOpen(true)}
+          onCloseLanguageModal={() => setIsMobileLanguageModalOpen(false)}
           onOpenPanel={() => setIsMobilePanelOpen(true)}
           onClosePanel={() => setIsMobilePanelOpen(false)}
           onSignOut={handleSignOut}
@@ -1908,6 +1916,7 @@ function GuestAvatarSketch({
   interactiveWhenSignedIn = false,
   onClick,
 }: GuestAvatarSketchProps) {
+  const { t } = useI18n();
   const [imgFailed, setImgFailed] = useState(false);
 
   const meta = (user?.user_metadata ?? {}) as Record<string, unknown>;
@@ -1967,7 +1976,7 @@ function GuestAvatarSketch({
           type="button"
           onClick={onClick}
           aria-expanded={expanded}
-          aria-label={`Abrir menú de cuenta (${rawName})`}
+          aria-label={t.app.openAccountMenuAria(rawName)}
           title={rawName}
           className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border overflow-hidden flex items-center justify-center select-none cursor-pointer transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/85 shrink-0 ${ringClass} ${
             showGooglePhoto ? 'bg-slate-100' : letterBgClass
@@ -1980,7 +1989,7 @@ function GuestAvatarSketch({
 
     return (
       <div
-        aria-label={`Cuenta conectada (${rawName})`}
+        aria-label={t.app.connectedAccountAria(rawName)}
         title={rawName}
         className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border overflow-hidden flex items-center justify-center select-none shrink-0 ${ringClass} ${
           showGooglePhoto ? 'bg-slate-100' : letterBgClass
@@ -2002,8 +2011,8 @@ function GuestAvatarSketch({
       onClick={onClick}
       aria-expanded={expanded}
       aria-haspopup="dialog"
-      aria-label="Abrir registro de cuenta"
-      title="Crear cuenta o iniciar sesión"
+      aria-label={t.app.openAuthAria}
+      title={t.app.openAuthTitle}
       className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border backdrop-blur-sm flex items-center justify-center cursor-pointer select-none transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 shrink-0 ${toneClass}`}
     >
       <svg

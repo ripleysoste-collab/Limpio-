@@ -1,36 +1,13 @@
 import type { IncomingHttpHeaders } from 'node:http';
 
 export type SupportedLocale = 'es' | 'en' | 'pt';
+export type LocaleSource = 'geo' | 'header' | 'default' | 'manual';
 
-export interface LocaleDetectionResult {
+export interface DetectedLocaleResult {
   locale: SupportedLocale;
   countryCode: string | null;
-  source: 'ip' | 'header' | 'fallback';
+  source: 'geo' | 'header' | 'default';
 }
-
-const SPANISH_COUNTRIES = new Set([
-  'ES',
-  'MX',
-  'CO',
-  'AR',
-  'PE',
-  'VE',
-  'CL',
-  'EC',
-  'GT',
-  'CU',
-  'BO',
-  'DO',
-  'HN',
-  'PY',
-  'SV',
-  'NI',
-  'CR',
-  'PA',
-  'UY',
-  'GQ',
-  'PR',
-]);
 
 const PORTUGUESE_COUNTRIES = new Set([
   'BR',
@@ -43,47 +20,90 @@ const PORTUGUESE_COUNTRIES = new Set([
   'TL',
 ]);
 
-export function mapCountryToLocale(countryCode: string | null | undefined): SupportedLocale | null {
-  const code = (countryCode || '').trim().toUpperCase();
-  if (!code || code === 'XX' || code === 'T1' || code.length !== 2) {
-    return null;
-  }
-  if (SPANISH_COUNTRIES.has(code)) return 'es';
-  if (PORTUGUESE_COUNTRIES.has(code)) return 'pt';
-  return 'en';
-}
+const SPANISH_COUNTRIES = new Set([
+  'ES',
+  'MX',
+  'CO',
+  'AR',
+  'CL',
+  'PE',
+  'VE',
+  'EC',
+  'GT',
+  'CU',
+  'BO',
+  'DO',
+  'HN',
+  'PY',
+  'SV',
+  'NI',
+  'CR',
+  'PA',
+  'UY',
+  'PR',
+  'GQ',
+]);
 
-export function mapAcceptLanguageToLocale(
-  acceptLanguage: string | string[] | undefined,
-): SupportedLocale | null {
-  const raw = Array.isArray(acceptLanguage)
-    ? acceptLanguage.join(',')
-    : acceptLanguage || '';
-  if (!raw.trim()) return null;
-
-  const tags = raw
-    .split(',')
-    .map((part) => part.split(';')[0]?.trim().toLowerCase() || '')
-    .filter(Boolean);
-
-  for (const tag of tags) {
-    if (tag === 'es' || tag.startsWith('es-')) return 'es';
-    if (tag === 'pt' || tag.startsWith('pt-')) return 'pt';
-    if (tag === 'en' || tag.startsWith('en-')) return 'en';
-  }
-
-  return null;
-}
-
-function getHeaderString(
+function readHeaderString(
   headers: IncomingHttpHeaders,
   name: string,
 ): string | null {
-  const value = headers[name.toLowerCase()];
-  if (typeof value === 'string' && value.trim()) return value.trim();
-  if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim()) {
-    return value[0].trim();
+  const raw = headers[name.toLowerCase()];
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed || null;
   }
+  if (Array.isArray(raw) && raw.length > 0) {
+    const trimmed = String(raw[0] || '').trim();
+    return trimmed || null;
+  }
+  return null;
+}
+
+function normalizeCountryCode(raw: string | null): string | null {
+  if (!raw) return null;
+  const code = raw.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return null;
+  if (code === 'XX' || code === 'T1' || code === 'ZZ') return null;
+  return code;
+}
+
+export function mapCountryToLocale(countryCode: string): SupportedLocale {
+  const upper = countryCode.toUpperCase();
+  if (PORTUGUESE_COUNTRIES.has(upper)) return 'pt';
+  if (SPANISH_COUNTRIES.has(upper)) return 'es';
+  return 'en';
+}
+
+export function parseAcceptLanguageLocale(
+  headerValue: string | null,
+): SupportedLocale | null {
+  if (!headerValue) return null;
+
+  const candidates = headerValue
+    .split(',')
+    .map((part) => {
+      const [langRaw, ...params] = part.trim().split(';');
+      const base = (langRaw || '').trim().toLowerCase().split('-')[0];
+      let q = 1;
+      for (const param of params) {
+        const match = param.trim().match(/^q=([0-9.]+)$/i);
+        if (match) {
+          const parsed = Number(match[1]);
+          if (Number.isFinite(parsed)) q = parsed;
+        }
+      }
+      return { base, q };
+    })
+    .filter((entry) => entry.base.length > 0 && entry.q > 0)
+    .sort((a, b) => b.q - a.q);
+
+  for (const item of candidates) {
+    if (item.base === 'pt') return 'pt';
+    if (item.base === 'es') return 'es';
+    if (item.base === 'en') return 'en';
+  }
+
   return null;
 }
 
@@ -91,88 +111,109 @@ function extractClientIp(
   headers: IncomingHttpHeaders,
   remoteAddress?: string,
 ): string | null {
-  const forwarded = getHeaderString(headers, 'x-forwarded-for');
-  const realIp = getHeaderString(headers, 'x-real-ip');
-  const cfConnecting = getHeaderString(headers, 'cf-connecting-ip');
+  const forwarded = readHeaderString(headers, 'x-forwarded-for');
   const candidate =
     (forwarded ? forwarded.split(',')[0]?.trim() : null) ||
-    cfConnecting ||
-    realIp ||
-    (remoteAddress ? remoteAddress.trim() : null);
+    readHeaderString(headers, 'cf-connecting-ip') ||
+    readHeaderString(headers, 'x-real-ip') ||
+    remoteAddress?.trim() ||
+    null;
 
   if (!candidate) return null;
-  const cleaned = candidate.replace(/^::ffff:/i, '').trim();
+  return candidate.replace(/^::ffff:/i, '');
+}
+
+function isPrivateOrLocalIp(ip: string): boolean {
+  const normalized = ip.toLowerCase();
   if (
-    !cleaned ||
-    cleaned === '::1' ||
-    cleaned === '127.0.0.1' ||
-    cleaned.startsWith('10.') ||
-    cleaned.startsWith('192.168.') ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(cleaned) ||
-    cleaned.startsWith('fc') ||
-    cleaned.startsWith('fd')
+    normalized === '127.0.0.1' ||
+    normalized === '::1' ||
+    normalized === '0.0.0.0' ||
+    normalized.startsWith('10.') ||
+    normalized.startsWith('192.168.') ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd') ||
+    normalized.startsWith('fe80:')
   ) {
-    return null;
+    return true;
   }
-  return cleaned;
+
+  const parts = normalized.split('.');
+  if (parts.length === 4) {
+    const first = Number(parts[0]);
+    const second = Number(parts[1]);
+    if (first === 172 && second >= 16 && second <= 31) {
+      return true;
+    }
+    if (first === 127 || first === 100) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function lookupCountryByIp(ip: string): Promise<string | null> {
+  if (!ip || isPrivateOrLocalIp(ip)) return null;
+
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 1200);
+  const timer = setTimeout(() => controller.abort(), 700);
   try {
-    const res = await fetch(`https://api.country.is/${encodeURIComponent(ip)}`, {
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json().catch(() => ({}))) as { country?: unknown };
-    if (typeof data.country === 'string' && data.country.trim().length === 2) {
-      return data.country.trim().toUpperCase();
-    }
-    return null;
+    const response = await fetch(
+      `https://ipapi.co/${encodeURIComponent(ip)}/country/`,
+      {
+        signal: controller.signal,
+        headers: { Accept: 'text/plain' },
+      },
+    );
+    if (!response.ok) return null;
+    const text = await response.text();
+    return normalizeCountryCode(text);
   } catch {
     return null;
   } finally {
-    clearTimeout(timeout);
+    clearTimeout(timer);
   }
 }
 
 export async function detectLocaleFromRequest(
   headers: IncomingHttpHeaders,
   remoteAddress?: string,
-): Promise<LocaleDetectionResult> {
-  // 1. Platform edge IP geo headers (Vercel / Cloudflare / proxy)
-  const edgeCountry =
-    getHeaderString(headers, 'x-vercel-ip-country') ||
-    getHeaderString(headers, 'cf-ipcountry') ||
-    getHeaderString(headers, 'x-country-code');
+): Promise<DetectedLocaleResult> {
+  const geoHeaders = [
+    'x-vercel-ip-country',
+    'cf-ipcountry',
+    'x-country-code',
+    'cloudfront-viewer-country',
+    'x-appengine-country',
+    'x-geo-country',
+  ];
 
-  const edgeLocale = mapCountryToLocale(edgeCountry);
-  if (edgeLocale && edgeCountry) {
-    return {
-      locale: edgeLocale,
-      countryCode: edgeCountry.trim().toUpperCase(),
-      source: 'ip',
-    };
-  }
-
-  // 2. Public client IP geolocation lookup (if a non-private IP is forwarded)
-  const publicIp = extractClientIp(headers, remoteAddress);
-  if (publicIp) {
-    const lookedUpCountry = await lookupCountryByIp(publicIp);
-    const lookedUpLocale = mapCountryToLocale(lookedUpCountry);
-    if (lookedUpLocale && lookedUpCountry) {
+  for (const headerName of geoHeaders) {
+    const code = normalizeCountryCode(readHeaderString(headers, headerName));
+    if (code) {
       return {
-        locale: lookedUpLocale,
-        countryCode: lookedUpCountry,
-        source: 'ip',
+        locale: mapCountryToLocale(code),
+        countryCode: code,
+        source: 'geo',
       };
     }
   }
 
-  // 3. Browser Accept-Language fallback
-  const headerLocale = mapAcceptLanguageToLocale(headers['accept-language']);
+  const clientIp = extractClientIp(headers, remoteAddress);
+  if (clientIp) {
+    const ipCountry = await lookupCountryByIp(clientIp);
+    if (ipCountry) {
+      return {
+        locale: mapCountryToLocale(ipCountry),
+        countryCode: ipCountry,
+        source: 'geo',
+      };
+    }
+  }
+
+  const acceptLanguage = readHeaderString(headers, 'accept-language');
+  const headerLocale = parseAcceptLanguageLocale(acceptLanguage);
   if (headerLocale) {
     return {
       locale: headerLocale,
@@ -181,10 +222,9 @@ export async function detectLocaleFromRequest(
     };
   }
 
-  // 4. Primary platform language fallback (Español)
   return {
     locale: 'es',
     countryCode: null,
-    source: 'fallback',
+    source: 'default',
   };
 }

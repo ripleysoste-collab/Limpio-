@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useI18n } from '../lib/i18n';
 
 interface SourceCodeLibrarySectionProps {
   visible: boolean;
@@ -7,44 +8,19 @@ interface SourceCodeLibrarySectionProps {
 
 type LibraryActionId = 'github' | 'zip' | 'editor' | 'preview';
 
-const WHATSAPP_ACTIONS: Array<{
-  id: LibraryActionId;
-  label: string;
-  feedback: string;
-}> = [
-  {
-    id: 'github',
-    label: 'Conectar con GitHub',
-    feedback: 'Repositorio oficial listo en la siguiente fase.',
-  },
-  {
-    id: 'zip',
-    label: 'Descargar ZIP',
-    feedback: 'Paquete comprimido listo al completar el código fuente.',
-  },
-  {
-    id: 'editor',
-    label: 'Ver código en editor',
-    feedback: 'El explorador de archivos se habilitará aquí.',
-  },
-  {
-    id: 'preview',
-    label: 'Ver preview',
-    feedback: 'Primera vista interactiva que construiremos al aprobar este diseño.',
-  },
-];
+const ACTION_IDS: LibraryActionId[] = ['github', 'zip', 'editor', 'preview'];
 
 export function SourceCodeLibrarySection({
   visible,
 }: SourceCodeLibrarySectionProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useI18n();
   const [selectedAction, setSelectedAction] = useState<LibraryActionId | null>(
     null,
   );
 
   const activeFeedback = selectedAction
-    ? WHATSAPP_ACTIONS.find((item) => item.id === selectedAction)?.feedback ??
-      null
+    ? t.sourceCode.actions[selectedAction].feedback
     : null;
 
   return (
@@ -52,7 +28,7 @@ export function SourceCodeLibrarySection({
       {visible && (
         <motion.section
           key="desktop-source-code-library"
-          aria-label="Código fuente de Search Link Core"
+          aria-label={t.sourceCode.sectionAria}
           initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
@@ -62,17 +38,17 @@ export function SourceCodeLibrarySection({
           {/* Section Subtitle */}
           <div className="mb-5 px-1">
             <h2 className="text-xl font-semibold tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)] text-balance">
-              Código fuente · Search Link Core
+              {t.sourceCode.sectionTitle}
             </h2>
             <p className="mt-1 text-sm text-white/85 drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
-              Librerías gratuitas listas para conectar tu repositorio, base de datos y catálogo en producción
+              {t.sourceCode.sectionSubtitle}
             </p>
           </div>
 
           {/* Left-aligned grid ready to scale horizontally across all 5 starter kits */}
           <div className="flex flex-wrap gap-4 items-start">
             <article
-              aria-label="Librería gratuita para WhatsApp"
+              aria-label={t.sourceCode.whatsappCardAria}
               className="w-[258px] shrink-0 rounded-3xl bg-white border border-white/85 shadow-[0_18px_44px_-14px_rgba(0,0,0,0.48)] px-5 py-4 flex flex-col"
             >
               {/* Brand logo + title */}
@@ -100,30 +76,31 @@ export function SourceCodeLibrarySection({
 
                 <div className="min-w-0">
                   <h3 className="text-[14px] font-semibold text-slate-950 tracking-tight truncate">
-                    WhatsApp Bot
+                    {t.sourceCode.whatsappTitle}
                   </h3>
                   <p className="text-[11px] text-slate-500 truncate">
-                    Meta Cloud API · TypeScript
+                    {t.sourceCode.whatsappSubtitle}
                   </p>
                 </div>
               </div>
 
               {/* Minimal description */}
               <p className="mt-3 text-[12px] leading-relaxed text-slate-600">
-                Código completo con panel web, múltiples bases de datos y catálogo en vivo.
+                {t.sourceCode.whatsappDescription}
               </p>
 
               {/* Pure clickable text actions (matching Productividad aesthetic, no filled buttons) */}
               <ul className="mt-3.5 pt-0.5 border-t border-slate-100 divide-y divide-slate-100/90">
-                {WHATSAPP_ACTIONS.map((action) => {
-                  const isSelected = selectedAction === action.id;
+                {ACTION_IDS.map((actionId) => {
+                  const isSelected = selectedAction === actionId;
+                  const label = t.sourceCode.actions[actionId].label;
                   return (
-                    <li key={action.id}>
+                    <li key={actionId}>
                       <button
                         type="button"
                         onClick={() =>
                           setSelectedAction((prev) =>
-                            prev === action.id ? null : action.id,
+                            prev === actionId ? null : actionId,
                           )
                         }
                         className={`w-full py-2 text-left text-[12.5px] transition-colors cursor-pointer focus-visible:outline-none focus-visible:underline ${
@@ -132,7 +109,7 @@ export function SourceCodeLibrarySection({
                             : 'font-normal text-blue-600 hover:text-blue-700 active:opacity-70'
                         }`}
                       >
-                        {action.label}
+                        {label}
                       </button>
                     </li>
                   );

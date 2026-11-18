@@ -194,7 +194,7 @@ export function DualCatalogShowcase({
   const leftStageRef = useRef<HTMLDivElement>(null);
   const rightStageRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   const [rects, setRects] = useState<{ left: BoxRect; right: BoxRect }>({
     left: { x: 0, y: 0, width: 0, height: 0 },
@@ -310,6 +310,7 @@ export function DualCatalogShowcase({
         images,
         mappedResults,
         compressionResults,
+        locale,
       });
     } finally {
       setExportingPdfKind(null);

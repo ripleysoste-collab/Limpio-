@@ -375,7 +375,7 @@ export function DesktopUploadSequence({
                         <div className="w-4 h-4 shrink-0 flex items-center justify-center">
                           {status === 'waiting' && (
                             <span
-                              aria-label={`Recibiendo URL de ${item.alt}`}
+                              aria-label={t.app.receiveStatusAria('waiting', item.alt)}
                               className="w-4 h-4 rounded-full border-2 border-emerald-200 border-t-emerald-500 animate-spin [animation-duration:500ms]"
                             />
                           )}
@@ -385,7 +385,7 @@ export function DesktopUploadSequence({
                               initial={shouldReduceMotion ? false : { scale: 0.5, opacity: 0 }}
                               animate={{ scale: 1, opacity: 1 }}
                               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                              aria-label={`URL recibida para ${item.alt}`}
+                              aria-label={t.app.receiveStatusAria('received', item.alt)}
                               className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center"
                             >
                               <Check className="w-2.5 h-2.5 stroke-[3]" aria-hidden="true" />
@@ -394,7 +394,7 @@ export function DesktopUploadSequence({
 
                           {status === 'error' && (
                             <span
-                              aria-label={`Error al recibir ${item.alt}`}
+                              aria-label={t.app.receiveStatusAria('error', item.alt)}
                               className="w-4 h-4 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center"
                             >
                               <X className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />
@@ -456,14 +456,14 @@ export function DesktopUploadSequence({
                     >
                       {status === 'pending' && (
                         <span
-                          aria-label={`En cola para guardar ${item.alt}`}
+                          aria-label={t.app.imageUploadAria('pending', item.alt)}
                           className={`${uploadSpinnerClass} rounded-full border-slate-200`}
                         />
                       )}
 
                       {status === 'uploading' && (
                         <span
-                          aria-label={`Guardando ${item.alt} en la nube`}
+                          aria-label={t.app.imageUploadAria('uploading', item.alt)}
                           className={`${uploadSpinnerClass} rounded-full border-emerald-200 border-t-emerald-500 animate-spin`}
                         />
                       )}
@@ -473,7 +473,7 @@ export function DesktopUploadSequence({
                           initial={shouldReduceMotion ? false : { scale: 0.55, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                          aria-label={`${item.alt} guardada`}
+                          aria-label={t.app.imageUploadAria('done', item.alt)}
                           className={`${uploadBadgeClass} rounded-full bg-emerald-500 text-white shadow-[0_4px_14px_rgba(16,185,129,0.38)] flex items-center justify-center`}
                         >
                           <Check className={`${uploadIconClass} stroke-[2.75]`} aria-hidden="true" />
@@ -482,7 +482,7 @@ export function DesktopUploadSequence({
 
                       {status === 'error' && (
                         <span
-                          aria-label={`Error al guardar ${item.alt}`}
+                          aria-label={t.app.imageUploadAria('error', item.alt)}
                           className={`${uploadBadgeClass} rounded-full bg-rose-100 text-rose-600 flex items-center justify-center`}
                         >
                           <X className={`${uploadIconClass} stroke-[2.5]`} aria-hidden="true" />
@@ -541,7 +541,7 @@ export function DesktopUploadSequence({
                           initial={shouldReduceMotion ? false : { opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ duration: 0.14 }}
-                          aria-label={`Renderizando ${item.alt}`}
+                          aria-label={t.app.compressionStatusAria('rendering', item.alt)}
                           className="absolute inset-0 bg-slate-950/25 flex items-center justify-center"
                         >
                           <span className="w-10 h-10 rounded-full bg-white/95 shadow-sm flex items-center justify-center">
@@ -555,7 +555,7 @@ export function DesktopUploadSequence({
                           initial={shouldReduceMotion ? false : { opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ duration: 0.14 }}
-                          aria-label={`Comprimiendo ${item.alt}`}
+                          aria-label={t.app.compressionStatusAria('compressing', item.alt)}
                           className="absolute inset-0 bg-slate-950/25 flex items-center justify-center"
                         >
                           <span className="w-10 h-10 rounded-full bg-white/95 shadow-sm flex items-center justify-center">
@@ -569,7 +569,7 @@ export function DesktopUploadSequence({
                           initial={shouldReduceMotion ? false : { scale: 0.55, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
                           transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                          aria-label={`${item.alt} comprimida`}
+                          aria-label={t.app.compressionStatusAria('done', item.alt)}
                           className="absolute inset-0 bg-slate-950/10 flex items-center justify-center pointer-events-none"
                         >
                           <span className="w-9 h-9 rounded-full bg-emerald-500 text-white ring-2 ring-white shadow-[0_3px_10px_rgba(16,185,129,0.4)] flex items-center justify-center">
@@ -580,7 +580,7 @@ export function DesktopUploadSequence({
 
                       {showCompressionBox && compStatus === 'error' && (
                         <div
-                          aria-label={`Error al comprimir ${item.alt}`}
+                          aria-label={t.app.compressionStatusAria('error', item.alt)}
                           className="absolute inset-0 bg-slate-950/20 flex items-center justify-center pointer-events-none"
                         >
                           <span className="w-9 h-9 rounded-full bg-rose-500 text-white ring-2 ring-white flex items-center justify-center">

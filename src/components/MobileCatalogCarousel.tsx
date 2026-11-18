@@ -123,7 +123,7 @@ export function MobileCatalogCarousel({
     isReadOnlyReplay ? 'unified' : 'idle',
   );
   const shouldReduceMotion = useReducedMotion();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
 
   useEffect(() => {
     setExpandedMappedIds({});
@@ -532,6 +532,7 @@ export function MobileCatalogCarousel({
         images,
         mappedResults,
         compressionResults,
+        locale,
       });
     } finally {
       setExportingPdfKind(null);

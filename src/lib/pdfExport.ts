@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import type { CatalogImageItem } from '../data/catalogSamples';
 import type { MappedImageMetadata } from './imageCompression';
 import type { CompressedImageMeta } from '../components/MobileCatalogCarousel';
+import type { SupportedLocale } from './i18n';
 
 export type CatalogPdfExportKind =
   | 'json'
@@ -15,6 +16,7 @@ export interface CatalogPdfExportInput {
   images: CatalogImageItem[];
   mappedResults: Record<string, MappedImageMetadata>;
   compressionResults: Record<string, CompressedImageMeta>;
+  locale?: SupportedLocale;
 }
 
 interface LoadedCanvasImage {
@@ -115,12 +117,124 @@ function addDocumentHeader(doc: jsPDF, title: string, subtitle: string): number 
   return 38;
 }
 
+const PDF_LOCALE_TAG: Record<SupportedLocale, string> = {
+  es: 'es-ES',
+  en: 'en-US',
+  pt: 'pt-BR',
+};
+
+const PDF_COPY: Record<
+  SupportedLocale,
+  {
+    jsonTitle: string;
+    jsonSubtitle: (count: number, date: string) => string;
+    jsonFilename: string;
+    urlsTitle: string;
+    urlsSubtitle: (count: number, date: string) => string;
+    urlsFilename: string;
+    metadataTitle: string;
+    metadataSubtitle: (count: number, date: string) => string;
+    metadataFilename: string;
+    imagesTitle: string;
+    imagesSubtitle: (count: number, date: string) => string;
+    imagesFilename: string;
+    allTitle: string;
+    allSubtitle: (count: number, date: string) => string;
+    allFilename: string;
+    productFallback: string;
+    categoryFallback: string;
+    categoryLabel: string;
+    imageFallback: string;
+    noDescription: string;
+    imageUnavailable: string;
+    noImage: string;
+  }
+> = {
+  es: {
+    jsonTitle: 'Mapeo JSON — Search Link',
+    jsonSubtitle: (count, date) => `${count} elementos • Generado el ${date}`,
+    jsonFilename: 'search-link-mapeo-json.pdf',
+    urlsTitle: 'URLs — Search Link',
+    urlsSubtitle: (count, date) => `${count} enlaces • Generado el ${date}`,
+    urlsFilename: 'search-link-urls.pdf',
+    metadataTitle: 'Metadatos — Search Link',
+    metadataSubtitle: (count, date) => `${count} productos • Generado el ${date}`,
+    metadataFilename: 'search-link-metadatos.pdf',
+    imagesTitle: 'Imágenes — Search Link',
+    imagesSubtitle: (count, date) => `${count} imágenes • Generado el ${date}`,
+    imagesFilename: 'search-link-imagenes.pdf',
+    allTitle: 'Catálogo Completo — Search Link',
+    allSubtitle: (count, date) =>
+      `${count} productos • Nombres, imágenes, metadatos y URLs • ${date}`,
+    allFilename: 'search-link-catalogo-completo.pdf',
+    productFallback: 'Producto',
+    categoryFallback: 'General',
+    categoryLabel: 'Categoría',
+    imageFallback: 'Imagen',
+    noDescription: 'Sin descripción disponible.',
+    imageUnavailable: 'Imagen no disponible',
+    noImage: 'Sin imagen',
+  },
+  en: {
+    jsonTitle: 'JSON Mapping — Search Link',
+    jsonSubtitle: (count, date) => `${count} items • Generated on ${date}`,
+    jsonFilename: 'search-link-json-mapping.pdf',
+    urlsTitle: 'URLs — Search Link',
+    urlsSubtitle: (count, date) => `${count} links • Generated on ${date}`,
+    urlsFilename: 'search-link-urls.pdf',
+    metadataTitle: 'Metadata — Search Link',
+    metadataSubtitle: (count, date) => `${count} products • Generated on ${date}`,
+    metadataFilename: 'search-link-metadata.pdf',
+    imagesTitle: 'Images — Search Link',
+    imagesSubtitle: (count, date) => `${count} images • Generated on ${date}`,
+    imagesFilename: 'search-link-images.pdf',
+    allTitle: 'Full Catalog — Search Link',
+    allSubtitle: (count, date) =>
+      `${count} products • Names, images, metadata and URLs • ${date}`,
+    allFilename: 'search-link-full-catalog.pdf',
+    productFallback: 'Product',
+    categoryFallback: 'General',
+    categoryLabel: 'Category',
+    imageFallback: 'Image',
+    noDescription: 'No description available.',
+    imageUnavailable: 'Image unavailable',
+    noImage: 'No image',
+  },
+  pt: {
+    jsonTitle: 'Mapeamento JSON — Search Link',
+    jsonSubtitle: (count, date) => `${count} itens • Gerado em ${date}`,
+    jsonFilename: 'search-link-mapeamento-json.pdf',
+    urlsTitle: 'URLs — Search Link',
+    urlsSubtitle: (count, date) => `${count} links • Gerado em ${date}`,
+    urlsFilename: 'search-link-urls.pdf',
+    metadataTitle: 'Metadados — Search Link',
+    metadataSubtitle: (count, date) => `${count} produtos • Gerado em ${date}`,
+    metadataFilename: 'search-link-metadados.pdf',
+    imagesTitle: 'Imagens — Search Link',
+    imagesSubtitle: (count, date) => `${count} imagens • Gerado em ${date}`,
+    imagesFilename: 'search-link-imagens.pdf',
+    allTitle: 'Catálogo Completo — Search Link',
+    allSubtitle: (count, date) =>
+      `${count} produtos • Nomes, imagens, metadados e URLs • ${date}`,
+    allFilename: 'search-link-catalogo-completo.pdf',
+    productFallback: 'Produto',
+    categoryFallback: 'Geral',
+    categoryLabel: 'Categoria',
+    imageFallback: 'Imagem',
+    noDescription: 'Nenhuma descrição disponível.',
+    imageUnavailable: 'Imagem indisponível',
+    noImage: 'Sem imagem',
+  },
+};
+
 export async function generateAndDownloadCatalogPdf({
   kind,
   images,
   mappedResults,
   compressionResults,
+  locale = 'es',
 }: CatalogPdfExportInput): Promise<void> {
+  const copy = PDF_COPY[locale] ?? PDF_COPY.es;
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -133,7 +247,7 @@ export async function generateAndDownloadCatalogPdf({
   const marginX = 16;
   const contentW = pageW - marginX * 2;
   const bottomLimit = pageH - 16;
-  const dateLabel = new Intl.DateTimeFormat('es-ES', {
+  const dateLabel = new Intl.DateTimeFormat(PDF_LOCALE_TAG[locale] ?? 'es-ES', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date());
@@ -149,8 +263,8 @@ export async function generateAndDownloadCatalogPdf({
   if (kind === 'json') {
     let cursorY = addDocumentHeader(
       doc,
-      'Mapeo JSON — Search Link',
-      `${images.length} elementos • Generado el ${dateLabel}`,
+      copy.jsonTitle,
+      copy.jsonSubtitle(images.length, dateLabel),
     );
 
     const payload = images.map((item) => {
@@ -158,8 +272,8 @@ export async function generateAndDownloadCatalogPdf({
       const compressed = compressionResults[item.id];
       const url = resolveBestItemUrl(item, mapped, compressed);
       return {
-        nombre: mapped?.nombre || item.alt || 'Producto',
-        categoria: mapped?.categoria || 'General',
+        nombre: mapped?.nombre || item.alt || copy.productFallback,
+        categoria: mapped?.categoria || copy.categoryFallback,
         descripcion: mapped?.descripcion || '',
         url,
       };
@@ -178,22 +292,22 @@ export async function generateAndDownloadCatalogPdf({
       cursorY += lineHeight;
     }
 
-    doc.save('search-link-mapeo-json.pdf');
+    doc.save(copy.jsonFilename);
     return;
   }
 
   if (kind === 'urls') {
     let cursorY = addDocumentHeader(
       doc,
-      'URLs — Search Link',
-      `${images.length} enlaces • Generado el ${dateLabel}`,
+      copy.urlsTitle,
+      copy.urlsSubtitle(images.length, dateLabel),
     );
 
     images.forEach((item, index) => {
       const mapped = mappedResults[item.id];
       const compressed = compressionResults[item.id];
       const finalUrl = resolveBestItemUrl(item, mapped, compressed);
-      const label = mapped?.nombre || item.alt || `Imagen ${index + 1}`;
+      const label = mapped?.nombre || item.alt || `${copy.imageFallback} ${index + 1}`;
       const wrappedUrl = doc.splitTextToSize(finalUrl, contentW) as string[];
       const blockHeight = 6 + wrappedUrl.length * 4.4 + 4;
 
@@ -218,23 +332,23 @@ export async function generateAndDownloadCatalogPdf({
       cursorY += 6;
     });
 
-    doc.save('search-link-urls.pdf');
+    doc.save(copy.urlsFilename);
     return;
   }
 
   if (kind === 'metadata') {
     let cursorY = addDocumentHeader(
       doc,
-      'Metadatos — Search Link',
-      `${images.length} productos • Generado el ${dateLabel}`,
+      copy.metadataTitle,
+      copy.metadataSubtitle(images.length, dateLabel),
     );
 
     images.forEach((item, index) => {
       const mapped = mappedResults[item.id];
       const compressed = compressionResults[item.id];
-      const nombre = mapped?.nombre || item.alt || `Producto ${index + 1}`;
-      const categoria = mapped?.categoria || 'General';
-      const descripcion = mapped?.descripcion || 'Sin descripción disponible.';
+      const nombre = mapped?.nombre || item.alt || `${copy.productFallback} ${index + 1}`;
+      const categoria = mapped?.categoria || copy.categoryFallback;
+      const descripcion = mapped?.descripcion || copy.noDescription;
       const url = resolveBestItemUrl(item, mapped, compressed);
 
       const descLines = doc.splitTextToSize(descripcion, contentW) as string[];
@@ -253,7 +367,7 @@ export async function generateAndDownloadCatalogPdf({
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9.2);
       doc.setTextColor(71, 85, 105);
-      doc.text(`Categoría: ${categoria}`, marginX, cursorY);
+      doc.text(`${copy.categoryLabel}: ${categoria}`, marginX, cursorY);
       cursorY += 5;
 
       doc.setFontSize(9.2);
@@ -279,7 +393,7 @@ export async function generateAndDownloadCatalogPdf({
       cursorY += 8;
     });
 
-    doc.save('search-link-metadatos.pdf');
+    doc.save(copy.metadataFilename);
     return;
   }
 
@@ -300,8 +414,8 @@ export async function generateAndDownloadCatalogPdf({
   if (kind === 'images') {
     let cursorY = addDocumentHeader(
       doc,
-      'Imágenes — Search Link',
-      `${images.length} imágenes • Generado el ${dateLabel}`,
+      copy.imagesTitle,
+      copy.imagesSubtitle(images.length, dateLabel),
     );
 
     const colGap = 10;
@@ -337,12 +451,12 @@ export async function generateAndDownloadCatalogPdf({
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8.5);
           doc.setTextColor(148, 163, 184);
-          doc.text('Imagen no disponible', x + cellW / 2, cursorY + maxImgH / 2, {
+          doc.text(copy.imageUnavailable, x + cellW / 2, cursorY + maxImgH / 2, {
             align: 'center',
           });
         }
 
-        const caption = `${idx + 1}. ${mapped?.nombre || item.alt || `Imagen ${idx + 1}`}`;
+        const caption = `${idx + 1}. ${mapped?.nombre || item.alt || `${copy.imageFallback} ${idx + 1}`}`;
         const truncatedCaption =
           caption.length > 38 ? `${caption.slice(0, 35)}...` : caption;
         doc.setFont('helvetica', 'normal');
@@ -354,15 +468,15 @@ export async function generateAndDownloadCatalogPdf({
       cursorY += rowHeight + 4;
     }
 
-    doc.save('search-link-imagenes.pdf');
+    doc.save(copy.imagesFilename);
     return;
   }
 
   // kind === 'all': nombres, imágenes, metadatos y URLs
   let cursorY = addDocumentHeader(
     doc,
-    'Catálogo Completo — Search Link',
-    `${images.length} productos • Nombres, imágenes, metadatos y URLs • ${dateLabel}`,
+    copy.allTitle,
+    copy.allSubtitle(images.length, dateLabel),
   );
 
   images.forEach((item, index) => {
@@ -370,9 +484,9 @@ export async function generateAndDownloadCatalogPdf({
     const compressed = compressionResults[item.id];
     const loaded = loadedImages[index];
 
-    const nombre = mapped?.nombre || item.alt || `Producto ${index + 1}`;
-    const categoria = mapped?.categoria || 'General';
-    const descripcion = mapped?.descripcion || 'Sin descripción disponible.';
+    const nombre = mapped?.nombre || item.alt || `${copy.productFallback} ${index + 1}`;
+    const categoria = mapped?.categoria || copy.categoryFallback;
+    const descripcion = mapped?.descripcion || copy.noDescription;
     const finalUrl = resolveBestItemUrl(item, mapped, compressed);
 
     const thumbBox = 38;
@@ -403,7 +517,7 @@ export async function generateAndDownloadCatalogPdf({
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(148, 163, 184);
-      doc.text('Sin imagen', marginX + thumbBox / 2, cursorY + thumbBox / 2, {
+      doc.text(copy.noImage, marginX + thumbBox / 2, cursorY + thumbBox / 2, {
         align: 'center',
       });
     }
@@ -418,7 +532,7 @@ export async function generateAndDownloadCatalogPdf({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.8);
     doc.setTextColor(100, 116, 139);
-    doc.text(`Categoría: ${categoria}`, textColX, textY);
+    doc.text(`${copy.categoryLabel}: ${categoria}`, textColX, textY);
     textY += 4.8;
 
     doc.setFontSize(8.8);
@@ -443,5 +557,5 @@ export async function generateAndDownloadCatalogPdf({
     cursorY += 6;
   });
 
-  doc.save('search-link-catalogo-completo.pdf');
+  doc.save(copy.allFilename);
 }

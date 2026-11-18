@@ -17,6 +17,7 @@ import officeErgonomicChair from '../assets/images/office_ergonomic_chair_179500
 import skincareSerumGlass from '../assets/images/skincare_serum_glass_1795004874985.jpg';
 import whiteCourtSneaker from '../assets/images/white_court_sneaker_1795003832742.jpg';
 import whiteRunnerSneaker from '../assets/images/white_runner_sneaker_1795003832857.jpg';
+import { useI18n } from '../lib/i18n';
 
 const WHATSAPP_WALLPAPER_URL =
   '/assets/aistudio/IMG_20261118_070436_08aaef60.jpg';
@@ -44,6 +45,100 @@ interface ExampleProductCard {
 
 interface AutomationExampleConfig {
   id: PlatformKey;
+  companyName: string;
+  timestamp1: string;
+  timestamp2: string;
+  products: [
+    { id: string; imageUrl: string },
+    { id: string; imageUrl: string },
+  ];
+}
+
+const AUTOMATION_EXAMPLE_META: AutomationExampleConfig[] = [
+  {
+    id: 'whatsapp',
+    companyName: 'Veloce Calzado',
+    timestamp1: '10:42',
+    timestamp2: '10:43',
+    products: [
+      { id: 'wa-court', imageUrl: whiteCourtSneaker },
+      { id: 'wa-runner', imageUrl: whiteRunnerSneaker },
+    ],
+  },
+  {
+    id: 'telegram',
+    companyName: 'Apex Motors',
+    timestamp1: '11:05',
+    timestamp2: '11:05',
+    products: [
+      { id: 'tg-sedan', imageUrl: carElectricSedan },
+      { id: 'tg-suv', imageUrl: carLuxurySuv },
+    ],
+  },
+  {
+    id: 'instagram',
+    companyName: 'Núa Studio',
+    timestamp1: '14:18',
+    timestamp2: '14:18',
+    products: [
+      { id: 'ig-watch', imageUrl: catWatch },
+      { id: 'ig-glasses', imageUrl: catSunglasses },
+    ],
+  },
+  {
+    id: 'messenger',
+    companyName: 'Casa Nórdica',
+    timestamp1: '16:20',
+    timestamp2: '16:21',
+    products: [
+      { id: 'ms-chair', imageUrl: catChair },
+      { id: 'ms-plant', imageUrl: catPlant },
+    ],
+  },
+  {
+    id: 'web',
+    companyName: 'Bistro Brasa',
+    timestamp1: '19:40',
+    timestamp2: '19:40',
+    products: [
+      { id: 'web-burger', imageUrl: catBurger },
+      { id: 'web-pizza', imageUrl: catPizza },
+    ],
+  },
+  {
+    id: 'discord',
+    companyName: 'Pulse Gear',
+    timestamp1: '21:10',
+    timestamp2: '21:10',
+    products: [
+      { id: 'dc-audio', imageUrl: catHeadphones },
+      { id: 'dc-kb', imageUrl: gamingKeyboardMate },
+    ],
+  },
+  {
+    id: 'slack',
+    companyName: 'WorkCraft B2B',
+    timestamp1: '09:15',
+    timestamp2: '09:15',
+    products: [
+      { id: 'sl-chair', imageUrl: officeErgonomicChair },
+      { id: 'sl-mug', imageUrl: catMug },
+    ],
+  },
+  {
+    id: 'line',
+    companyName: 'Sora Botanics',
+    timestamp1: '13:30',
+    timestamp2: '13:31',
+    products: [
+      { id: 'ln-serum', imageUrl: skincareSerumGlass },
+      { id: 'ln-perfume', imageUrl: catPerfume },
+    ],
+  },
+];
+
+interface ResolvedAutomationExample {
+  id: PlatformKey;
   bottomLabel: string;
   companyName: string;
   accountType: string;
@@ -56,225 +151,6 @@ interface AutomationExampleConfig {
   timestamp2: string;
   products: [ExampleProductCard, ExampleProductCard];
 }
-
-const AUTOMATION_EXAMPLES: AutomationExampleConfig[] = [
-  {
-    id: 'whatsapp',
-    bottomLabel: 'WhatsApp · Chatbots',
-    companyName: 'Veloce Calzado',
-    accountType: 'Enterprise',
-    headerSubline: 'Catálogo automático',
-    userGreeting: 'Hola',
-    botGreeting: '¡Hola! ¿Cómo estás? ¿Qué estás buscando hoy?',
-    userRequest: 'Quiero ver el catálogo de calzado blanco',
-    botResultText: 'Aquí tienes lo que tenemos en catálogo.',
-    timestamp1: '10:42',
-    timestamp2: '10:43',
-    products: [
-      {
-        id: 'wa-court',
-        name: 'Veloce Court',
-        subtitle: 'Cuero blanco',
-        imageUrl: whiteCourtSneaker,
-      },
-      {
-        id: 'wa-runner',
-        name: 'Veloce Runner',
-        subtitle: 'Knit marfil',
-        imageUrl: whiteRunnerSneaker,
-      },
-    ],
-  },
-  {
-    id: 'telegram',
-    bottomLabel: 'Telegram · Bots',
-    companyName: 'Apex Motors',
-    accountType: 'Bot Oficial',
-    headerSubline: 'Concesionario digital',
-    userGreeting: 'Hola, busco autos',
-    botGreeting: '¡Bienvenido! ¿Prefieres sedán eléctrico o SUV?',
-    userRequest: 'Muéstrame los disponibles hoy',
-    botResultText: 'Estos dos modelos están listos para entrega.',
-    timestamp1: '11:05',
-    timestamp2: '11:05',
-    products: [
-      {
-        id: 'tg-sedan',
-        name: 'Apex Air EV',
-        subtitle: 'Sedán eléctrico',
-        imageUrl: carElectricSedan,
-      },
-      {
-        id: 'tg-suv',
-        name: 'Apex Terra',
-        subtitle: 'SUV híbrida',
-        imageUrl: carLuxurySuv,
-      },
-    ],
-  },
-  {
-    id: 'instagram',
-    bottomLabel: 'Instagram · DM Bot',
-    companyName: 'Núa Studio',
-    accountType: 'Tienda',
-    headerSubline: 'Respuestas en DM',
-    userGreeting: 'Hola, me gustó su reel',
-    botGreeting: '¡Gracias! ¿Qué accesorio quieres revisar?',
-    userRequest: 'Relojes y gafas para regalo',
-    botResultText: 'Aquí tienes nuestros favoritos de temporada.',
-    timestamp1: '14:18',
-    timestamp2: '14:18',
-    products: [
-      {
-        id: 'ig-watch',
-        name: 'Crono Cuero',
-        subtitle: 'Edición clásica',
-        imageUrl: catWatch,
-      },
-      {
-        id: 'ig-glasses',
-        name: 'Gafas Carey',
-        subtitle: 'Filtro UV400',
-        imageUrl: catSunglasses,
-      },
-    ],
-  },
-  {
-    id: 'messenger',
-    bottomLabel: 'Messenger · Meta Bot',
-    companyName: 'Casa Nórdica',
-    accountType: 'Hogar',
-    headerSubline: 'Asesor de espacios',
-    userGreeting: 'Buenas, vi su anuncio',
-    botGreeting: '¡Hola! ¿Para qué espacio buscas piezas?',
-    userRequest: 'Algo minimalista para la sala',
-    botResultText: 'Estas dos piezas combinan perfecto juntas.',
-    timestamp1: '16:20',
-    timestamp2: '16:21',
-    products: [
-      {
-        id: 'ms-chair',
-        name: 'Silla Roble',
-        subtitle: 'Tela beige',
-        imageUrl: catChair,
-      },
-      {
-        id: 'ms-plant',
-        name: 'Monstera Maceta',
-        subtitle: 'Cerámica mate',
-        imageUrl: catPlant,
-      },
-    ],
-  },
-  {
-    id: 'web',
-    bottomLabel: 'Chat Web · Tienda',
-    companyName: 'Bistro Brasa',
-    accountType: 'Web Widget',
-    headerSubline: 'Menú en línea',
-    userGreeting: 'Hola, ¿qué recomiendan?',
-    botGreeting: '¡Hola! Todo sale recién hecho. ¿Qué te provoca?',
-    userRequest: 'Algo rápido para cenar hoy',
-    botResultText: 'Nuestros dos platos más pedidos esta noche.',
-    timestamp1: '19:40',
-    timestamp2: '19:40',
-    products: [
-      {
-        id: 'web-burger',
-        name: 'Burger Brioche',
-        subtitle: 'Cheddar maduro',
-        imageUrl: catBurger,
-      },
-      {
-        id: 'web-pizza',
-        name: 'Pizza Margarita',
-        subtitle: 'Masa madre',
-        imageUrl: catPizza,
-      },
-    ],
-  },
-  {
-    id: 'discord',
-    bottomLabel: 'Discord · Bot API',
-    companyName: 'Pulse Gear',
-    accountType: 'APP',
-    headerSubline: '#tienda-hardware',
-    userGreeting: 'Hola, busco setup oscuro',
-    botGreeting: '¡Qué tal! ¿Buscas audio o periféricos?',
-    userRequest: 'Muéstrame teclado y audífonos',
-    botResultText: 'Ambos disponibles con envío inmediato.',
-    timestamp1: '21:10',
-    timestamp2: '21:10',
-    products: [
-      {
-        id: 'dc-audio',
-        name: 'Pulse Audio Pro',
-        subtitle: 'Negro mate',
-        imageUrl: catHeadphones,
-      },
-      {
-        id: 'dc-kb',
-        name: 'Teclado 65%',
-        subtitle: 'Aluminio ámbar',
-        imageUrl: gamingKeyboardMate,
-      },
-    ],
-  },
-  {
-    id: 'slack',
-    bottomLabel: 'Slack · App B2B',
-    companyName: 'WorkCraft B2B',
-    accountType: 'Empresa',
-    headerSubline: '#compras-oficina',
-    userGreeting: 'Hola, renovamos oficina',
-    botGreeting: 'Con gusto. ¿Qué equipamiento necesitan cotizar?',
-    userRequest: 'Sillas ergonómicas y tazas',
-    botResultText: 'Catálogo corporativo listo para pedido.',
-    timestamp1: '09:15',
-    timestamp2: '09:15',
-    products: [
-      {
-        id: 'sl-chair',
-        name: 'Silla Mesh Pro',
-        subtitle: 'Aluminio B2B',
-        imageUrl: officeErgonomicChair,
-      },
-      {
-        id: 'sl-mug',
-        name: 'Set Cerámica',
-        subtitle: 'Lote oficina',
-        imageUrl: catMug,
-      },
-    ],
-  },
-  {
-    id: 'line',
-    bottomLabel: 'LINE · Official Account',
-    companyName: 'Sora Botanics',
-    accountType: 'Oficial',
-    headerSubline: 'Asistente cosmético',
-    userGreeting: 'Hola, busco skincare',
-    botGreeting: '¡Hola! ¿Te interesa sérum o fragancia?',
-    userRequest: 'Muéstrame ambos por favor',
-    botResultText: 'Aquí tienes nuestras fórmulas más buscadas.',
-    timestamp1: '13:30',
-    timestamp2: '13:31',
-    products: [
-      {
-        id: 'ln-serum',
-        name: 'Sérum Ámbar',
-        subtitle: 'Uso nocturno',
-        imageUrl: skincareSerumGlass,
-      },
-      {
-        id: 'ln-perfume',
-        name: 'Esencia Botánica',
-        subtitle: 'Notas cálidas',
-        imageUrl: catPerfume,
-      },
-    ],
-  },
-];
 
 type ConversationStep = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -293,6 +169,7 @@ export function AutomationExamplesSection({
   visible,
 }: AutomationExamplesSectionProps) {
   const shouldReduceMotion = useReducedMotion();
+  const { t } = useI18n();
   const trackRef = useRef<HTMLDivElement>(null);
   const dragStateRef = useRef<{
     isDown: boolean;
@@ -337,7 +214,7 @@ export function AutomationExamplesSection({
       {visible && (
         <motion.section
           key="desktop-automation-examples"
-          aria-label="Ejemplos de automatizaciones"
+          aria-label={t.examples.sectionAria}
           initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
@@ -347,10 +224,10 @@ export function AutomationExamplesSection({
           {/* Clean heading & subtitle without extra action buttons */}
           <div className="mb-5 px-1">
             <h2 className="text-xl font-semibold tracking-tight text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.65)] text-balance">
-              Ejemplos de automatizaciones
+              {t.examples.sectionTitle}
             </h2>
             <p className="mt-1 text-sm text-white/85 drop-shadow-[0_1px_10px_rgba(0,0,0,0.6)]">
-              Cómo actúa Search Link en diferentes plataformas
+              {t.examples.sectionSubtitle}
             </p>
           </div>
 
@@ -365,15 +242,48 @@ export function AutomationExamplesSection({
               isDragging ? 'cursor-grabbing' : 'cursor-grab'
             }`}
           >
-            {AUTOMATION_EXAMPLES.map((example, index) => (
-              <PlatformChatCard
-                key={example.id}
-                example={example}
-                staggerMs={index * 450}
-                visible={visible}
-                shouldReduceMotion={Boolean(shouldReduceMotion)}
-              />
-            ))}
+            {AUTOMATION_EXAMPLE_META.map((meta, index) => {
+              const localized = t.examples.items[meta.id];
+              const resolvedExample: ResolvedAutomationExample = {
+                id: meta.id,
+                companyName: meta.companyName,
+                timestamp1: meta.timestamp1,
+                timestamp2: meta.timestamp2,
+                bottomLabel: localized.bottomLabel,
+                accountType: localized.accountType,
+                headerSubline: localized.headerSubline,
+                userGreeting: localized.userGreeting,
+                botGreeting: localized.botGreeting,
+                userRequest: localized.userRequest,
+                botResultText: localized.botResultText,
+                products: [
+                  {
+                    id: meta.products[0].id,
+                    imageUrl: meta.products[0].imageUrl,
+                    name: localized.products[0].name,
+                    subtitle: localized.products[0].subtitle,
+                  },
+                  {
+                    id: meta.products[1].id,
+                    imageUrl: meta.products[1].imageUrl,
+                    name: localized.products[1].name,
+                    subtitle: localized.products[1].subtitle,
+                  },
+                ],
+              };
+
+              return (
+                <PlatformChatCard
+                  key={meta.id}
+                  example={resolvedExample}
+                  visitorName={t.examples.visitorName}
+                  cardAria={t.examples.cardAria(localized.bottomLabel)}
+                  staggerMs={index * 450}
+                  visible={visible}
+                  shouldReduceMotion={Boolean(shouldReduceMotion)}
+                />
+              );
+            })}
           </div>
         </motion.section>
       )}
@@ -382,7 +292,9 @@ export function AutomationExamplesSection({
 }
 
 interface PlatformChatCardProps {
-  example: AutomationExampleConfig;
+  example: ResolvedAutomationExample;
+  visitorName: string;
+  cardAria: string;
   staggerMs: number;
   visible: boolean;
   shouldReduceMotion: boolean;
@@ -390,6 +302,8 @@ interface PlatformChatCardProps {
 
 function PlatformChatCard({
   example,
+  visitorName,
+  cardAria,
   staggerMs,
   visible,
   shouldReduceMotion,
@@ -448,7 +362,7 @@ function PlatformChatCard({
   return (
     <div className="w-[258px] shrink-0 flex flex-col items-start">
       <article
-        aria-label={`Ejemplo en ${example.bottomLabel}`}
+        aria-label={cardAria}
         className={`w-full rounded-3xl overflow-hidden flex flex-col border shadow-[0_18px_44px_-14px_rgba(0,0,0,0.48)] ${
           isDiscord
             ? 'bg-[#2B2D31] border-white/15'
@@ -540,7 +454,7 @@ function PlatformChatCard({
                 >
                   {isDiscord && (
                     <p className="text-[10px] font-semibold text-white mb-0.5">
-                      Visitante
+                      {visitorName}
                     </p>
                   )}
                   <div className="flex items-end gap-1.5">
@@ -619,7 +533,7 @@ function PlatformChatCard({
                 >
                   {isDiscord && (
                     <p className="text-[10px] font-semibold text-white mb-0.5">
-                      Visitante
+                      {visitorName}
                     </p>
                   )}
                   <div className="flex items-end gap-1.5">
