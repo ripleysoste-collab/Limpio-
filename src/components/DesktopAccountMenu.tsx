@@ -19,6 +19,8 @@ interface DesktopAccountMenuProps {
   onRenameService: (serviceId: string, nextName: string) => void;
   onNewProduct: () => void;
   onViewServiceHistory: (service: OrganizationServiceItem) => void;
+  onRotateServiceKey?: (serviceId: string) => Promise<string | null>;
+  onToggleServiceActive?: (serviceId: string, nextActive: boolean) => Promise<void>;
   onClose: () => void;
   onSignOut: () => Promise<void>;
 }
@@ -66,6 +68,8 @@ export function DesktopAccountMenu({
   onRenameService,
   onNewProduct,
   onViewServiceHistory,
+  onRotateServiceKey,
+  onToggleServiceActive,
   onClose,
   onSignOut,
 }: DesktopAccountMenuProps) {
@@ -260,6 +264,8 @@ export function DesktopAccountMenu({
                       setView('store');
                     }}
                     onViewServiceHistory={onViewServiceHistory}
+                    onRotateServiceKey={onRotateServiceKey}
+                    onToggleServiceActive={onToggleServiceActive}
                   />
                 </motion.div>
               ) : view === 'store' && selectedStoreService ? (

@@ -44,6 +44,8 @@ export interface CompressedImageMeta {
   compressedBytes: number;
 }
 
+import type { ServiceCredentialsDisplay } from './DualCatalogShowcase';
+
 interface MobileCatalogCarouselProps {
   images: CatalogImageItem[];
   isUnified: boolean;
@@ -62,6 +64,7 @@ interface MobileCatalogCarouselProps {
   compressionResults?: Record<string, CompressedImageMeta>;
   onOpenOrganization?: () => void;
   isReadOnlyReplay?: boolean;
+  serviceCredentials?: ServiceCredentialsDisplay | null;
 }
 
 const SEARCH_LINK_BENEFITS = [
@@ -113,6 +116,7 @@ export function MobileCatalogCarousel({
   compressionResults = {},
   onOpenOrganization,
   isReadOnlyReplay = false,
+  serviceCredentials = null,
 }: MobileCatalogCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const compressionScrollRef = useRef<HTMLDivElement>(null);
@@ -1253,9 +1257,14 @@ export function MobileCatalogCarousel({
                         className="h-[min(42dvh,310px)] min-h-[245px] w-full rounded-[20px] bg-white/95 backdrop-blur-sm border border-slate-200/80 shadow-[0_16px_42px_-12px_rgba(15,23,42,0.12),0_4px_14px_-4px_rgba(37,99,235,0.08)] p-4 flex flex-col justify-between overflow-hidden"
                       >
                         <div>
-                          <p className="text-[12.5px] font-semibold text-slate-950">
-                            Tus credenciales listas
-                          </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[12.5px] font-semibold text-slate-950">
+                              Tus credenciales listas
+                            </p>
+                            <span className="text-[10px] font-medium text-slate-400 shrink-0">
+                              Search Link Core
+                            </span>
+                          </div>
                           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
                             Toca el ícono al final para copiar tu API o endpoint.
                           </p>
@@ -1269,17 +1278,22 @@ export function MobileCatalogCarousel({
                                 className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                               />
                               <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                                api/1245
+                                {serviceCredentials?.apiKey || 'Generando API Key...'}
                               </span>
                             </div>
 
                             <button
                               type="button"
+                              disabled={!serviceCredentials?.apiKey}
                               onClick={() =>
-                                void handleCopyMetadataUrl('mobile-api', 'api/1245')
+                                serviceCredentials?.apiKey &&
+                                void handleCopyMetadataUrl(
+                                  'mobile-api',
+                                  serviceCredentials.apiKey,
+                                )
                               }
                               aria-label="Copiar API"
-                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer"
+                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer disabled:opacity-40"
                             >
                               {copiedMetadataId === 'mobile-api' ? (
                                 <Check
@@ -1299,17 +1313,22 @@ export function MobileCatalogCarousel({
                                 className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                               />
                               <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                                http/1245
+                                {serviceCredentials?.endpointUrl || 'Generando endpoint...'}
                               </span>
                             </div>
 
                             <button
                               type="button"
+                              disabled={!serviceCredentials?.endpointUrl}
                               onClick={() =>
-                                void handleCopyMetadataUrl('mobile-endpoint', 'http/1245')
+                                serviceCredentials?.endpointUrl &&
+                                void handleCopyMetadataUrl(
+                                  'mobile-endpoint',
+                                  serviceCredentials.endpointUrl,
+                                )
                               }
                               aria-label="Copiar endpoint"
-                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer"
+                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 active:bg-white transition-colors cursor-pointer disabled:opacity-40"
                             >
                               {copiedMetadataId === 'mobile-endpoint' ? (
                                 <Check

@@ -1,6 +1,25 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Camera, Check, Copy, History, Pencil, Plus, Store, X } from 'lucide-react';
+import {
+  Camera,
+  Check,
+  Copy,
+  History,
+  Loader2,
+  Pencil,
+  Play,
+  Plus,
+  RefreshCw,
+  Store,
+  X,
+} from 'lucide-react';
+import { compressAndUploadOrgLogo } from '../lib/imageCompression';
+import {
+  buildCoreCurlSnippet,
+  isRawCoreApiKey,
+  testCoreServiceEndpoint,
+  type CoreEndpointTestResult,
+} from '../lib/searchLinkCore';
 import type {
   OrganizationProfile,
   OrganizationServiceItem,
@@ -16,29 +35,15 @@ interface MobileOrganizationViewProps {
   onNewProduct: () => void;
   onOpenStore: (service: OrganizationServiceItem) => void;
   onViewServiceHistory: (service: OrganizationServiceItem) => void;
+  onRotateServiceKey?: (serviceId: string) => Promise<string | null>;
+  onToggleServiceActive?: (serviceId: string, nextActive: boolean) => Promise<void>;
 }
 
 type OnboardingStage = 'welcome' | 'congrats';
 
 interface CredentialModalState {
-  serviceName: string;
+  serviceId: string;
   kind: 'api' | 'endpoint';
-  value: string;
-}
-
-function readImageAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('No se pudo leer la imagen.'));
-      }
-    };
-    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
-    reader.readAsDataURL(file);
-  });
 }
 
 export function MobileOrganizationView({
@@ -51,6 +56,8 @@ export function MobileOrganizationView({
   onNewProduct,
   onOpenStore,
   onViewServiceHistory,
+  onRotateServiceKey,
+  onToggleServiceActive,
 }: MobileOrganizationViewProps) {
   const shouldReduceMotion = useReducedMotion();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -59,14 +66,25 @@ export function MobileOrganizationView({
 
   const [onboardingStage, setOnboardingStage] = useState<OnboardingStage>('welcome');
   const [draftLogoUrl, setDraftLogoUrl] = useState<string | null>(null);
+  const [draftLogoR2Key, setDraftLogoR2Key] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
 
   const [editingOrgName, setEditingOrgName] = useState(false);
   const [orgNameInput, setOrgNameInput] = useState(orgProfile.name);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [serviceNameInput, setServiceNameInput] = useState('');
   const [credentialBox, setCredentialBox] = useState<CredentialModalState | null>(null);
-  const [copiedCredential, setCopiedCredential] = useState(false);
+  const [copiedCredential, setCopiedCredential] = useState<'main' | 'curl' | false>(
+    false,
+  );
+  const [rotatingKey, setRotatingKey] = useState(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
+  const [testingEndpoint, setTestingEndpoint] = useState(false);
+  const [manualTestKey, setManualTestKey] = useState('');
+  const [endpointTestResult, setEndpointTestResult] =
+    useState<CoreEndpointTestResult | null>(null);
   const [logoImgFailed, setLogoImgFailed] = useState(false);
   const [storePickerOpen, setStorePickerOpen] = useState(false);
 
@@ -99,27 +117,41 @@ export function MobileOrganizationView({
   const handleOnboardingLogoChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    if (!file || isUploadingLogo) return;
+    setIsUploadingLogo(true);
+    setLogoUploadError(null);
     try {
-      const dataUrl = await readImageAsDataUrl(file);
-      setDraftLogoUrl(dataUrl);
-    } catch {
-      // Ignore invalid image read
+      const uploaded = await compressAndUploadOrgLogo(file);
+      setDraftLogoUrl(uploaded.url);
+      setDraftLogoR2Key(uploaded.key);
+    } catch (err) {
+      setLogoUploadError(
+        err instanceof Error ? err.message : 'No se pudo subir el logo.',
+      );
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
   const handleDashboardLogoChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    if (!file || isUploadingLogo) return;
+    setIsUploadingLogo(true);
+    setLogoUploadError(null);
     try {
-      const dataUrl = await readImageAsDataUrl(file);
+      const uploaded = await compressAndUploadOrgLogo(file);
       onSaveOrgProfile({
         ...orgProfile,
-        logoUrl: dataUrl,
+        logoUrl: uploaded.url,
+        logoR2Key: uploaded.key,
       });
-    } catch {
-      // Ignore invalid image read
+    } catch (err) {
+      setLogoUploadError(
+        err instanceof Error ? err.message : 'No se pudo subir el logo.',
+      );
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -131,6 +163,7 @@ export function MobileOrganizationView({
     onSaveOrgProfile({
       name: 'Sin nombre',
       logoUrl: googlePhotoUrl,
+      logoR2Key: null,
       hasCompletedSetup: true,
     });
   };
@@ -139,6 +172,7 @@ export function MobileOrganizationView({
     onSaveOrgProfile({
       name: draftName.trim() || 'Sin nombre',
       logoUrl: draftLogoUrl ?? googlePhotoUrl,
+      logoR2Key: draftLogoUrl ? draftLogoR2Key : null,
       hasCompletedSetup: true,
     });
   };
@@ -160,15 +194,32 @@ export function MobileOrganizationView({
     setEditingServiceId(null);
   };
 
-  const handleCopyCredential = async (text: string) => {
+  const handleCopyCredential = async (
+    text: string,
+    target: 'main' | 'curl' = 'main',
+  ) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedCredential(true);
+      setCopiedCredential(target);
       window.setTimeout(() => setCopiedCredential(false), 1600);
     } catch {
       setCopiedCredential(false);
     }
   };
+
+  const openCredentialBox = (
+    service: OrganizationServiceItem,
+    kind: 'api' | 'endpoint',
+  ) => {
+    setCopiedCredential(false);
+    setEndpointTestResult(null);
+    setManualTestKey(isRawCoreApiKey(service.apiKey) ? service.apiKey : '');
+    setCredentialBox({ serviceId: service.id, kind });
+  };
+
+  const activeCredentialService = credentialBox
+    ? services.find((s) => s.id === credentialBox.serviceId) ?? null
+    : null;
 
   // 1. Mobile First-time Onboarding (clean, compact, breathable)
   if (!orgProfile.hasCompletedSetup) {
@@ -205,11 +256,17 @@ export function MobileOrganizationView({
                     />
                     <button
                       type="button"
+                      disabled={isUploadingLogo}
                       onClick={() => logoInputRef.current?.click()}
                       aria-label="Subir logo de tu organización"
-                      className="group relative w-11 h-11 rounded-full border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                      className="group relative w-11 h-11 rounded-full border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:cursor-wait"
                     >
-                      {draftLogoUrl ? (
+                      {isUploadingLogo ? (
+                        <Loader2
+                          className="w-4 h-4 text-blue-600 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : draftLogoUrl ? (
                         <>
                           <img
                             src={draftLogoUrl}
@@ -262,6 +319,14 @@ export function MobileOrganizationView({
                       Pon el logo de tu organización y tu nombre
                     </p>
                   </div>
+                  {logoUploadError && (
+                    <p
+                      role="alert"
+                      className="mt-2 text-[11.5px] font-medium text-rose-600"
+                    >
+                      {logoUploadError}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -382,9 +447,10 @@ export function MobileOrganizationView({
           />
           <button
             type="button"
+            disabled={isUploadingLogo}
             onClick={() => dashboardLogoInputRef.current?.click()}
             aria-label="Cambiar logo de la organización"
-            className="group relative w-10 h-10 rounded-full border border-slate-200/90 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer"
+            className="group relative w-10 h-10 rounded-full border border-slate-200/90 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer disabled:cursor-wait"
           >
             {activeLogoSrc && !logoImgFailed ? (
               <img
@@ -399,9 +465,15 @@ export function MobileOrganizationView({
                 {googleInitialLetter}
               </span>
             )}
-            <span className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-              <Camera className="w-3 h-3" aria-hidden="true" />
-            </span>
+            {isUploadingLogo ? (
+              <span className="absolute inset-0 bg-slate-950/45 flex items-center justify-center text-white">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+              </span>
+            ) : (
+              <span className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                <Camera className="w-3 h-3" aria-hidden="true" />
+              </span>
+            )}
           </button>
 
           <div className="min-w-0 flex-1">
@@ -530,6 +602,15 @@ export function MobileOrganizationView({
         </div>
       </div>
 
+      {logoUploadError && (
+        <p
+          role="alert"
+          className="-mt-2.5 text-[11.5px] font-medium text-rose-600"
+        >
+          {logoUploadError}
+        </p>
+      )}
+
       {/* Mis servicios header + Nuevo producto CTA */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
@@ -620,14 +701,7 @@ export function MobileOrganizationView({
                     <div className="flex flex-col gap-1.5 pl-0.5 min-w-0">
                       <button
                         type="button"
-                        onClick={() => {
-                          setCopiedCredential(false);
-                          setCredentialBox({
-                            serviceName: service.name,
-                            kind: 'api',
-                            value: service.apiKey,
-                          });
-                        }}
+                        onClick={() => openCredentialBox(service, 'api')}
                         className="flex items-center gap-2 text-left text-[11.5px] font-medium text-slate-600 active:text-slate-950 py-0.5 cursor-pointer"
                       >
                         <span
@@ -639,14 +713,7 @@ export function MobileOrganizationView({
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setCopiedCredential(false);
-                          setCredentialBox({
-                            serviceName: service.name,
-                            kind: 'endpoint',
-                            value: service.endpointUrl,
-                          });
-                        }}
+                        onClick={() => openCredentialBox(service, 'endpoint')}
                         className="flex items-center gap-2 text-left text-[11.5px] font-medium text-slate-600 active:text-slate-950 py-0.5 cursor-pointer"
                       >
                         <span
@@ -674,9 +741,9 @@ export function MobileOrganizationView({
         )}
       </div>
 
-      {/* Centered credential copy dialog */}
+      {/* Centered Search Link Core credential & live tester dialog */}
       <AnimatePresence>
-        {credentialBox && (
+        {credentialBox && activeCredentialService && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -697,17 +764,22 @@ export function MobileOrganizationView({
               }
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-[320px] rounded-2xl border border-slate-200/95 bg-white p-4 shadow-xl space-y-3"
+              className="w-full max-w-[340px] rounded-2xl border border-slate-200/95 bg-white p-4 shadow-xl space-y-3"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-950">
-                    {credentialBox.kind === 'api'
-                      ? 'API del servicio'
-                      : 'Endpoint de este servicio'}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-slate-950">
+                      {credentialBox.kind === 'api'
+                        ? 'API del servicio'
+                        : 'Endpoint de este servicio'}
+                    </p>
+                    <span className="text-[10px] font-medium text-slate-400">
+                      Search Link Core
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {credentialBox.serviceName}
+                    {activeCredentialService.name}
                   </p>
                 </div>
                 <button
@@ -720,32 +792,215 @@ export function MobileOrganizationView({
                 </button>
               </div>
 
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/85 bg-slate-50/80 px-3 py-2">
-                <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                  {credentialBox.value}
-                </span>
+              {(() => {
+                const rawApiKeyAvailable = isRawCoreApiKey(
+                  activeCredentialService.apiKey,
+                );
+                const mainValue =
+                  credentialBox.kind === 'api'
+                    ? rawApiKeyAvailable
+                      ? activeCredentialService.apiKey
+                      : activeCredentialService.keyPrefix ||
+                        activeCredentialService.apiKey
+                    : activeCredentialService.endpointUrl;
+                const canCopyMain =
+                  credentialBox.kind === 'endpoint' || rawApiKeyAvailable;
+                const serviceIsActive = activeCredentialService.isActive !== false;
 
-                <button
-                  type="button"
-                  onClick={() => void handleCopyCredential(credentialBox.value)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200/90 text-[11px] font-semibold text-slate-700 cursor-pointer shrink-0"
-                >
-                  {copiedCredential ? (
-                    <>
-                      <Check
-                        className="w-3 h-3 text-emerald-600 stroke-[2.75]"
-                        aria-hidden="true"
-                      />
-                      Copiado
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" aria-hidden="true" />
-                      Copiar
-                    </>
-                  )}
-                </button>
-              </div>
+                return (
+                  <>
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/85 bg-slate-50/80 px-3 py-2">
+                      <span className="font-mono text-xs font-medium text-slate-800 truncate">
+                        {mainValue}
+                      </span>
+
+                      {canCopyMain && (
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyCredential(mainValue, 'main')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200/90 text-[11px] font-semibold text-slate-700 cursor-pointer shrink-0"
+                        >
+                          {copiedCredential === 'main' ? (
+                            <>
+                              <Check
+                                className="w-3 h-3 text-emerald-600 stroke-[2.75]"
+                                aria-hidden="true"
+                              />
+                              Copiado
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" aria-hidden="true" />
+                              Copiar
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {credentialBox.kind === 'api' ? (
+                      <div className="space-y-2.5">
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          {rawApiKeyAvailable
+                            ? 'Envía esta llave en el header x-api-key o Authorization: Bearer.'
+                            : 'Por seguridad solo se guarda el prefijo. Genera una nueva API Key si necesitas copiarla completa.'}
+                        </p>
+
+                        <div className="flex items-center justify-between gap-2 pt-0.5">
+                          {onToggleServiceActive ? (
+                            <button
+                              type="button"
+                              disabled={togglingStatus}
+                              onClick={async () => {
+                                setTogglingStatus(true);
+                                try {
+                                  await onToggleServiceActive(
+                                    activeCredentialService.id,
+                                    !serviceIsActive,
+                                  );
+                                } finally {
+                                  setTogglingStatus(false);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/90 text-[11px] font-medium text-slate-700 cursor-pointer disabled:opacity-50"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  serviceIsActive ? 'bg-emerald-500' : 'bg-amber-500'
+                                }`}
+                              />
+                              <span>
+                                {serviceIsActive ? 'Activo' : 'Pausado'}
+                              </span>
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+
+                          {onRotateServiceKey && (
+                            <button
+                              type="button"
+                              disabled={rotatingKey}
+                              onClick={async () => {
+                                setRotatingKey(true);
+                                try {
+                                  const newKey = await onRotateServiceKey(
+                                    activeCredentialService.id,
+                                  );
+                                  if (newKey) {
+                                    setManualTestKey(newKey);
+                                  }
+                                } finally {
+                                  setRotatingKey(false);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-50"
+                            >
+                              <RefreshCw
+                                className={`w-3 h-3 ${rotatingKey ? 'animate-spin' : ''}`}
+                                aria-hidden="true"
+                              />
+                              <span>Regenerar</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {!rawApiKeyAvailable && (
+                          <input
+                            type="text"
+                            value={manualTestKey}
+                            onChange={(e) => setManualTestKey(e.target.value)}
+                            placeholder="Pega tu API Key sl_core_... para probar"
+                            className="w-full rounded-lg border border-slate-200/90 bg-slate-50/70 px-2.5 py-1.5 font-mono text-[11px] text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:outline-none"
+                          />
+                        )}
+
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleCopyCredential(
+                                buildCoreCurlSnippet(
+                                  activeCredentialService.endpointUrl,
+                                  manualTestKey || activeCredentialService.apiKey,
+                                ),
+                                'curl',
+                              )
+                            }
+                            className="text-[11px] font-medium text-blue-600 cursor-pointer"
+                          >
+                            {copiedCredential === 'curl'
+                              ? 'cURL copiado'
+                              : 'Copiar cURL'}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              testingEndpoint ||
+                              !(manualTestKey.trim() || rawApiKeyAvailable)
+                            }
+                            onClick={async () => {
+                              const keyToUse =
+                                manualTestKey.trim() ||
+                                (rawApiKeyAvailable
+                                  ? activeCredentialService.apiKey
+                                  : '');
+                              if (!keyToUse) return;
+                              setTestingEndpoint(true);
+                              try {
+                                const res = await testCoreServiceEndpoint(
+                                  activeCredentialService.endpointUrl,
+                                  keyToUse,
+                                );
+                                setEndpointTestResult(res);
+                              } finally {
+                                setTestingEndpoint(false);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-semibold cursor-pointer disabled:opacity-45"
+                          >
+                            {testingEndpoint ? (
+                              <Loader2
+                                className="w-3 h-3 animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Play className="w-3 h-3" aria-hidden="true" />
+                            )}
+                            <span>Probar en vivo</span>
+                          </button>
+                        </div>
+
+                        {endpointTestResult && (
+                          <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 p-2.5 space-y-1.5">
+                            <div className="flex items-center justify-between text-[10.5px] font-medium">
+                              <span
+                                className={
+                                  endpointTestResult.ok
+                                    ? 'text-emerald-600'
+                                    : 'text-rose-600'
+                                }
+                              >
+                                HTTP {endpointTestResult.status || 'ERR'}
+                              </span>
+                              <span className="text-slate-400 tabular-nums">
+                                {endpointTestResult.latencyMs} ms
+                              </span>
+                            </div>
+                            <pre className="max-h-32 overflow-auto font-mono text-[10px] leading-relaxed text-slate-700 whitespace-pre-wrap break-all">
+                              {endpointTestResult.rawJson}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </motion.div>
           </motion.div>
         )}

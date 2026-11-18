@@ -6,12 +6,19 @@ import { extractImagesFromUrl } from './lib/extractor.ts';
 import { mapStoredImageWithGemini } from './lib/geminiMapper.ts';
 import { fetchProxiedImage } from './lib/imageProxy.ts';
 import { isValidMediaKey, readImageFromR2 } from './lib/r2Storage.ts';
-import { fetchCatalogByApiKey } from './lib/supabaseServer.ts';
+import {
+  extractCoreRequestParams,
+  getSearchLinkCoreManifest,
+  resolveSearchLinkCoreEndpoint,
+  SEARCH_LINK_CORE_NAME,
+  SEARCH_LINK_CORE_VERSION,
+} from './lib/supabaseServer.ts';
 import {
   decodeBase64ImagePayload,
   getRequestOrigin,
   MAX_UPLOAD_BYTES,
   processAndStoreUploadedImage,
+  sanitizeUploadFolderPrefix,
 } from './lib/uploadHandler.ts';
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
@@ -97,9 +104,21 @@ async function startServer() {
           });
         }
 
+        const rawFolder =
+          typeof req.headers['x-upload-folder'] === 'string'
+            ? req.headers['x-upload-folder']
+            : typeof req.query.folder === 'string'
+              ? req.query.folder
+              : req.body &&
+                  typeof req.body === 'object' &&
+                  !Buffer.isBuffer(req.body)
+                ? (req.body as Record<string, unknown>).folder
+                : undefined;
+
         const result = await processAndStoreUploadedImage(
           buffer,
           getRequestOrigin(req.headers),
+          sanitizeUploadFolderPrefix(rawFolder),
         );
         return res.json(result);
       } catch (err) {
@@ -148,48 +167,44 @@ async function startServer() {
     },
   );
 
-  app.options('/api/v1/catalog', (_req, res) => {
+  app.options(['/api/v1/core', '/api/v1/catalog', '/api/v1/services/:slug'], (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader(
       'Access-Control-Allow-Headers',
       'Authorization, x-api-key, Content-Type',
     );
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('X-Search-Link-Core', SEARCH_LINK_CORE_VERSION);
     return res.status(204).end();
   });
 
-  app.get('/api/v1/catalog', async (req, res) => {
+  app.get('/api/v1/core', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('X-Search-Link-Core', SEARCH_LINK_CORE_VERSION);
+    return res.json(getSearchLinkCoreManifest(getRequestOrigin(req.headers)));
+  });
+
+  app.get(['/api/v1/catalog', '/api/v1/services/:slug'], async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader(
       'Access-Control-Allow-Headers',
       'Authorization, x-api-key, Content-Type',
     );
+    res.setHeader('X-Search-Link-Core', SEARCH_LINK_CORE_VERSION);
+    res.setHeader('Cache-Control', 'no-store');
 
-    const rawAuth =
-      typeof req.headers.authorization === 'string'
-        ? req.headers.authorization
-        : '';
-    const bearerKey = rawAuth.toLowerCase().startsWith('bearer ')
-      ? rawAuth.slice(7).trim()
-      : '';
-    const headerKey =
-      typeof req.headers['x-api-key'] === 'string'
-        ? req.headers['x-api-key'].trim()
-        : '';
-    const queryKey =
-      typeof req.query.key === 'string'
-        ? req.query.key.trim()
-        : typeof req.query.apiKey === 'string'
-          ? req.query.apiKey.trim()
-          : typeof req.query.api_key === 'string'
-            ? req.query.api_key.trim()
-            : '';
-
-    const apiKey = bearerKey || headerKey || queryKey;
-    const result = await fetchCatalogByApiKey(apiKey);
+    const slugParam =
+      typeof req.params.slug === 'string' ? req.params.slug.trim() : undefined;
+    const params = extractCoreRequestParams(req.originalUrl, req.headers, slugParam);
+    const result = await resolveSearchLinkCoreEndpoint(params);
 
     if (!result.ok) {
-      return res.status(result.status).json({ ok: false, error: result.error });
+      return res.status(result.status).json({
+        ok: false,
+        system: SEARCH_LINK_CORE_NAME,
+        version: SEARCH_LINK_CORE_VERSION,
+        error: result.error,
+      });
     }
 
     return res.json({

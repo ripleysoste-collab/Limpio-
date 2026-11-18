@@ -5,13 +5,25 @@ import {
   Check,
   Copy,
   History,
+  Loader2,
   Pencil,
+  Play,
   Plus,
+  RefreshCw,
   Store,
   X,
 } from 'lucide-react';
 import type { CatalogImageItem } from '../data/catalogSamples';
-import type { MappedImageMetadata } from '../lib/imageCompression';
+import {
+  compressAndUploadOrgLogo,
+  type MappedImageMetadata,
+} from '../lib/imageCompression';
+import {
+  buildCoreCurlSnippet,
+  isRawCoreApiKey,
+  testCoreServiceEndpoint,
+  type CoreEndpointTestResult,
+} from '../lib/searchLinkCore';
 import type {
   CompressedImageMeta,
   ImageCompressionStatus,
@@ -23,6 +35,7 @@ import type {
 export interface OrganizationProfile {
   name: string;
   logoUrl: string | null;
+  logoR2Key?: string | null;
   hasCompletedSetup: boolean;
 }
 
@@ -46,9 +59,13 @@ export interface OrganizationServiceSnapshot {
 
 export interface OrganizationServiceItem {
   id: string;
+  slug?: string;
   name: string;
   apiKey: string;
+  keyPrefix?: string;
   endpointUrl: string;
+  isActive?: boolean;
+  requestsCount?: number;
   itemCount: number;
   createdAt: string;
   products?: OrganizationServiceProduct[];
@@ -65,29 +82,15 @@ interface DesktopOrganizationViewProps {
   onNewProduct: () => void;
   onOpenStore: (service: OrganizationServiceItem) => void;
   onViewServiceHistory: (service: OrganizationServiceItem) => void;
+  onRotateServiceKey?: (serviceId: string) => Promise<string | null>;
+  onToggleServiceActive?: (serviceId: string, nextActive: boolean) => Promise<void>;
 }
 
 type OnboardingStage = 'welcome' | 'congrats';
 
 interface CredentialModalState {
-  serviceName: string;
+  serviceId: string;
   kind: 'api' | 'endpoint';
-  value: string;
-}
-
-function readImageAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        reject(new Error('No se pudo leer la imagen.'));
-      }
-    };
-    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
-    reader.readAsDataURL(file);
-  });
 }
 
 export function DesktopOrganizationView({
@@ -100,6 +103,8 @@ export function DesktopOrganizationView({
   onNewProduct,
   onOpenStore,
   onViewServiceHistory,
+  onRotateServiceKey,
+  onToggleServiceActive,
 }: DesktopOrganizationViewProps) {
   const shouldReduceMotion = useReducedMotion();
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -109,7 +114,10 @@ export function DesktopOrganizationView({
   // First-time onboarding state
   const [onboardingStage, setOnboardingStage] = useState<OnboardingStage>('welcome');
   const [draftLogoUrl, setDraftLogoUrl] = useState<string | null>(null);
+  const [draftLogoR2Key, setDraftLogoR2Key] = useState<string | null>(null);
   const [draftName, setDraftName] = useState('');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
 
   // Dashboard inline rename & modal state
   const [editingOrgName, setEditingOrgName] = useState(false);
@@ -117,7 +125,15 @@ export function DesktopOrganizationView({
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [serviceNameInput, setServiceNameInput] = useState('');
   const [credentialBox, setCredentialBox] = useState<CredentialModalState | null>(null);
-  const [copiedCredential, setCopiedCredential] = useState(false);
+  const [copiedCredential, setCopiedCredential] = useState<'main' | 'curl' | false>(
+    false,
+  );
+  const [rotatingKey, setRotatingKey] = useState(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
+  const [testingEndpoint, setTestingEndpoint] = useState(false);
+  const [manualTestKey, setManualTestKey] = useState('');
+  const [endpointTestResult, setEndpointTestResult] =
+    useState<CoreEndpointTestResult | null>(null);
   const [logoImgFailed, setLogoImgFailed] = useState(false);
   const [storePickerOpen, setStorePickerOpen] = useState(false);
 
@@ -146,27 +162,41 @@ export function DesktopOrganizationView({
   const handleOnboardingLogoChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    if (!file || isUploadingLogo) return;
+    setIsUploadingLogo(true);
+    setLogoUploadError(null);
     try {
-      const dataUrl = await readImageAsDataUrl(file);
-      setDraftLogoUrl(dataUrl);
-    } catch {
-      // Ignore invalid image read
+      const uploaded = await compressAndUploadOrgLogo(file);
+      setDraftLogoUrl(uploaded.url);
+      setDraftLogoR2Key(uploaded.key);
+    } catch (err) {
+      setLogoUploadError(
+        err instanceof Error ? err.message : 'No se pudo subir el logo.',
+      );
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
   const handleDashboardLogoChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (!file) return;
+    if (!file || isUploadingLogo) return;
+    setIsUploadingLogo(true);
+    setLogoUploadError(null);
     try {
-      const dataUrl = await readImageAsDataUrl(file);
+      const uploaded = await compressAndUploadOrgLogo(file);
       onSaveOrgProfile({
         ...orgProfile,
-        logoUrl: dataUrl,
+        logoUrl: uploaded.url,
+        logoR2Key: uploaded.key,
       });
-    } catch {
-      // Ignore invalid image read
+    } catch (err) {
+      setLogoUploadError(
+        err instanceof Error ? err.message : 'No se pudo subir el logo.',
+      );
+    } finally {
+      setIsUploadingLogo(false);
     }
   };
 
@@ -178,6 +208,7 @@ export function DesktopOrganizationView({
     onSaveOrgProfile({
       name: 'Sin nombre',
       logoUrl: googlePhotoUrl,
+      logoR2Key: null,
       hasCompletedSetup: true,
     });
   };
@@ -186,6 +217,7 @@ export function DesktopOrganizationView({
     onSaveOrgProfile({
       name: draftName.trim() || 'Sin nombre',
       logoUrl: draftLogoUrl ?? googlePhotoUrl,
+      logoR2Key: draftLogoUrl ? draftLogoR2Key : null,
       hasCompletedSetup: true,
     });
   };
@@ -207,15 +239,32 @@ export function DesktopOrganizationView({
     setEditingServiceId(null);
   };
 
-  const handleCopyCredential = async (text: string) => {
+  const handleCopyCredential = async (
+    text: string,
+    target: 'main' | 'curl' = 'main',
+  ) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopiedCredential(true);
+      setCopiedCredential(target);
       window.setTimeout(() => setCopiedCredential(false), 1600);
     } catch {
       setCopiedCredential(false);
     }
   };
+
+  const openCredentialBox = (
+    service: OrganizationServiceItem,
+    kind: 'api' | 'endpoint',
+  ) => {
+    setCopiedCredential(false);
+    setEndpointTestResult(null);
+    setManualTestKey(isRawCoreApiKey(service.apiKey) ? service.apiKey : '');
+    setCredentialBox({ serviceId: service.id, kind });
+  };
+
+  const activeCredentialService = credentialBox
+    ? services.find((s) => s.id === credentialBox.serviceId) ?? null
+    : null;
 
   // 1. First-time Onboarding View
   if (!orgProfile.hasCompletedSetup) {
@@ -267,12 +316,18 @@ export function DesktopOrganizationView({
                     />
                     <button
                       type="button"
+                      disabled={isUploadingLogo}
                       onClick={() => logoInputRef.current?.click()}
                       aria-label="Subir logo de tu organización"
                       title="Subir logo de tu organización"
-                      className="group relative w-14 h-14 rounded-full border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
+                      className="group relative w-14 h-14 rounded-full border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 overflow-hidden flex items-center justify-center shrink-0 transition-colors cursor-pointer disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60"
                     >
-                      {draftLogoUrl ? (
+                      {isUploadingLogo ? (
+                        <Loader2
+                          className="w-5 h-5 text-blue-600 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : draftLogoUrl ? (
                         <>
                           <img
                             src={draftLogoUrl}
@@ -335,6 +390,14 @@ export function DesktopOrganizationView({
                       Pon el logo de tu organización y tu nombre
                     </p>
                   </motion.div>
+                  {logoUploadError && (
+                    <p
+                      role="alert"
+                      className="mt-2 text-xs font-medium text-rose-600"
+                    >
+                      {logoUploadError}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -462,10 +525,11 @@ export function DesktopOrganizationView({
           />
           <button
             type="button"
+            disabled={isUploadingLogo}
             onClick={() => dashboardLogoInputRef.current?.click()}
             aria-label="Cambiar logo de la organización"
             title="Cambiar logo de la organización"
-            className="group relative w-11 h-11 rounded-full border border-slate-200/90 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            className="group relative w-11 h-11 rounded-full border border-slate-200/90 bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
           >
             {activeLogoSrc && !logoImgFailed ? (
               <img
@@ -480,9 +544,15 @@ export function DesktopOrganizationView({
                 {googleInitialLetter}
               </span>
             )}
-            <span className="absolute inset-0 bg-slate-950/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-              <Camera className="w-3.5 h-3.5" aria-hidden="true" />
-            </span>
+            {isUploadingLogo ? (
+              <span className="absolute inset-0 bg-slate-950/45 flex items-center justify-center text-white">
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              </span>
+            ) : (
+              <span className="absolute inset-0 bg-slate-950/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                <Camera className="w-3.5 h-3.5" aria-hidden="true" />
+              </span>
+            )}
           </button>
 
           <div className="min-w-0 flex-1">
@@ -622,6 +692,15 @@ export function DesktopOrganizationView({
         </div>
       </div>
 
+      {logoUploadError && (
+        <p
+          role="alert"
+          className="-mt-3 text-xs font-medium text-rose-600"
+        >
+          {logoUploadError}
+        </p>
+      )}
+
       {/* Mis servicios header + Nuevo producto CTA */}
       <div className="flex flex-col gap-3.5 flex-1 min-h-0">
         <div className="flex items-center justify-between gap-3">
@@ -721,14 +800,7 @@ export function DesktopOrganizationView({
                     <div className="space-y-1.5 pl-1 min-w-0">
                       <button
                         type="button"
-                        onClick={() => {
-                          setCopiedCredential(false);
-                          setCredentialBox({
-                            serviceName: service.name,
-                            kind: 'api',
-                            value: service.apiKey,
-                          });
-                        }}
+                        onClick={() => openCredentialBox(service, 'api')}
                         className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-600 hover:text-slate-950 transition-colors cursor-pointer py-0.5"
                       >
                         <span
@@ -740,14 +812,7 @@ export function DesktopOrganizationView({
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setCopiedCredential(false);
-                          setCredentialBox({
-                            serviceName: service.name,
-                            kind: 'endpoint',
-                            value: service.endpointUrl,
-                          });
-                        }}
+                        onClick={() => openCredentialBox(service, 'endpoint')}
                         className="flex items-center gap-2.5 text-left text-xs font-medium text-slate-600 hover:text-slate-950 transition-colors cursor-pointer py-0.5"
                       >
                         <span
@@ -775,9 +840,9 @@ export function DesktopOrganizationView({
         )}
       </div>
 
-      {/* Inline credential copy box inside Organización when touching API or Endpoint */}
+      {/* Inline Search Link Core credential & live endpoint tester dialog */}
       <AnimatePresence>
-        {credentialBox && (
+        {credentialBox && activeCredentialService && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -807,17 +872,22 @@ export function DesktopOrganizationView({
               }
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm rounded-2xl border border-slate-200/95 bg-white p-4 shadow-[0_20px_50px_-14px_rgba(15,23,42,0.28)] space-y-3"
+              className="w-full max-w-md rounded-2xl border border-slate-200/95 bg-white p-4 shadow-[0_20px_50px_-14px_rgba(15,23,42,0.28)] space-y-3"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-950">
-                    {credentialBox.kind === 'api'
-                      ? 'API del servicio'
-                      : 'Endpoint de este servicio'}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-slate-950">
+                      {credentialBox.kind === 'api'
+                        ? 'API del servicio'
+                        : 'Endpoint de este servicio'}
+                    </p>
+                    <span className="text-[10px] font-medium text-slate-400">
+                      Search Link Core
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {credentialBox.serviceName}
+                    {activeCredentialService.name}
                   </p>
                 </div>
                 <button
@@ -830,32 +900,216 @@ export function DesktopOrganizationView({
                 </button>
               </div>
 
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/85 bg-slate-50/80 px-3 py-2.5">
-                <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                  {credentialBox.value}
-                </span>
+              {/* Value box */}
+              {(() => {
+                const rawApiKeyAvailable = isRawCoreApiKey(
+                  activeCredentialService.apiKey,
+                );
+                const mainValue =
+                  credentialBox.kind === 'api'
+                    ? rawApiKeyAvailable
+                      ? activeCredentialService.apiKey
+                      : activeCredentialService.keyPrefix ||
+                        activeCredentialService.apiKey
+                    : activeCredentialService.endpointUrl;
+                const canCopyMain =
+                  credentialBox.kind === 'endpoint' || rawApiKeyAvailable;
+                const serviceIsActive = activeCredentialService.isActive !== false;
 
-                <button
-                  type="button"
-                  onClick={() => void handleCopyCredential(credentialBox.value)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200/90 text-[11px] font-semibold text-slate-700 hover:text-slate-950 hover:border-slate-300 transition-colors cursor-pointer shrink-0"
-                >
-                  {copiedCredential ? (
-                    <>
-                      <Check
-                        className="w-3 h-3 text-emerald-600 stroke-[2.75]"
-                        aria-hidden="true"
-                      />
-                      Copiado
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" aria-hidden="true" />
-                      Copiar
-                    </>
-                  )}
-                </button>
-              </div>
+                return (
+                  <>
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-slate-200/85 bg-slate-50/80 px-3 py-2.5">
+                      <span className="font-mono text-xs font-medium text-slate-800 truncate">
+                        {mainValue}
+                      </span>
+
+                      {canCopyMain && (
+                        <button
+                          type="button"
+                          onClick={() => void handleCopyCredential(mainValue, 'main')}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200/90 text-[11px] font-semibold text-slate-700 hover:text-slate-950 hover:border-slate-300 transition-colors cursor-pointer shrink-0"
+                        >
+                          {copiedCredential === 'main' ? (
+                            <>
+                              <Check
+                                className="w-3 h-3 text-emerald-600 stroke-[2.75]"
+                                aria-hidden="true"
+                              />
+                              Copiado
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3" aria-hidden="true" />
+                              Copiar
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+
+                    {credentialBox.kind === 'api' ? (
+                      <div className="space-y-2.5">
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          {rawApiKeyAvailable
+                            ? 'Envía esta llave en el header x-api-key o Authorization: Bearer.'
+                            : 'Por seguridad solo se guarda el prefijo en la nube. Genera una nueva API Key si necesitas copiarla completa.'}
+                        </p>
+
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          {onToggleServiceActive ? (
+                            <button
+                              type="button"
+                              disabled={togglingStatus}
+                              onClick={async () => {
+                                setTogglingStatus(true);
+                                try {
+                                  await onToggleServiceActive(
+                                    activeCredentialService.id,
+                                    !serviceIsActive,
+                                  );
+                                } finally {
+                                  setTogglingStatus(false);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200/90 text-[11px] font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  serviceIsActive ? 'bg-emerald-500' : 'bg-amber-500'
+                                }`}
+                              />
+                              <span>
+                                {serviceIsActive ? 'Servicio activo' : 'Servicio pausado'}
+                              </span>
+                            </button>
+                          ) : (
+                            <span />
+                          )}
+
+                          {onRotateServiceKey && (
+                            <button
+                              type="button"
+                              disabled={rotatingKey}
+                              onClick={async () => {
+                                setRotatingKey(true);
+                                try {
+                                  const newKey = await onRotateServiceKey(
+                                    activeCredentialService.id,
+                                  );
+                                  if (newKey) {
+                                    setManualTestKey(newKey);
+                                  }
+                                } finally {
+                                  setRotatingKey(false);
+                                }
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                              <RefreshCw
+                                className={`w-3 h-3 ${rotatingKey ? 'animate-spin' : ''}`}
+                                aria-hidden="true"
+                              />
+                              <span>Regenerar API Key</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {!rawApiKeyAvailable && (
+                          <input
+                            type="text"
+                            value={manualTestKey}
+                            onChange={(e) => setManualTestKey(e.target.value)}
+                            placeholder="Pega tu API Key sl_core_... para probar"
+                            className="w-full rounded-lg border border-slate-200/90 bg-slate-50/70 px-2.5 py-1.5 font-mono text-[11px] text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:outline-none"
+                          />
+                        )}
+
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleCopyCredential(
+                                buildCoreCurlSnippet(
+                                  activeCredentialService.endpointUrl,
+                                  manualTestKey || activeCredentialService.apiKey,
+                                ),
+                                'curl',
+                              )
+                            }
+                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
+                          >
+                            {copiedCredential === 'curl'
+                              ? 'cURL copiado'
+                              : 'Copiar comando cURL'}
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={
+                              testingEndpoint ||
+                              !(manualTestKey.trim() || rawApiKeyAvailable)
+                            }
+                            onClick={async () => {
+                              const keyToUse =
+                                manualTestKey.trim() ||
+                                (rawApiKeyAvailable
+                                  ? activeCredentialService.apiKey
+                                  : '');
+                              if (!keyToUse) return;
+                              setTestingEndpoint(true);
+                              try {
+                                const res = await testCoreServiceEndpoint(
+                                  activeCredentialService.endpointUrl,
+                                  keyToUse,
+                                );
+                                setEndpointTestResult(res);
+                              } finally {
+                                setTestingEndpoint(false);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold transition-colors cursor-pointer disabled:opacity-45"
+                          >
+                            {testingEndpoint ? (
+                              <Loader2
+                                className="w-3 h-3 animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <Play className="w-3 h-3" aria-hidden="true" />
+                            )}
+                            <span>Probar en vivo</span>
+                          </button>
+                        </div>
+
+                        {endpointTestResult && (
+                          <div className="rounded-xl border border-slate-200/90 bg-slate-50/90 p-2.5 space-y-1.5">
+                            <div className="flex items-center justify-between text-[10.5px] font-medium">
+                              <span
+                                className={
+                                  endpointTestResult.ok
+                                    ? 'text-emerald-600'
+                                    : 'text-rose-600'
+                                }
+                              >
+                                HTTP {endpointTestResult.status || 'ERR'}
+                              </span>
+                              <span className="text-slate-400 tabular-nums">
+                                {endpointTestResult.latencyMs} ms
+                              </span>
+                            </div>
+                            <pre className="max-h-36 overflow-auto font-mono text-[10.5px] leading-relaxed text-slate-700 whitespace-pre-wrap break-all">
+                              {endpointTestResult.rawJson}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </motion.div>
           </motion.div>
         )}

@@ -20,6 +20,8 @@ interface MobileAccountMenuProps {
   onRenameService: (serviceId: string, nextName: string) => void;
   onNewProduct: () => void;
   onViewServiceHistory: (service: OrganizationServiceItem) => void;
+  onRotateServiceKey?: (serviceId: string) => Promise<string | null>;
+  onToggleServiceActive?: (serviceId: string, nextActive: boolean) => Promise<void>;
   onCloseMenu: () => void;
   onOpenAccountModal: () => void;
   onCloseAccountModal: () => void;
@@ -71,6 +73,8 @@ export function MobileAccountMenu({
   onRenameService,
   onNewProduct,
   onViewServiceHistory,
+  onRotateServiceKey,
+  onToggleServiceActive,
   onCloseMenu,
   onOpenAccountModal,
   onCloseAccountModal,
@@ -481,6 +485,8 @@ export function MobileAccountMenu({
                   setPanelSubView('store');
                 }}
                 onViewServiceHistory={onViewServiceHistory}
+                onRotateServiceKey={onRotateServiceKey}
+                onToggleServiceActive={onToggleServiceActive}
               />
             )}
           </motion.section>

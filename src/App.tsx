@@ -10,7 +10,10 @@ import type {
   OrganizationServiceItem,
   OrganizationServiceSnapshot,
 } from './components/DesktopOrganizationView';
-import { DualCatalogShowcase } from './components/DualCatalogShowcase';
+import {
+  DualCatalogShowcase,
+  type ServiceCredentialsDisplay,
+} from './components/DualCatalogShowcase';
 import { MobileAccountMenu } from './components/MobileAccountMenu';
 import {
   MobileCatalogCarousel,
@@ -32,8 +35,21 @@ import {
   type UploadedCompressedImage,
 } from './lib/imageCompression';
 import {
+  buildCoreServiceEndpointUrl,
+  generateCoreApiKey,
+  generateCoreServiceSlug,
+  isRawCoreApiKey,
+} from './lib/searchLinkCore';
+import {
+  createCoreServiceInSupabase,
+  fetchUserCoreServicesSafe,
+  fetchUserOrganizationSafe,
+  renameCoreServiceInSupabase,
+  rotateCoreServiceApiKeyInSupabase,
   saveMappedCatalogToSupabase,
   supabase,
+  toggleCoreServiceActiveInSupabase,
+  upsertUserOrganization,
   type SaveCatalogBatchInput,
 } from './lib/supabaseClient';
 
@@ -103,9 +119,12 @@ export default function App() {
   const [orgProfile, setOrgProfile] = useState<OrganizationProfile>({
     name: 'Sin nombre',
     logoUrl: null,
+    logoR2Key: null,
     hasCompletedSetup: false,
   });
   const [orgServices, setOrgServices] = useState<OrganizationServiceItem[]>([]);
+  const [activeServiceCredentials, setActiveServiceCredentials] =
+    useState<ServiceCredentialsDisplay | null>(null);
   const authUserRef = useRef<User | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,25 +152,32 @@ export default function App() {
       setOrgProfile({
         name: 'Sin nombre',
         logoUrl: null,
+        logoR2Key: null,
         hasCompletedSetup: false,
       });
       setOrgServices([]);
       return;
     }
 
+    let localOrgProfile: OrganizationProfile | null = null;
+    let localServicesList: OrganizationServiceItem[] = [];
+
     try {
       const savedOrg = window.localStorage.getItem(`searchlink_org_${authUser.id}`);
       if (savedOrg) {
         const parsed = JSON.parse(savedOrg) as Partial<OrganizationProfile>;
-        setOrgProfile({
+        localOrgProfile = {
           name: typeof parsed.name === 'string' && parsed.name ? parsed.name : 'Sin nombre',
           logoUrl: typeof parsed.logoUrl === 'string' ? parsed.logoUrl : null,
+          logoR2Key: typeof parsed.logoR2Key === 'string' ? parsed.logoR2Key : null,
           hasCompletedSetup: Boolean(parsed.hasCompletedSetup),
-        });
+        };
+        setOrgProfile(localOrgProfile);
       } else {
         setOrgProfile({
           name: 'Sin nombre',
           logoUrl: null,
+          logoR2Key: null,
           hasCompletedSetup: false,
         });
       }
@@ -161,7 +187,8 @@ export default function App() {
       );
       if (savedServices) {
         const parsedServices = JSON.parse(savedServices) as OrganizationServiceItem[];
-        setOrgServices(Array.isArray(parsedServices) ? parsedServices : []);
+        localServicesList = Array.isArray(parsedServices) ? parsedServices : [];
+        setOrgServices(localServicesList);
       } else {
         setOrgServices([]);
       }
@@ -169,23 +196,120 @@ export default function App() {
       setOrgProfile({
         name: 'Sin nombre',
         logoUrl: null,
+        logoR2Key: null,
         hasCompletedSetup: false,
       });
       setOrgServices([]);
     }
+
+    let active = true;
+    void (async () => {
+      const [{ organization, tableMissing: orgMissing }, { services: remoteServices, tableMissing: srvMissing }] =
+        await Promise.all([
+          fetchUserOrganizationSafe(),
+          fetchUserCoreServicesSafe(),
+        ]);
+
+      if (!active) return;
+
+      if (!orgMissing) {
+        if (organization) {
+          const remoteProfile: OrganizationProfile = {
+            name: organization.nombre?.trim() || 'Sin nombre',
+            logoUrl: organization.logo_url ?? null,
+            logoR2Key: organization.logo_r2_key ?? null,
+            hasCompletedSetup: Boolean(organization.has_completed_setup),
+          };
+          setOrgProfile(remoteProfile);
+          try {
+            window.localStorage.setItem(
+              `searchlink_org_${authUser.id}`,
+              JSON.stringify(remoteProfile),
+            );
+          } catch {
+            // Ignore storage quota errors
+          }
+        } else if (localOrgProfile?.hasCompletedSetup) {
+          // Migrate existing local onboarding record into Supabase public.organizacion
+          await upsertUserOrganization(localOrgProfile);
+        }
+      }
+
+      if (!srvMissing && remoteServices.length > 0) {
+        const mergedServices: OrganizationServiceItem[] = remoteServices.map((row) => {
+          const activeKeyRow =
+            row.servicio_api_keys.find((k) => k.is_active) ??
+            row.servicio_api_keys[0] ??
+            null;
+          const localMatch = localServicesList.find(
+            (s) => s.id === row.id || (s.slug && s.slug === row.public_slug),
+          );
+          const preserveLocalRawKey =
+            localMatch &&
+            isRawCoreApiKey(localMatch.apiKey) &&
+            (!activeKeyRow || localMatch.keyPrefix === activeKeyRow.key_prefix);
+
+          const totalRequests = row.servicio_api_keys.reduce(
+            (sum, k) => sum + (k.requests_count || 0),
+            0,
+          );
+
+          return {
+            id: row.id,
+            slug: row.public_slug,
+            name: row.nombre,
+            apiKey: preserveLocalRawKey
+              ? localMatch!.apiKey
+              : activeKeyRow?.key_prefix || 'sl_core_...',
+            keyPrefix: activeKeyRow?.key_prefix,
+            endpointUrl: buildCoreServiceEndpointUrl(row.public_slug),
+            isActive: row.is_active,
+            requestsCount: totalRequests,
+            itemCount: row.item_count || row.servicio_productos.length,
+            createdAt: row.created_at,
+            products: row.servicio_productos.map((prod) => ({
+              id: prod.id,
+              nombre: prod.nombre,
+              categoria: prod.categoria,
+              descripcion: prod.descripcion,
+              url: prod.image_url,
+            })),
+            snapshot:
+              localMatch?.snapshot ??
+              ((row.snapshot_json as OrganizationServiceSnapshot | null) || undefined),
+          };
+        });
+
+        setOrgServices(mergedServices);
+        try {
+          window.localStorage.setItem(
+            `searchlink_services_${authUser.id}`,
+            JSON.stringify(mergedServices),
+          );
+        } catch {
+          // Ignore storage quota errors
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, [authUser]);
 
   const handleSaveOrgProfile = (next: OrganizationProfile) => {
     setOrgProfile(next);
-    if (authUserRef.current) {
+    const currentUser = authUserRef.current;
+    if (currentUser) {
       try {
         window.localStorage.setItem(
-          `searchlink_org_${authUserRef.current.id}`,
+          `searchlink_org_${currentUser.id}`,
           JSON.stringify(next),
         );
       } catch {
         // Ignore storage quota errors cleanly
       }
+      void upsertUserOrganization(next);
     }
   };
 
@@ -206,6 +330,63 @@ export default function App() {
       }
       return updated;
     });
+    void renameCoreServiceInSupabase(serviceId, nextName);
+  };
+
+  const handleRotateServiceKey = async (
+    serviceId: string,
+  ): Promise<string | null> => {
+    const minted = await generateCoreApiKey();
+    setOrgServices((prev) => {
+      const updated = prev.map((srv) =>
+        srv.id === serviceId
+          ? { ...srv, apiKey: minted.rawKey, keyPrefix: minted.keyPrefix }
+          : srv,
+      );
+      if (authUserRef.current) {
+        try {
+          window.localStorage.setItem(
+            `searchlink_services_${authUserRef.current.id}`,
+            JSON.stringify(updated),
+          );
+        } catch {
+          // Ignore storage quota errors
+        }
+      }
+      return updated;
+    });
+    setActiveServiceCredentials((prev) =>
+      prev ? { ...prev, apiKey: minted.rawKey } : prev,
+    );
+    await rotateCoreServiceApiKeyInSupabase({
+      serviceId,
+      keyPrefix: minted.keyPrefix,
+      keyHash: minted.keyHash,
+    });
+    return minted.rawKey;
+  };
+
+  const handleToggleServiceActive = async (
+    serviceId: string,
+    nextActive: boolean,
+  ): Promise<void> => {
+    setOrgServices((prev) => {
+      const updated = prev.map((srv) =>
+        srv.id === serviceId ? { ...srv, isActive: nextActive } : srv,
+      );
+      if (authUserRef.current) {
+        try {
+          window.localStorage.setItem(
+            `searchlink_services_${authUserRef.current.id}`,
+            JSON.stringify(updated),
+          );
+        } catch {
+          // Ignore storage quota errors
+        }
+      }
+      return updated;
+    });
+    await toggleCoreServiceActiveInSupabase(serviceId, nextActive);
   };
 
   const handleStartNewProduct = () => {
@@ -232,6 +413,7 @@ export default function App() {
     setMapStatuses({});
     setMappedResults({});
     setCompressionResults({});
+    setActiveServiceCredentials(null);
     setCatalogImages(CATALOG_SAMPLE_IMAGES);
     setCatalogVersion((prev) => prev + 1);
     window.setTimeout(() => {
@@ -317,6 +499,14 @@ export default function App() {
     setMapStatuses(snapshot.mapStatuses);
     setMappedResults(snapshot.mappedResults);
     setCompressionResults(snapshot.compressionResults);
+    setActiveServiceCredentials({
+      serviceName: service.name,
+      apiKey: isRawCoreApiKey(service.apiKey)
+        ? service.apiKey
+        : service.keyPrefix || service.apiKey,
+      endpointUrl: service.endpointUrl,
+      slug: service.slug,
+    });
     setCatalogImages(
       snapshot.images.length > 0 ? snapshot.images : CATALOG_SAMPLE_IMAGES,
     );
@@ -482,6 +672,7 @@ export default function App() {
     setMapStatuses({});
     setMappedResults({});
     setCompressionResults({});
+    setActiveServiceCredentials(null);
     setUrl(normalized);
     setHasSearched(true);
     setExtractError(null);
@@ -568,6 +759,7 @@ export default function App() {
     setMapStatuses(initialMapStatuses);
     setMappedResults({});
     setCompressionResults({});
+    setActiveServiceCredentials(null);
     setHasSearched(true);
     setCatalogImages(items);
     setCatalogVersion((prev) => prev + 1);
@@ -1018,11 +1210,27 @@ export default function App() {
             compressionResults: snapshotCompressionResults,
           };
 
+          const serviceSlug = generateCoreServiceSlug();
+          const mintedKey = await generateCoreApiKey();
+          const endpointUrl = buildCoreServiceEndpointUrl(serviceSlug);
+          const tempServiceId = `srv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+          setActiveServiceCredentials({
+            serviceName: defaultServiceName,
+            apiKey: mintedKey.rawKey,
+            endpointUrl,
+            slug: serviceSlug,
+          });
+
           const newService: OrganizationServiceItem = {
-            id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            id: tempServiceId,
+            slug: serviceSlug,
             name: defaultServiceName,
-            apiKey: 'api/1245',
-            endpointUrl: 'http/1245',
+            apiKey: mintedKey.rawKey,
+            keyPrefix: mintedKey.keyPrefix,
+            endpointUrl,
+            isActive: true,
+            requestsCount: 0,
             itemCount: collectedMappedItems.length,
             createdAt: new Date().toISOString(),
             products: collectedMappedItems.map((item, idx) => ({
@@ -1067,18 +1275,52 @@ export default function App() {
           };
 
           if (authUserRef.current) {
-            const saveOutcome = await saveMappedCatalogToSupabase(batchToSave);
-            if (saveOutcome.saved) {
+            const coreSave = await createCoreServiceInSupabase({
+              publicSlug: serviceSlug,
+              nombre: defaultServiceName,
+              sourceType: originPageUrl ? 'url' : 'files',
+              sourceUrl: originPageUrl,
+              keyPrefix: mintedKey.keyPrefix,
+              keyHash: mintedKey.keyHash,
+              snapshotJson: serviceSnapshot,
+              items: collectedMappedItems,
+            });
+
+            if (coreSave.saved && coreSave.serviceId) {
+              const savedUuid = coreSave.serviceId;
+              setOrgServices((prev) => {
+                const synced = prev.map((srv) =>
+                  srv.id === tempServiceId ? { ...srv, id: savedUuid } : srv,
+                );
+                if (authUserRef.current) {
+                  try {
+                    window.localStorage.setItem(
+                      `searchlink_services_${authUserRef.current.id}`,
+                      JSON.stringify(synced),
+                    );
+                  } catch {
+                    // Ignore storage quota errors
+                  }
+                }
+                return synced;
+              });
               setPendingSaveBatch(null);
               if (!firstMapError) {
-                setBatchNotice('Catálogo guardado en tu cuenta de Supabase.');
+                setBatchNotice('Servicio y API guardados en Search Link Core.');
               }
-            } else if (
-              saveOutcome.reason &&
-              (saveOutcome.reason.includes('relation') ||
-                saveOutcome.reason.includes('schema cache'))
-            ) {
-              setPendingSaveBatch(batchToSave);
+            } else {
+              // Fallback to legacy batch save if Core tables aren't installed yet
+              const saveOutcome = await saveMappedCatalogToSupabase(batchToSave);
+              if (saveOutcome.saved) {
+                setPendingSaveBatch(null);
+              } else if (
+                coreSave.tableMissing ||
+                (saveOutcome.reason &&
+                  (saveOutcome.reason.includes('relation') ||
+                    saveOutcome.reason.includes('schema cache')))
+              ) {
+                setPendingSaveBatch(batchToSave);
+              }
             }
           } else {
             setPendingSaveBatch(batchToSave);
@@ -1527,6 +1769,7 @@ export default function App() {
         mappedResults={mappedResults}
         compressionResults={compressionResults}
         isReadOnlyReplay={isReadOnlyReplay}
+        serviceCredentials={activeServiceCredentials}
       />
 
       {/* Mobile-only swipeable boxes with Stage 2–5 auto-pan + unboxed metadata / JSON below */}
@@ -1548,6 +1791,7 @@ export default function App() {
         mappedResults={mappedResults}
         compressionResults={compressionResults}
         isReadOnlyReplay={isReadOnlyReplay}
+        serviceCredentials={activeServiceCredentials}
         onOpenOrganization={() => {
           if (authUser) {
             setIsMobilePanelOpen(true);
@@ -1569,6 +1813,8 @@ export default function App() {
           onRenameService={handleRenameService}
           onNewProduct={handleStartNewProduct}
           onViewServiceHistory={handleViewServiceHistory}
+          onRotateServiceKey={handleRotateServiceKey}
+          onToggleServiceActive={handleToggleServiceActive}
           onClose={() => setIsDesktopMenuOpen(false)}
           onSignOut={handleSignOut}
         />
@@ -1587,6 +1833,8 @@ export default function App() {
           onRenameService={handleRenameService}
           onNewProduct={handleStartNewProduct}
           onViewServiceHistory={handleViewServiceHistory}
+          onRotateServiceKey={handleRotateServiceKey}
+          onToggleServiceActive={handleToggleServiceActive}
           onCloseMenu={() => setIsMobileMenuOpen(false)}
           onOpenAccountModal={() => setIsMobileAccountModalOpen(true)}
           onCloseAccountModal={() => setIsMobileAccountModalOpen(false)}

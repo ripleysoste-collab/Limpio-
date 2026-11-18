@@ -222,9 +222,12 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+export type UploadFolderPrefix = 'catalog' | 'org-logos';
+
 export async function uploadCompressedImage(
   compressed: CompressedImageResult,
   signal?: AbortSignal,
+  folder: UploadFolderPrefix = 'catalog',
 ): Promise<UploadedCompressedImage> {
   const useJsonPayload = compressed.blob.size <= MAX_JSON_RAW_BYTES;
   const response = useJsonPayload
@@ -232,8 +235,10 @@ export async function uploadCompressedImage(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Upload-Folder': folder,
         },
         body: JSON.stringify({
+          folder,
           mimeType: compressed.mimeType,
           dataBase64: await blobToDataUrl(compressed.blob),
         }),
@@ -243,6 +248,7 @@ export async function uploadCompressedImage(
         method: 'POST',
         headers: {
           'Content-Type': compressed.mimeType,
+          'X-Upload-Folder': folder,
         },
         body: compressed.blob,
         signal,
@@ -286,7 +292,15 @@ export async function compressAndUploadImage(
   signal?: AbortSignal,
 ): Promise<UploadedCompressedImage> {
   const compressed = await compressImageToWebp(file);
-  return uploadCompressedImage(compressed, signal);
+  return uploadCompressedImage(compressed, signal, 'catalog');
+}
+
+export async function compressAndUploadOrgLogo(
+  file: File,
+  signal?: AbortSignal,
+): Promise<UploadedCompressedImage> {
+  const compressed = await compressImageToWebp(file);
+  return uploadCompressedImage(compressed, signal, 'org-logos');
 }
 
 export interface MappedImageMetadata {

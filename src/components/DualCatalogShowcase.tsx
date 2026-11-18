@@ -26,6 +26,13 @@ import type {
 } from './MobileCatalogCarousel';
 import { LIGHT_TOKEN_CLASSES, tokenizeJsonLine } from './MobileJsonEditorModal';
 
+export interface ServiceCredentialsDisplay {
+  serviceName?: string;
+  apiKey: string;
+  endpointUrl: string;
+  slug?: string;
+}
+
 interface DualCatalogShowcaseProps {
   images: CatalogImageItem[];
   activeBackgroundId: string | null;
@@ -43,6 +50,7 @@ interface DualCatalogShowcaseProps {
   mappedResults?: Record<string, MappedImageMetadata>;
   compressionResults?: Record<string, CompressedImageMeta>;
   isReadOnlyReplay?: boolean;
+  serviceCredentials?: ServiceCredentialsDisplay | null;
 }
 
 interface BoxRect {
@@ -177,6 +185,7 @@ export function DualCatalogShowcase({
   mappedResults = {},
   compressionResults = {},
   isReadOnlyReplay = false,
+  serviceCredentials = null,
 }: DualCatalogShowcaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const leftCardRef = useRef<HTMLElement>(null);
@@ -1237,11 +1246,16 @@ export function DualCatalogShowcase({
                         </button>
                       </div>
 
-                      {/* Generado tu API y endpoint */}
+                      {/* Generado tu API y endpoint (Search Link Core) */}
                       <div className="space-y-2">
-                        <h3 className="text-xs font-semibold tracking-tight text-slate-900">
-                          Generado tu API y endpoint
-                        </h3>
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-xs font-semibold tracking-tight text-slate-900">
+                            Generado tu API y endpoint
+                          </h3>
+                          <span className="text-[10.5px] font-medium text-slate-400">
+                            Search Link Core
+                          </span>
+                        </div>
 
                         <div className="rounded-2xl border border-slate-200/85 bg-slate-50/70 divide-y divide-slate-200/75">
                           <div className="h-10 px-3.5 flex items-center justify-between gap-3">
@@ -1251,16 +1265,23 @@ export function DualCatalogShowcase({
                                 className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                               />
                               <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                                api/1245
+                                {serviceCredentials?.apiKey || 'Generando API Key...'}
                               </span>
                             </div>
 
                             <button
                               type="button"
-                              onClick={() => void handleCopyText('lifecycle-api', 'api/1245')}
+                              disabled={!serviceCredentials?.apiKey}
+                              onClick={() =>
+                                serviceCredentials?.apiKey &&
+                                void handleCopyText(
+                                  'lifecycle-api',
+                                  serviceCredentials.apiKey,
+                                )
+                              }
                               aria-label="Copiar API"
-                              title="Copiar API"
-                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+                              title="Copiar API Key"
+                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer disabled:opacity-40"
                             >
                               {copiedId === 'lifecycle-api' ? (
                                 <Check
@@ -1280,18 +1301,23 @@ export function DualCatalogShowcase({
                                 className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0"
                               />
                               <span className="font-mono text-xs font-medium text-slate-800 truncate">
-                                http/1245
+                                {serviceCredentials?.endpointUrl || 'Generando endpoint...'}
                               </span>
                             </div>
 
                             <button
                               type="button"
+                              disabled={!serviceCredentials?.endpointUrl}
                               onClick={() =>
-                                void handleCopyText('lifecycle-endpoint', 'http/1245')
+                                serviceCredentials?.endpointUrl &&
+                                void handleCopyText(
+                                  'lifecycle-endpoint',
+                                  serviceCredentials.endpointUrl,
+                                )
                               }
                               aria-label="Copiar endpoint"
                               title="Copiar endpoint"
-                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer"
+                              className="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 cursor-pointer disabled:opacity-40"
                             >
                               {copiedId === 'lifecycle-endpoint' ? (
                                 <Check

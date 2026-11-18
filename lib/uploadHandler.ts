@@ -7,6 +7,12 @@ import {
 
 export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
+export type UploadFolderPrefix = 'catalog' | 'org-logos';
+
+export function sanitizeUploadFolderPrefix(raw: unknown): UploadFolderPrefix {
+  return raw === 'org-logos' ? 'org-logos' : 'catalog';
+}
+
 interface DetectedImageFormat {
   extension: string;
   contentType: string;
@@ -137,6 +143,7 @@ export function decodeBase64ImagePayload(rawPayload: unknown): Buffer {
 export async function processAndStoreUploadedImage(
   buffer: Buffer,
   requestOrigin?: string,
+  prefix: UploadFolderPrefix = 'catalog',
 ): Promise<ImageUploadResponse> {
   if (!isR2Configured()) {
     const missing = getMissingR2EnvNames();
@@ -159,7 +166,7 @@ export async function processAndStoreUploadedImage(
   }
 
   const key = buildSafeObjectKey({
-    prefix: 'catalog',
+    prefix: sanitizeUploadFolderPrefix(prefix),
     extension: detected.extension,
   });
 

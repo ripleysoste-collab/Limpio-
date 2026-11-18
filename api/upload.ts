@@ -4,6 +4,8 @@ import {
   getRequestOrigin,
   MAX_UPLOAD_BYTES,
   processAndStoreUploadedImage,
+  sanitizeUploadFolderPrefix,
+  type UploadFolderPrefix,
 } from '../lib/uploadHandler.ts';
 
 export const config = {
@@ -14,6 +16,7 @@ export const config = {
 
 interface VercelLikeRequest extends IncomingMessage {
   body?: unknown;
+  query?: Record<string, string | string[] | undefined>;
 }
 
 const MAX_JSON_UPLOAD_BYTES = 6 * 1024 * 1024;
@@ -43,12 +46,27 @@ async function readStreamBytes(
   return Buffer.concat(chunks);
 }
 
-async function readUploadBuffer(req: VercelLikeRequest): Promise<Buffer> {
+async function readUploadPayload(req: VercelLikeRequest): Promise<{
+  buffer: Buffer;
+  folder: UploadFolderPrefix;
+}> {
   const contentType = (req.headers['content-type'] || '').toLowerCase();
+  const headerFolder =
+    typeof req.headers['x-upload-folder'] === 'string'
+      ? req.headers['x-upload-folder']
+      : undefined;
+  const queryFolder =
+    typeof req.query?.folder === 'string' ? req.query.folder : undefined;
 
   if (contentType.includes('application/json')) {
     if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
-      return decodeBase64ImagePayload(req.body);
+      const record = req.body as Record<string, unknown>;
+      return {
+        buffer: decodeBase64ImagePayload(record),
+        folder: sanitizeUploadFolderPrefix(
+          headerFolder || queryFolder || record.folder,
+        ),
+      };
     }
 
     const rawText =
@@ -64,20 +82,28 @@ async function readUploadBuffer(req: VercelLikeRequest): Promise<Buffer> {
     } catch {
       throw new Error('Payload JSON inválido al subir la imagen.');
     }
-    return decodeBase64ImagePayload(parsed);
+    const bodyFolder =
+      parsed && typeof parsed === 'object'
+        ? (parsed as Record<string, unknown>).folder
+        : undefined;
+    return {
+      buffer: decodeBase64ImagePayload(parsed),
+      folder: sanitizeUploadFolderPrefix(headerFolder || queryFolder || bodyFolder),
+    };
   }
 
   if (contentType.startsWith('image/')) {
+    const folder = sanitizeUploadFolderPrefix(headerFolder || queryFolder);
     if (Buffer.isBuffer(req.body)) {
-      return req.body;
+      return { buffer: req.body, folder };
     }
     if (req.body instanceof Uint8Array) {
-      return Buffer.from(req.body);
+      return { buffer: Buffer.from(req.body), folder };
     }
     if (typeof req.body === 'string' && req.body.length > 0) {
-      return Buffer.from(req.body, 'binary');
+      return { buffer: Buffer.from(req.body, 'binary'), folder };
     }
-    return readStreamBytes(req, MAX_UPLOAD_BYTES);
+    return { buffer: await readStreamBytes(req, MAX_UPLOAD_BYTES), folder };
   }
 
   throw new Error('Tipo de contenido no válido. Envía una imagen.');
@@ -90,10 +116,11 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
   }
 
   try {
-    const buffer = await readUploadBuffer(req);
+    const { buffer, folder } = await readUploadPayload(req);
     const result = await processAndStoreUploadedImage(
       buffer,
       getRequestOrigin(req.headers),
+      folder,
     );
     return sendJson(res, 200, result);
   } catch (err) {
