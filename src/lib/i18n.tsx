@@ -121,10 +121,14 @@ export interface TranslationDictionary {
     sectionAria: string;
     sectionTitle: string;
     sectionSubtitle: string;
+    mobileSectionTitle: string;
+    mobileSectionSubtitle: string;
     whatsappCardAria: string;
     whatsappTitle: string;
     whatsappSubtitle: string;
     whatsappDescription: string;
+    previewAria: string;
+    closePreviewAria: string;
     actions: {
       github: { label: string; feedback: string };
       zip: { label: string; feedback: string };
@@ -574,11 +578,15 @@ const ES_DICTIONARY: TranslationDictionary = {
     sectionTitle: 'Código fuente · Search Link Core',
     sectionSubtitle:
       'Librerías gratuitas listas para conectar tu repositorio, base de datos y catálogo en producción',
-    whatsappCardAria: 'Librería gratuita para WhatsApp',
-    whatsappTitle: 'WhatsApp Bot',
+    mobileSectionTitle: 'Agencia WhatsApp',
+    mobileSectionSubtitle: 'Código fuente',
+    whatsappCardAria: 'Librería gratuita para Agencia de WhatsApp',
+    whatsappTitle: 'Agencia de WhatsApp',
     whatsappSubtitle: 'Meta Cloud API · TypeScript',
     whatsappDescription:
       'Código completo con panel web, múltiples bases de datos y catálogo en vivo.',
+    previewAria: 'Vista previa de Agencia de WhatsApp',
+    closePreviewAria: 'Cerrar vista previa',
     actions: {
       github: {
         label: 'Conectar con GitHub',
@@ -1098,11 +1106,15 @@ const EN_DICTIONARY: TranslationDictionary = {
     sectionTitle: 'Source code · Search Link Core',
     sectionSubtitle:
       'Free starter kits ready to connect your repository, database, and live catalog in production',
-    whatsappCardAria: 'Free WhatsApp starter library',
-    whatsappTitle: 'WhatsApp Bot',
+    mobileSectionTitle: 'WhatsApp Agency',
+    mobileSectionSubtitle: 'Source code',
+    whatsappCardAria: 'Free WhatsApp Agency starter library',
+    whatsappTitle: 'WhatsApp Agency',
     whatsappSubtitle: 'Meta Cloud API · TypeScript',
     whatsappDescription:
       'Full source code with web dashboard, multi-database support, and live catalog.',
+    previewAria: 'WhatsApp Agency preview',
+    closePreviewAria: 'Close preview',
     actions: {
       github: {
         label: 'Connect with GitHub',
@@ -1624,11 +1636,15 @@ const PT_DICTIONARY: TranslationDictionary = {
     sectionTitle: 'Código-fonte · Search Link Core',
     sectionSubtitle:
       'Bibliotecas gratuitas prontas para conectar seu repositório, banco de dados e catálogo em produção',
-    whatsappCardAria: 'Biblioteca gratuita para WhatsApp',
-    whatsappTitle: 'WhatsApp Bot',
+    mobileSectionTitle: 'Agência WhatsApp',
+    mobileSectionSubtitle: 'Código-fonte',
+    whatsappCardAria: 'Biblioteca gratuita para Agência de WhatsApp',
+    whatsappTitle: 'Agência de WhatsApp',
     whatsappSubtitle: 'Meta Cloud API · TypeScript',
     whatsappDescription:
       'Código completo com painel web, múltiplos bancos de dados e catálogo ao vivo.',
+    previewAria: 'Pré-visualização da Agência de WhatsApp',
+    closePreviewAria: 'Fechar pré-visualização',
     actions: {
       github: {
         label: 'Conectar com GitHub',

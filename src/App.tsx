@@ -27,6 +27,7 @@ import {
 } from './components/MobileCatalogCarousel';
 import { SearchLinkChatDrawer } from './components/SearchLinkChatDrawer';
 import { SearchLinkLogo } from './components/SearchLinkLogo';
+import { WhatsAppAgencyPreview } from './components/WhatsAppAgencyPreview';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
 import { useI18n } from './lib/i18n';
 import {
@@ -69,6 +70,8 @@ const MIN_TILE_STEP_MS = 260;
 const MIN_RECEIVE_STEP_MS = 230;
 const MIN_MAP_STEP_MS = 230;
 
+const WHATSAPP_AGENCY_PREVIEW_PATH = '/preview/agencia-whatsapp';
+
 type BatchImageSource =
   | { kind: 'file'; file: File }
   | { kind: 'url'; url: string };
@@ -87,6 +90,10 @@ export default function App() {
   const [shouldAnimateBgEntry, setShouldAnimateBgEntry] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(() =>
     typeof window !== 'undefined' && window.location.pathname === '/login',
+  );
+  const [isAgencyPreviewOpen, setIsAgencyPreviewOpen] = useState(() =>
+    typeof window !== 'undefined' &&
+    window.location.pathname === WHATSAPP_AGENCY_PREVIEW_PATH,
   );
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -543,6 +550,30 @@ export default function App() {
     }
   };
 
+  const openAgencyPreview = () => {
+    if (
+      typeof window !== 'undefined' &&
+      window.location.pathname !== WHATSAPP_AGENCY_PREVIEW_PATH
+    ) {
+      window.history.pushState(
+        { agencyPreviewRoute: true },
+        '',
+        WHATSAPP_AGENCY_PREVIEW_PATH,
+      );
+    }
+    setIsAgencyPreviewOpen(true);
+  };
+
+  const closeAgencyPreview = () => {
+    setIsAgencyPreviewOpen(false);
+    if (
+      typeof window !== 'undefined' &&
+      window.location.pathname === WHATSAPP_AGENCY_PREVIEW_PATH
+    ) {
+      window.history.replaceState(null, '', '/');
+    }
+  };
+
   useEffect(() => {
     if (!supabase) return;
     let active = true;
@@ -594,6 +625,10 @@ export default function App() {
       } else {
         setIsAuthOpen(false);
       }
+
+      setIsAgencyPreviewOpen(
+        window.location.pathname === WHATSAPP_AGENCY_PREVIEW_PATH,
+      );
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -625,6 +660,7 @@ export default function App() {
   useEffect(() => {
     if (
       !isAuthOpen &&
+      !isAgencyPreviewOpen &&
       !isDesktopMenuOpen &&
       !isMobileMenuOpen &&
       !isMobileAccountModalOpen &&
@@ -638,6 +674,10 @@ export default function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        if (isAgencyPreviewOpen) {
+          closeAgencyPreview();
+          return;
+        }
         if (activeChatServiceId) {
           setActiveChatServiceId(null);
           return;
@@ -652,14 +692,28 @@ export default function App() {
       }
 
       if (
-        isAuthOpen &&
         event.ctrlKey &&
         !event.altKey &&
         !event.metaKey &&
         event.key.toLowerCase() === 'x'
       ) {
-        event.preventDefault();
-        closeAuthFlow();
+        const target = event.target as HTMLElement | null;
+        const isInputFocused =
+          target !== null &&
+          (target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA' ||
+            target.isContentEditable);
+        if (isInputFocused) return;
+
+        if (isAgencyPreviewOpen) {
+          event.preventDefault();
+          closeAgencyPreview();
+          return;
+        }
+        if (isAuthOpen) {
+          event.preventDefault();
+          closeAuthFlow();
+        }
       }
     };
 
@@ -667,6 +721,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isAuthOpen,
+    isAgencyPreviewOpen,
     isDesktopMenuOpen,
     isMobileMenuOpen,
     isMobileAccountModalOpen,
@@ -1773,7 +1828,9 @@ export default function App() {
         activeBackgroundId={activeBgImage?.id ?? null}
         onSelectBackground={handleSelectBackground}
         suspendShortcuts={
-          (isAuthOpen && !authUser) || (isDesktopMenuOpen && Boolean(authUser))
+          (isAuthOpen && !authUser) ||
+          (isDesktopMenuOpen && Boolean(authUser)) ||
+          isAgencyPreviewOpen
         }
         isFileUploadFlow={isFileUploadFlow}
         showCompressionBox={showCompressionBox}
@@ -1792,11 +1849,6 @@ export default function App() {
 
       {/* Desktop-only animated automation examples below the home showcase; fades out once an automation flow starts */}
       <AutomationExamplesSection
-        visible={!hasSearched && !isFileUploadFlow && !isExtracting}
-      />
-
-      {/* Desktop-only free source code library below automation examples */}
-      <SourceCodeLibrarySection
         visible={!hasSearched && !isFileUploadFlow && !isExtracting}
       />
 
@@ -1827,6 +1879,12 @@ export default function App() {
             openAuthFlow();
           }
         }}
+      />
+
+      {/* Responsive source code library: below automation examples on desktop, below catalog carousel on mobile */}
+      <SourceCodeLibrarySection
+        visible={!hasSearched && !isFileUploadFlow && !isExtracting}
+        onOpenPreview={openAgencyPreview}
       />
       </div>
 
@@ -1896,6 +1954,12 @@ export default function App() {
         user={authUser}
         pendingBatch={pendingSaveBatch}
         onPendingBatchSaved={() => setPendingSaveBatch(null)}
+      />
+
+      {/* Full-screen pure-white Preview view on independent /preview/agencia-whatsapp route */}
+      <WhatsAppAgencyPreview
+        open={isAgencyPreviewOpen}
+        onClose={closeAgencyPreview}
       />
     </main>
   );
