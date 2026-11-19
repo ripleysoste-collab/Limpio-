@@ -20,6 +20,7 @@ import {
   AgencyClientActionModals,
   AgencyClientRowActionsTrigger,
 } from './AgencyClientRowMenu';
+import { AgencyClientDetailPanel } from './AgencyClientDetailPanel';
 
 interface AgencyMobileClientsProps {
   locale: SupportedLocale;
@@ -42,6 +43,7 @@ interface MobileClientsCopy {
   rowActionsAria: (name: string) => string;
   registerTitle: string;
   closeRegisterAria: string;
+  closeDetailAria: string;
   nameLabel: string;
   namePlaceholder: string;
   emailLabel: string;
@@ -73,6 +75,7 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     rowActionsAria: (name) => `Acciones para ${name}`,
     registerTitle: 'Registrar',
     closeRegisterAria: 'Cerrar registro',
+    closeDetailAria: 'Volver a clientes',
     nameLabel: 'Escribe el apellido y nombre de tu cliente',
     namePlaceholder: 'Ej: Pérez Francisco',
     emailLabel: 'Pon el correo de tu cliente',
@@ -102,6 +105,7 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     rowActionsAria: (name) => `Actions for ${name}`,
     registerTitle: 'Register',
     closeRegisterAria: 'Close registration',
+    closeDetailAria: 'Back to clients',
     nameLabel: "Enter your client's last and first name",
     namePlaceholder: 'e.g. Smith John',
     emailLabel: "Enter your client's email",
@@ -131,6 +135,7 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     rowActionsAria: (name) => `Ações para ${name}`,
     registerTitle: 'Registrar',
     closeRegisterAria: 'Fechar cadastro',
+    closeDetailAria: 'Voltar para clientes',
     nameLabel: 'Escreva o sobrenome e nome do seu cliente',
     namePlaceholder: 'Ex: Silva João',
     emailLabel: 'Coloque o e-mail do seu cliente',
@@ -179,6 +184,7 @@ export function AgencyMobileClients({
 }: AgencyMobileClientsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [openMenuClientId, setOpenMenuClientId] = useState<string | null>(null);
   const [viewClient, setViewClient] = useState<AgencyClientRecord | null>(null);
   const [statusClient, setStatusClient] = useState<AgencyClientRecord | null>(
@@ -207,6 +213,8 @@ export function AgencyMobileClients({
     dismissedExampleIds,
   );
   const filteredClients = filterAgencyClients(visibleClients, searchQuery);
+  const selectedClient =
+    visibleClients.find((c) => c.id === selectedClientId) ?? null;
 
   const countryValidation = useMemo(
     () => validateCountryField(countryText, countryBlurred),
@@ -281,6 +289,7 @@ export function AgencyMobileClients({
       fullName: fullName.trim(),
       email: email.trim(),
       phone: phone.trim(),
+      activeBotsCount: 0,
       countryCode: matchedCountry.code,
       countryName: matchedCountry.name,
       timezone: countryValidation.resolvedTimezone,
@@ -358,7 +367,14 @@ export function AgencyMobileClients({
                     isMenuOpen ? 'z-30' : 'z-0'
                   }`}
                 >
-                  <div className="flex items-center gap-3.5 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenMenuClientId(null);
+                      setSelectedClientId(client.id);
+                    }}
+                    className="flex-1 min-w-0 h-full flex items-center gap-3.5 text-left cursor-pointer focus-visible:outline-none"
+                  >
                     <span
                       title={statusLabel}
                       aria-label={statusLabel}
@@ -367,7 +383,7 @@ export function AgencyMobileClients({
                     <span className="text-[14px] font-normal text-slate-900 truncate">
                       {client.fullName}
                     </span>
-                  </div>
+                  </button>
 
                   <AgencyClientRowActionsTrigger
                     client={client}
@@ -639,6 +655,38 @@ export function AgencyMobileClients({
         </div>
       )}
 
+      {/* Full-screen Client Detail view when tapping a client's name on mobile */}
+      {selectedClient && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={selectedClient.fullName}
+          className="fixed inset-0 z-30 lg:hidden bg-white text-slate-950 flex flex-col overflow-hidden"
+        >
+          <header className="shrink-0 h-14 px-5 bg-white border-b border-slate-200/80 flex items-center justify-between gap-3">
+            <h2 className="text-[17px] font-semibold text-slate-950 tracking-tight truncate">
+              {selectedClient.fullName}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setSelectedClientId(null)}
+              aria-label={copy.closeDetailAria}
+              className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-slate-500 active:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
+          </header>
+
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 pt-5 pb-10 flex flex-col">
+            <AgencyClientDetailPanel
+              client={selectedClient}
+              locale={locale}
+              onRequestDelete={(target) => setDeleteConfirmClient(target)}
+            />
+          </div>
+        </div>
+      )}
+
       <AgencyClientActionModals
         locale={locale}
         viewClient={viewClient}
@@ -650,6 +698,7 @@ export function AgencyMobileClients({
         onConfirmDelete={(target) => {
           onDeleteClient?.(target);
           setDeleteConfirmClient(null);
+          if (selectedClientId === target.id) setSelectedClientId(null);
           if (viewClient?.id === target.id) setViewClient(null);
           if (statusClient?.id === target.id) setStatusClient(null);
         }}

@@ -20,6 +20,7 @@ import {
   AgencyClientActionModals,
   AgencyClientRowActionsTrigger,
 } from './AgencyClientRowMenu';
+import { AgencyClientDetailPanel } from './AgencyClientDetailPanel';
 
 interface AgencyDesktopClientsProps {
   locale: SupportedLocale;
@@ -40,6 +41,7 @@ interface DesktopClientsCopy {
   emptyClients: string;
   registrationTitle: string;
   registrationAria: string;
+  closeDetailAria: string;
   rowActionsAria: (name: string) => string;
   nameLabel: string;
   namePlaceholder: string;
@@ -70,6 +72,7 @@ const DESKTOP_CLIENTS_COPY: Record<SupportedLocale, DesktopClientsCopy> = {
     emptyClients: 'Sin clientes registrados.',
     registrationTitle: 'Registros',
     registrationAria: 'Formulario de registro de clientes',
+    closeDetailAria: 'Volver al formulario de registro',
     rowActionsAria: (name) => `Acciones para ${name}`,
     nameLabel: 'Escribe el apellido y nombre de tu cliente',
     namePlaceholder: 'Ej: Pérez Francisco',
@@ -98,6 +101,7 @@ const DESKTOP_CLIENTS_COPY: Record<SupportedLocale, DesktopClientsCopy> = {
     emptyClients: 'No registered clients.',
     registrationTitle: 'Registration',
     registrationAria: 'Client registration form',
+    closeDetailAria: 'Back to registration form',
     rowActionsAria: (name) => `Actions for ${name}`,
     nameLabel: "Enter your client's last and first name",
     namePlaceholder: 'e.g. Smith John',
@@ -126,6 +130,7 @@ const DESKTOP_CLIENTS_COPY: Record<SupportedLocale, DesktopClientsCopy> = {
     emptyClients: 'Nenhum cliente cadastrado.',
     registrationTitle: 'Registros',
     registrationAria: 'Formulário de cadastro de clientes',
+    closeDetailAria: 'Voltar ao formulário de cadastro',
     rowActionsAria: (name) => `Ações para ${name}`,
     nameLabel: 'Escreva o sobrenome e nome do seu cliente',
     namePlaceholder: 'Ex: Silva João',
@@ -174,6 +179,7 @@ export function AgencyDesktopClients({
   onDeleteClient,
 }: AgencyDesktopClientsProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [openMenuClientId, setOpenMenuClientId] = useState<string | null>(null);
   const [viewClient, setViewClient] = useState<AgencyClientRecord | null>(null);
   const [statusClient, setStatusClient] = useState<AgencyClientRecord | null>(
@@ -202,6 +208,8 @@ export function AgencyDesktopClients({
     dismissedExampleIds,
   );
   const filteredClients = filterAgencyClients(visibleClients, searchQuery);
+  const selectedClient =
+    visibleClients.find((c) => c.id === selectedClientId) ?? null;
 
   const countryValidation = useMemo(
     () => validateCountryField(countryText, countryBlurred),
@@ -276,6 +284,7 @@ export function AgencyDesktopClients({
       fullName: fullName.trim(),
       email: email.trim(),
       phone: phone.trim(),
+      activeBotsCount: 0,
       countryCode: matchedCountry.code,
       countryName: matchedCountry.name,
       timezone: countryValidation.resolvedTimezone,
@@ -354,20 +363,35 @@ export function AgencyDesktopClients({
                 return (
                   <li
                     key={client.id}
-                    className={`relative h-[52px] px-8 bg-white hover:bg-slate-50/70 transition-colors flex items-center justify-between gap-3 ${
-                      isMenuOpen ? 'z-30' : 'z-0'
-                    }`}
+                    className={`relative h-[52px] px-8 transition-colors flex items-center justify-between gap-3 ${
+                      selectedClient?.id === client.id
+                        ? 'bg-slate-50'
+                        : 'bg-white hover:bg-slate-50/70'
+                    } ${isMenuOpen ? 'z-30' : 'z-0'}`}
                   >
-                    <div className="flex items-center gap-3.5 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenMenuClientId(null);
+                        setSelectedClientId(client.id);
+                      }}
+                      className="flex-1 min-w-0 h-full flex items-center gap-3.5 text-left cursor-pointer focus-visible:outline-none"
+                    >
                       <span
                         title={statusLabel}
                         aria-label={statusLabel}
                         className={`w-[18px] h-[18px] rounded-[5px] shrink-0 ${statusMeta.squareClass}`}
                       />
-                      <span className="text-[14px] font-normal text-slate-900 truncate">
+                      <span
+                        className={`text-[14px] truncate ${
+                          selectedClient?.id === client.id
+                            ? 'font-medium text-slate-950'
+                            : 'font-normal text-slate-900'
+                        }`}
+                      >
                         {client.fullName}
                       </span>
-                    </div>
+                    </button>
 
                     <AgencyClientRowActionsTrigger
                       client={client}
@@ -395,19 +419,46 @@ export function AgencyDesktopClients({
         </div>
       </section>
 
-      {/* Right half: Registros form with smart validations */}
+      {/* Right half: switches cleanly between Registros form and selected Client Detail */}
       <section
-        aria-label={copy.registrationAria}
+        aria-label={
+          selectedClient ? selectedClient.fullName : copy.registrationAria
+        }
         className="h-full min-w-0 px-8 pt-7 pb-10 pr-16 flex flex-col overflow-y-auto bg-white"
       >
-        <h2 className="text-[18px] font-semibold text-slate-950 tracking-tight shrink-0">
-          {copy.registrationTitle}
-        </h2>
+        {selectedClient ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex items-center justify-between gap-3 shrink-0 mb-5">
+              <h2 className="text-[18px] font-semibold text-slate-950 tracking-tight truncate">
+                {selectedClient.fullName}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSelectedClientId(null)}
+                aria-label={copy.closeDetailAria}
+                title={copy.closeDetailAria}
+                className="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 hover:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <X className="w-4.5 h-4.5" aria-hidden="true" />
+              </button>
+            </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="mt-5 w-full max-w-[400px] flex flex-col gap-4"
-        >
+            <AgencyClientDetailPanel
+              client={selectedClient}
+              locale={locale}
+              onRequestDelete={(target) => setDeleteConfirmClient(target)}
+            />
+          </div>
+        ) : (
+          <>
+            <h2 className="text-[18px] font-semibold text-slate-950 tracking-tight shrink-0">
+              {copy.registrationTitle}
+            </h2>
+
+            <form
+              onSubmit={handleSubmit}
+              className="mt-5 w-full max-w-[400px] flex flex-col gap-4"
+            >
           {/* 1. Apellido y nombre */}
           <label className="block">
             <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
@@ -614,7 +665,9 @@ export function AgencyDesktopClients({
               </button>
             </div>
           )}
-        </form>
+            </form>
+          </>
+        )}
       </section>
 
       <AgencyClientActionModals
@@ -628,6 +681,7 @@ export function AgencyDesktopClients({
         onConfirmDelete={(target) => {
           onDeleteClient?.(target);
           setDeleteConfirmClient(null);
+          if (selectedClientId === target.id) setSelectedClientId(null);
           if (viewClient?.id === target.id) setViewClient(null);
           if (statusClient?.id === target.id) setStatusClient(null);
         }}

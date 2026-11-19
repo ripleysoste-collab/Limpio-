@@ -13,6 +13,8 @@ export interface AgencyClientRecord {
   businessName?: string;
   email: string;
   phone: string;
+  botPhone?: string;
+  activeBotsCount?: number;
   countryCode?: string;
   countryName?: string;
   timezone: string;
@@ -74,6 +76,8 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
     fullName: 'Francisco Pérez',
     email: 'francisco.perez@ejemplo.com',
     phone: '+52 55 1234 5678',
+    botPhone: '+52 55 9087 6543',
+    activeBotsCount: 2,
     countryCode: 'MX',
     countryName: 'México',
     timezone: 'America/Mexico_City',
@@ -87,6 +91,8 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
     fullName: 'Camila Gutiérrez',
     email: 'camila.gutierrez@ejemplo.com',
     phone: '+57 310 456 7890',
+    botPhone: '+57 311 890 1234',
+    activeBotsCount: 0,
     countryCode: 'CO',
     countryName: 'Colombia',
     timezone: 'America/Bogota',
@@ -100,6 +106,8 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
     fullName: 'Mateo Ramírez',
     email: 'mateo.ramirez@ejemplo.com',
     phone: '+54 11 3456 7890',
+    botPhone: '+54 11 5522 7788',
+    activeBotsCount: 0,
     countryCode: 'AR',
     countryName: 'Argentina',
     timezone: 'America/Argentina/Buenos_Aires',
@@ -113,6 +121,8 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
     fullName: 'Valentina Morales',
     email: 'valentina.morales@ejemplo.com',
     phone: '+34 612 345 678',
+    botPhone: '+34 644 901 234',
+    activeBotsCount: 0,
     countryCode: 'ES',
     countryName: 'España',
     timezone: 'Europe/Madrid',
