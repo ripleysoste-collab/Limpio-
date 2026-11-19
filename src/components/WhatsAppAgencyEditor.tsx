@@ -116,6 +116,7 @@ export function WhatsAppAgencyEditor({
     core: true,
     inicio: true,
     clientes: true,
+    bots: true,
   });
   const [fileContents, setFileContents] = useState<Record<string, string>>(() =>
     Object.fromEntries(

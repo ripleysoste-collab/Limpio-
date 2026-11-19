@@ -6,8 +6,10 @@ import {
   purgeAgencyClientEverywhere,
   type AgencyClientRecord,
 } from '../lib/agencyClients';
+import type { AgencyBotRecord, BotOperationalStatus } from '../lib/agencyBots';
 import { useI18n, type SupportedLocale } from '../lib/i18n';
 import type { AgencyTabId } from '../lib/agencyRoutes';
+import { AgencyDesktopBots } from './AgencyDesktopBots';
 import { AgencyDesktopClients } from './AgencyDesktopClients';
 import { AgencyDesktopHome } from './AgencyDesktopHome';
 import { AgencyMobileClients } from './AgencyMobileClients';
@@ -290,6 +292,10 @@ export function WhatsAppAgencyPreview({
     AgencyClientRecord[]
   >([]);
   const [dismissedExampleIds, setDismissedExampleIds] = useState<string[]>([]);
+  const [registeredBots, setRegisteredBots] = useState<AgencyBotRecord[]>([]);
+  const [dismissedExampleBotIds, setDismissedExampleBotIds] = useState<
+    string[]
+  >([]);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const mobileNavRef = useRef<HTMLElement | null>(null);
 
@@ -305,7 +311,52 @@ export function WhatsAppAgencyPreview({
     );
     setRegisteredClients(outcome.nextClients);
     setDismissedExampleIds(outcome.nextDismissedExampleIds);
+    if (!target.isExample) {
+      setRegisteredBots((prev) =>
+        prev.filter((bot) => bot.clientId !== target.id),
+      );
+    }
   };
+
+  const handleRegisterBot = (bot: AgencyBotRecord) => {
+    setRegisteredBots((prev) => [bot, ...prev]);
+  };
+
+  const handleUpdateBotStatus = (
+    botId: string,
+    nextStatus: BotOperationalStatus,
+  ) => {
+    setRegisteredBots((prev) =>
+      prev.map((bot) =>
+        bot.id === botId ? { ...bot, status: nextStatus } : bot,
+      ),
+    );
+  };
+
+  const handleDeleteBot = (target: AgencyBotRecord) => {
+    if (target.isExample) {
+      setDismissedExampleBotIds((prev) =>
+        prev.includes(target.id) ? prev : [...prev, target.id],
+      );
+      return;
+    }
+    setRegisteredBots((prev) => prev.filter((bot) => bot.id !== target.id));
+  };
+
+  const clientsWithSyncedBots = registeredClients.map((client) => {
+    const ownedBots = registeredBots.filter(
+      (bot) => bot.clientId === client.id,
+    );
+    if (ownedBots.length === 0) return client;
+    const activeOwnedCount = ownedBots.filter(
+      (bot) => bot.status === 'active',
+    ).length;
+    return {
+      ...client,
+      activeBotsCount: activeOwnedCount,
+      botPhone: ownedBots[0]?.botPhone ?? client.botPhone,
+    };
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -398,7 +449,7 @@ export function WhatsAppAgencyPreview({
           className={`relative flex-1 min-w-0 h-full ${
             activeTab === 'home'
               ? 'overflow-hidden bg-[#1E293B]'
-              : activeTab === 'clients'
+              : activeTab === 'clients' || activeTab === 'bots'
                 ? 'overflow-hidden bg-white'
                 : 'overflow-y-auto bg-white px-8 pt-7 pb-10'
           }`}
@@ -424,11 +475,23 @@ export function WhatsAppAgencyPreview({
           ) : activeTab === 'clients' ? (
             <AgencyDesktopClients
               locale={locale}
-              clients={registeredClients}
+              clients={clientsWithSyncedBots}
               dismissedExampleIds={dismissedExampleIds}
               nowMs={nowMs}
               onRegisterClient={handleRegisterClient}
               onDeleteClient={handleDeleteClient}
+            />
+          ) : activeTab === 'bots' ? (
+            <AgencyDesktopBots
+              locale={locale}
+              clients={clientsWithSyncedBots}
+              dismissedExampleClientIds={dismissedExampleIds}
+              bots={registeredBots}
+              dismissedExampleBotIds={dismissedExampleBotIds}
+              nowMs={nowMs}
+              onRegisterBot={handleRegisterBot}
+              onUpdateBotStatus={handleUpdateBotStatus}
+              onDeleteBot={handleDeleteBot}
             />
           ) : (
             <div className="max-w-4xl pr-12">

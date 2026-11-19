@@ -1,5 +1,6 @@
 import agencyRoutesRaw from './agencyRoutes.ts?raw';
 import agencyClientsRaw from './agencyClients.ts?raw';
+import agencyBotsRaw from './agencyBots.ts?raw';
 import agencyCountriesRaw from './agencyCountries.ts?raw';
 import agencyValidationRaw from './agencyValidation.ts?raw';
 import whatsAppAgencyPreviewRaw from '../components/WhatsAppAgencyPreview.tsx?raw';
@@ -9,10 +10,16 @@ import agencyDesktopClientsRaw from '../components/AgencyDesktopClients.tsx?raw'
 import agencyMobileClientsRaw from '../components/AgencyMobileClients.tsx?raw';
 import agencyClientRowMenuRaw from '../components/AgencyClientRowMenu.tsx?raw';
 import agencyClientDetailPanelRaw from '../components/AgencyClientDetailPanel.tsx?raw';
+import agencyDesktopBotsRaw from '../components/AgencyDesktopBots.tsx?raw';
 import type { AgencyTabId } from './agencyRoutes';
 
 export type AgencySourceLanguage = 'json' | 'tsx' | 'ts';
-export type AgencySourceFolderId = 'root' | 'core' | 'inicio' | 'clientes';
+export type AgencySourceFolderId =
+  | 'root'
+  | 'core'
+  | 'inicio'
+  | 'clientes'
+  | 'bots';
 
 export interface AgencySourceFileEntry {
   id: string;
@@ -40,7 +47,8 @@ const AGENCY_METADATA_JSON = `{
   "modules": [
     "core",
     "inicio",
-    "clientes"
+    "clientes",
+    "bots"
   ],
   "stack": {
     "frontend": "React + TypeScript + Tailwind CSS",
@@ -178,6 +186,31 @@ export const AGENCY_SOURCE_FOLDERS: AgencySourceFolderGroup[] = [
         language: 'tsx',
         previewTab: 'clients',
         content: agencyClientDetailPanelRaw,
+      },
+    ],
+  },
+  {
+    id: 'bots',
+    name: 'bots',
+    previewTab: 'bots',
+    files: [
+      {
+        id: 'bots-model',
+        name: 'agencyBots.ts',
+        path: 'bots/agencyBots.ts',
+        folderId: 'bots',
+        language: 'ts',
+        previewTab: 'bots',
+        content: agencyBotsRaw,
+      },
+      {
+        id: 'bots-desktop',
+        name: 'AgencyDesktopBots.tsx',
+        path: 'bots/AgencyDesktopBots.tsx',
+        folderId: 'bots',
+        language: 'tsx',
+        previewTab: 'bots',
+        content: agencyDesktopBotsRaw,
       },
     ],
   },
