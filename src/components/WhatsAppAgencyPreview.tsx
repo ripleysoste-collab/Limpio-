@@ -1,25 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronUp, X } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import {
-  applyAutoExpirationToClients,
-  purgeAgencyClientEverywhere,
-  type AgencyClientRecord,
-} from '../lib/agencyClients';
-import type { AgencyBotRecord, BotOperationalStatus } from '../lib/agencyBots';
+import { useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
 import { useI18n, type SupportedLocale } from '../lib/i18n';
 import type { AgencyTabId } from '../lib/agencyRoutes';
-import { AgencyDesktopBots } from './AgencyDesktopBots';
-import { AgencyDesktopClients } from './AgencyDesktopClients';
-import { AgencyDesktopHome } from './AgencyDesktopHome';
-import { AgencyMobileBots } from './AgencyMobileBots';
-import { AgencyMobileClients } from './AgencyMobileClients';
+import { AgencyDesktopHome, preloadAgencyHeroImage } from './AgencyDesktopHome';
 import { AgencyMobileHome } from './AgencyMobileHome';
 
 interface WhatsAppAgencyPreviewProps {
   open: boolean;
   activeTab: AgencyTabId;
-  embedded?: boolean;
   onSelectTab: (tab: AgencyTabId) => void;
   onClose: () => void;
 }
@@ -30,22 +18,19 @@ interface AgencyTabItem {
   description: string;
 }
 
-interface PreviewCopyBundle {
-  mobileBrandTitle: string;
-  desktopBrandTitle: string;
-  tabsAria: string;
-  hideMenuAria: string;
-  showMenuAria: string;
-  tabs: AgencyTabItem[];
-}
-
-const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
+const PREVIEW_COPY: Record<
+  SupportedLocale,
+  {
+    mobileBrandTitle: string;
+    desktopBrandTitle: string;
+    tabsAria: string;
+    tabs: AgencyTabItem[];
+  }
+> = {
   es: {
     mobileBrandTitle: 'Agencia de WhatsApp',
     desktopBrandTitle: 'Agencia de automatizado WhatsApp Bot',
     tabsAria: 'Secciones de Agencia de WhatsApp',
-    hideMenuAria: 'Ocultar categorías del menú',
-    showMenuAria: 'Mostrar categorías del menú',
     tabs: [
       {
         id: 'home',
@@ -53,29 +38,19 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
         description: 'Resumen general de la agencia, accesos rápidos y estado del sistema',
       },
       {
-        id: 'clients',
-        label: 'Clientes',
-        description: 'Registrar clientes, suscripciones, fechas límite y estado del servicio',
-      },
-      {
         id: 'bots',
         label: 'Bots',
-        description: 'Emparejar números de WhatsApp con clientes registrados y controlar su estado',
-      },
-      {
-        id: 'businesses',
-        label: 'Negocios',
-        description: 'Registrar el perfil comercial y los datos del negocio de cada bot',
-      },
-      {
-        id: 'training',
-        label: 'Entrenamiento',
-        description: 'Cargar conocimiento del negocio o asignar el enlace privado al cliente',
+        description: 'Crear clientes, encender, pausar y suspender bots',
       },
       {
         id: 'metrics',
         label: 'Métricas',
         description: 'Mensajes procesados, bots activos y rendimiento en vivo',
+      },
+      {
+        id: 'users',
+        label: 'Usuarios',
+        description: 'Contactos de WhatsApp, chats y control humano',
       },
       {
         id: 'searchlink',
@@ -123,8 +98,6 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
     mobileBrandTitle: 'WhatsApp Agency',
     desktopBrandTitle: 'WhatsApp Bot Automation Agency',
     tabsAria: 'WhatsApp Agency sections',
-    hideMenuAria: 'Hide menu categories',
-    showMenuAria: 'Show menu categories',
     tabs: [
       {
         id: 'home',
@@ -132,29 +105,19 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
         description: 'Agency overview, quick shortcuts, and system status',
       },
       {
-        id: 'clients',
-        label: 'Clients',
-        description: 'Register clients, subscriptions, expiration dates, and service status',
-      },
-      {
         id: 'bots',
         label: 'Bots',
-        description: 'Pair WhatsApp bot numbers with registered clients and manage state',
-      },
-      {
-        id: 'businesses',
-        label: 'Businesses',
-        description: 'Register the commercial profile and business details for each bot',
-      },
-      {
-        id: 'training',
-        label: 'Training',
-        description: 'Load business knowledge or assign a private portal link to the client',
+        description: 'Create clients, toggle power, and suspend bots',
       },
       {
         id: 'metrics',
         label: 'Metrics',
         description: 'Processed messages, active bots, and live performance',
+      },
+      {
+        id: 'users',
+        label: 'Users',
+        description: 'WhatsApp contacts, conversations, and human handoff',
       },
       {
         id: 'searchlink',
@@ -202,8 +165,6 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
     mobileBrandTitle: 'Agência de WhatsApp',
     desktopBrandTitle: 'Agência de Automação WhatsApp Bot',
     tabsAria: 'Seções da Agência de WhatsApp',
-    hideMenuAria: 'Ocultar categorias do menu',
-    showMenuAria: 'Mostrar categorias do menu',
     tabs: [
       {
         id: 'home',
@@ -211,29 +172,19 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
         description: 'Resumo geral da agência, atalhos e status do sistema',
       },
       {
-        id: 'clients',
-        label: 'Clientes',
-        description: 'Cadastrar clientes, assinaturas, datas limite e status do serviço',
-      },
-      {
         id: 'bots',
         label: 'Bots',
-        description: 'Vincular números de WhatsApp a clientes cadastrados e controlar status',
-      },
-      {
-        id: 'businesses',
-        label: 'Negócios',
-        description: 'Cadastrar o perfil comercial e dados do negócio de cada bot',
-      },
-      {
-        id: 'training',
-        label: 'Treinamento',
-        description: 'Carregar conhecimento do negócio ou gerar o link privado para o cliente',
+        description: 'Criar clientes, ligar, pausar e suspender bots',
       },
       {
         id: 'metrics',
         label: 'Métricas',
         description: 'Mensagens processadas, bots ativos e desempenho ao vivo',
+      },
+      {
+        id: 'users',
+        label: 'Usuários',
+        description: 'Contatos do WhatsApp, conversas e atendimento humano',
       },
       {
         id: 'searchlink',
@@ -282,104 +233,19 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
 export function WhatsAppAgencyPreview({
   open,
   activeTab,
-  embedded = false,
   onSelectTab,
   onClose,
 }: WhatsAppAgencyPreviewProps) {
   const { t, locale } = useI18n();
-  const shouldReduceMotion = useReducedMotion();
-  const [isMobileMenuCollapsed, setIsMobileMenuCollapsed] = useState(false);
-  const [registeredClients, setRegisteredClients] = useState<
-    AgencyClientRecord[]
-  >([]);
-  const [dismissedExampleIds, setDismissedExampleIds] = useState<string[]>([]);
-  const [registeredBots, setRegisteredBots] = useState<AgencyBotRecord[]>([]);
-  const [dismissedExampleBotIds, setDismissedExampleBotIds] = useState<
-    string[]
-  >([]);
-  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const mobileNavRef = useRef<HTMLElement | null>(null);
-
-  const handleRegisterClient = (client: AgencyClientRecord) => {
-    setRegisteredClients((prev) => [client, ...prev]);
-  };
-
-  const handleDeleteClient = (target: AgencyClientRecord) => {
-    const outcome = purgeAgencyClientEverywhere(
-      target,
-      registeredClients,
-      dismissedExampleIds,
-    );
-    setRegisteredClients(outcome.nextClients);
-    setDismissedExampleIds(outcome.nextDismissedExampleIds);
-    if (!target.isExample) {
-      setRegisteredBots((prev) =>
-        prev.filter((bot) => bot.clientId !== target.id),
-      );
-    }
-  };
-
-  const handleRegisterBot = (bot: AgencyBotRecord) => {
-    setRegisteredBots((prev) => [bot, ...prev]);
-  };
-
-  const handleUpdateBotStatus = (
-    botId: string,
-    nextStatus: BotOperationalStatus,
-  ) => {
-    setRegisteredBots((prev) =>
-      prev.map((bot) =>
-        bot.id === botId ? { ...bot, status: nextStatus } : bot,
-      ),
-    );
-  };
-
-  const handleDeleteBot = (target: AgencyBotRecord) => {
-    if (target.isExample) {
-      setDismissedExampleBotIds((prev) =>
-        prev.includes(target.id) ? prev : [...prev, target.id],
-      );
-      return;
-    }
-    setRegisteredBots((prev) => prev.filter((bot) => bot.id !== target.id));
-  };
-
-  const clientsWithSyncedBots = registeredClients.map((client) => {
-    const ownedBots = registeredBots.filter(
-      (bot) => bot.clientId === client.id,
-    );
-    if (ownedBots.length === 0) return client;
-    const activeOwnedCount = ownedBots.filter(
-      (bot) => bot.status === 'active',
-    ).length;
-    return {
-      ...client,
-      activeBotsCount: activeOwnedCount,
-      botPhone: ownedBots[0]?.botPhone ?? client.botPhone,
-    };
-  });
 
   useEffect(() => {
     if (!open) return;
-
-    const syncClock = () => {
-      const now = Date.now();
-      setNowMs(now);
-      setRegisteredClients((prev) => {
-        if (prev.length === 0) return prev;
-        const next = applyAutoExpirationToClients(prev, now);
-        const changed = next.some((item, idx) => item.status !== prev[idx]?.status);
-        return changed ? next : prev;
-      });
-    };
-
-    syncClock();
-    const intervalId = window.setInterval(syncClock, 5000);
-    return () => window.clearInterval(intervalId);
+    preloadAgencyHeroImage();
   }, [open]);
 
   useEffect(() => {
-    if (!open || isMobileMenuCollapsed || !mobileNavRef.current) return;
+    if (!open || !mobileNavRef.current) return;
     const activeButton = mobileNavRef.current.querySelector<HTMLButtonElement>(
       `[data-tab-id="${activeTab}"]`
     );
@@ -388,7 +254,7 @@ export function WhatsAppAgencyPreview({
       inline: 'nearest',
       block: 'nearest',
     });
-  }, [activeTab, open, isMobileMenuCollapsed]);
+  }, [activeTab, open]);
 
   if (!open) return null;
 
@@ -449,51 +315,26 @@ export function WhatsAppAgencyPreview({
         <main
           className={`relative flex-1 min-w-0 h-full ${
             activeTab === 'home'
-              ? 'overflow-hidden bg-[#1E293B]'
-              : activeTab === 'clients' || activeTab === 'bots'
-                ? 'overflow-hidden bg-white'
-                : 'overflow-y-auto bg-white px-8 pt-7 pb-10'
+              ? 'overflow-hidden bg-[#182230]'
+              : 'overflow-y-auto bg-white px-8 pt-7 pb-10'
           }`}
         >
-          {!embedded && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={t.sourceCode.closePreviewAria}
-              title={t.sourceCode.closePreviewAria}
-              className={`absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 cursor-pointer ${
-                activeTab === 'home'
-                  ? 'text-white/80 hover:text-white hover:bg-white/12 focus-visible:ring-white/50'
-                  : 'text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:ring-slate-400'
-              }`}
-            >
-              <X className="w-5 h-5" aria-hidden="true" />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t.sourceCode.closePreviewAria}
+            title={t.sourceCode.closePreviewAria}
+            className={`absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 cursor-pointer ${
+              activeTab === 'home'
+                ? 'text-white/80 hover:text-white hover:bg-white/12 focus-visible:ring-white/50'
+                : 'text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:ring-slate-400'
+            }`}
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
 
           {activeTab === 'home' ? (
             <AgencyDesktopHome locale={locale} onNavigate={onSelectTab} />
-          ) : activeTab === 'clients' ? (
-            <AgencyDesktopClients
-              locale={locale}
-              clients={clientsWithSyncedBots}
-              dismissedExampleIds={dismissedExampleIds}
-              nowMs={nowMs}
-              onRegisterClient={handleRegisterClient}
-              onDeleteClient={handleDeleteClient}
-            />
-          ) : activeTab === 'bots' ? (
-            <AgencyDesktopBots
-              locale={locale}
-              clients={clientsWithSyncedBots}
-              dismissedExampleClientIds={dismissedExampleIds}
-              bots={registeredBots}
-              dismissedExampleBotIds={dismissedExampleBotIds}
-              nowMs={nowMs}
-              onRegisterBot={handleRegisterBot}
-              onUpdateBotStatus={handleUpdateBotStatus}
-              onDeleteBot={handleDeleteBot}
-            />
           ) : (
             <div className="max-w-4xl pr-12">
               <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
@@ -507,13 +348,9 @@ export function WhatsAppAgencyPreview({
         </main>
       </div>
 
-      {/* Mobile shell: pure white agency layout with collapsible swipeable single-purpose tabs */}
+      {/* Mobile shell: pure white agency layout with swipeable single-purpose tabs */}
       <div className="lg:hidden relative w-full h-full flex flex-col bg-white">
-        <header
-          className={`shrink-0 h-14 px-4 bg-white flex items-center justify-between gap-2 ${
-            isMobileMenuCollapsed ? 'border-b border-slate-200/85' : ''
-          }`}
-        >
+        <header className="shrink-0 h-14 px-4 bg-white flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
             <div
               aria-hidden="true"
@@ -527,113 +364,45 @@ export function WhatsAppAgencyPreview({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsMobileMenuCollapsed((prev) => !prev)}
-              aria-expanded={!isMobileMenuCollapsed}
-              aria-label={
-                isMobileMenuCollapsed ? copy.showMenuAria : copy.hideMenuAria
-              }
-              title={
-                isMobileMenuCollapsed ? copy.showMenuAria : copy.hideMenuAria
-              }
-              className="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 active:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-            >
-              <ChevronUp
-                className={`w-5 h-5 transition-transform duration-200 ${
-                  isMobileMenuCollapsed ? 'rotate-180' : 'rotate-0'
-                }`}
-                aria-hidden="true"
-              />
-            </button>
-
-            {!embedded && (
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label={t.sourceCode.closePreviewAria}
-                title={t.sourceCode.closePreviewAria}
-                className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 active:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              >
-                <X className="w-5 h-5" aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t.sourceCode.closePreviewAria}
+            title={t.sourceCode.closePreviewAria}
+            className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 active:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
+          </button>
         </header>
 
-        <AnimatePresence initial={false}>
-          {!isMobileMenuCollapsed && (
-            <motion.nav
-              key="mobile-agency-tabs"
-              ref={mobileNavRef}
-              aria-label={copy.tabsAria}
-              initial={
-                shouldReduceMotion
-                  ? { opacity: 1 }
-                  : { height: 0, opacity: 0 }
-              }
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={
-                shouldReduceMotion
-                  ? { opacity: 0 }
-                  : { height: 0, opacity: 0 }
-              }
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="shrink-0 overflow-hidden border-b border-slate-200/85 bg-white"
-            >
-              <div className="px-4 flex items-center gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {copy.tabs.map((tab) => {
-                  const isActive = tab.id === activeTab;
-                  return (
-                    <button
-                      key={`mob-${tab.id}`}
-                      data-tab-id={tab.id}
-                      type="button"
-                      onClick={() => onSelectTab(tab.id)}
-                      className={`py-3 text-[13px] whitespace-nowrap shrink-0 border-b-2 -mb-px cursor-pointer focus-visible:outline-none ${
-                        isActive
-                          ? 'border-slate-950 text-slate-950 font-semibold'
-                          : 'border-transparent text-slate-500 font-medium hover:text-slate-800'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </motion.nav>
-          )}
-        </AnimatePresence>
-
-        <div
-          className={`flex-1 min-h-0 overflow-y-auto ${
-            activeTab === 'home' ? 'bg-[#25D366]' : 'bg-white'
-          }`}
+        <nav
+          ref={mobileNavRef}
+          aria-label={copy.tabsAria}
+          className="shrink-0 border-b border-slate-200/85 bg-white px-4 flex items-center gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
+          {copy.tabs.map((tab) => {
+            const isActive = tab.id === activeTab;
+            return (
+              <button
+                key={`mob-${tab.id}`}
+                data-tab-id={tab.id}
+                type="button"
+                onClick={() => onSelectTab(tab.id)}
+                className={`py-3 text-[13px] whitespace-nowrap shrink-0 border-b-2 -mb-px cursor-pointer focus-visible:outline-none ${
+                  isActive
+                    ? 'border-slate-950 text-slate-950 font-semibold'
+                    : 'border-transparent text-slate-500 font-medium hover:text-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="flex-1 min-h-0 overflow-y-auto bg-white">
           {activeTab === 'home' ? (
-            <AgencyMobileHome locale={locale} />
-          ) : activeTab === 'clients' ? (
-            <AgencyMobileClients
-              locale={locale}
-              clients={clientsWithSyncedBots}
-              dismissedExampleIds={dismissedExampleIds}
-              nowMs={nowMs}
-              onRegisterClient={handleRegisterClient}
-              onDeleteClient={handleDeleteClient}
-            />
-          ) : activeTab === 'bots' ? (
-            <AgencyMobileBots
-              locale={locale}
-              clients={clientsWithSyncedBots}
-              dismissedExampleClientIds={dismissedExampleIds}
-              bots={registeredBots}
-              dismissedExampleBotIds={dismissedExampleBotIds}
-              nowMs={nowMs}
-              onRegisterBot={handleRegisterBot}
-              onUpdateBotStatus={handleUpdateBotStatus}
-              onDeleteBot={handleDeleteBot}
-            />
+            <AgencyMobileHome locale={locale} onNavigate={onSelectTab} />
           ) : (
             <div className="px-4 pt-5">
               <h2 className="text-[15px] font-semibold text-slate-950 tracking-tight">

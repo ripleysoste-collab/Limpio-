@@ -117,21 +117,6 @@ export interface TranslationDictionary {
       }
     >;
   };
-  sourceCode: {
-    sectionAria: string;
-    sectionTitle: string;
-    sectionSubtitle: string;
-    whatsappCardAria: string;
-    whatsappTitle: string;
-    whatsappSubtitle: string;
-    whatsappDescription: string;
-    actions: {
-      github: { label: string; feedback: string };
-      zip: { label: string; feedback: string };
-      editor: { label: string; feedback: string };
-      preview: { label: string; feedback: string };
-    };
-  };
   menu: {
     account: string;
     accountCreatedOn: (formattedDate: string) => string;
@@ -566,36 +551,6 @@ const ES_DICTIONARY: TranslationDictionary = {
           { name: 'Sérum Ámbar', subtitle: 'Uso nocturno' },
           { name: 'Esencia Botánica', subtitle: 'Notas cálidas' },
         ],
-      },
-    },
-  },
-  sourceCode: {
-    sectionAria: 'Código fuente de Search Link Core',
-    sectionTitle: 'Código fuente · Search Link Core',
-    sectionSubtitle:
-      'Librerías gratuitas listas para conectar tu repositorio, base de datos y catálogo en producción',
-    whatsappCardAria: 'Librería gratuita para WhatsApp',
-    whatsappTitle: 'WhatsApp Bot',
-    whatsappSubtitle: 'Meta Cloud API · TypeScript',
-    whatsappDescription:
-      'Código completo con panel web, múltiples bases de datos y catálogo en vivo.',
-    actions: {
-      github: {
-        label: 'Conectar con GitHub',
-        feedback: 'Repositorio oficial listo en la siguiente fase.',
-      },
-      zip: {
-        label: 'Descargar ZIP',
-        feedback: 'Paquete comprimido listo al completar el código fuente.',
-      },
-      editor: {
-        label: 'Ver código en editor',
-        feedback: 'El explorador de archivos se habilitará aquí.',
-      },
-      preview: {
-        label: 'Ver preview',
-        feedback:
-          'Primera vista interactiva que construiremos al aprobar este diseño.',
       },
     },
   },
@@ -1093,36 +1048,6 @@ const EN_DICTIONARY: TranslationDictionary = {
       },
     },
   },
-  sourceCode: {
-    sectionAria: 'Search Link Core source code',
-    sectionTitle: 'Source code · Search Link Core',
-    sectionSubtitle:
-      'Free starter kits ready to connect your repository, database, and live catalog in production',
-    whatsappCardAria: 'Free WhatsApp starter library',
-    whatsappTitle: 'WhatsApp Bot',
-    whatsappSubtitle: 'Meta Cloud API · TypeScript',
-    whatsappDescription:
-      'Full source code with web dashboard, multi-database support, and live catalog.',
-    actions: {
-      github: {
-        label: 'Connect with GitHub',
-        feedback: 'Official repository ready in the next step.',
-      },
-      zip: {
-        label: 'Download ZIP',
-        feedback: 'Archive bundle ready once source code generation finishes.',
-      },
-      editor: {
-        label: 'View code in editor',
-        feedback: 'The file explorer will open right here.',
-      },
-      preview: {
-        label: 'View preview',
-        feedback:
-          'First interactive preview we will build once this layout is approved.',
-      },
-    },
-  },
   menu: {
     account: 'Account',
     accountCreatedOn: (date) => `Created on ${date}`,
@@ -1616,36 +1541,6 @@ const PT_DICTIONARY: TranslationDictionary = {
           { name: 'Sérum Âmbar', subtitle: 'Uso noturno' },
           { name: 'Essência Botânica', subtitle: 'Notas quentes' },
         ],
-      },
-    },
-  },
-  sourceCode: {
-    sectionAria: 'Código-fonte do Search Link Core',
-    sectionTitle: 'Código-fonte · Search Link Core',
-    sectionSubtitle:
-      'Bibliotecas gratuitas prontas para conectar seu repositório, banco de dados e catálogo em produção',
-    whatsappCardAria: 'Biblioteca gratuita para WhatsApp',
-    whatsappTitle: 'WhatsApp Bot',
-    whatsappSubtitle: 'Meta Cloud API · TypeScript',
-    whatsappDescription:
-      'Código completo com painel web, múltiplos bancos de dados e catálogo ao vivo.',
-    actions: {
-      github: {
-        label: 'Conectar com GitHub',
-        feedback: 'Repositório oficial pronto na próxima etapa.',
-      },
-      zip: {
-        label: 'Baixar ZIP',
-        feedback: 'Pacote compactado pronto ao concluir o código-fonte.',
-      },
-      editor: {
-        label: 'Ver código no editor',
-        feedback: 'O explorador de arquivos será habilitado aqui.',
-      },
-      preview: {
-        label: 'Ver preview',
-        feedback:
-          'Primeira visualização interativa que construiremos ao aprovar este layout.',
       },
     },
   },

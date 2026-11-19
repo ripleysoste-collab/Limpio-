@@ -1,26 +1,40 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SupportedLocale } from '../lib/i18n';
-import type { AgencyTabId } from '../lib/agencyRoutes';
 
-const DEFAULT_DESKTOP_HOME_BG =
+export type AgencyDesktopActionTarget = 'bots' | 'env';
+
+const DESKTOP_HOME_IMAGE_URL =
   'https://limpioso.vercel.app/api/media?k=catalog%2F2026-11%2Fc523daefbd9f4c25.webp';
 
-export type AgencyNavigationTarget = Extract<
-  AgencyTabId,
-  'bots' | 'metrics' | 'sql' | 'searchlink' | 'env'
->;
+// Module-level preload state so switching tabs or reopening Inicio reuses the cached browser image immediately.
+let preloadedHeroStatus: 'idle' | 'loaded' | 'error' = 'idle';
+
+export function preloadAgencyHeroImage(): void {
+  if (typeof window === 'undefined' || preloadedHeroStatus === 'loaded') {
+    return;
+  }
+  const img = new Image();
+  img.referrerPolicy = 'no-referrer';
+  img.onload = () => {
+    preloadedHeroStatus = 'loaded';
+  };
+  img.onerror = () => {
+    preloadedHeroStatus = 'error';
+  };
+  img.src = DESKTOP_HOME_IMAGE_URL;
+}
 
 interface AgencyDesktopHomeProps {
   locale: SupportedLocale;
-  onNavigate: (tab: AgencyNavigationTarget) => void;
-  backgroundImageSrc?: string;
+  onNavigate: (tab: AgencyDesktopActionTarget) => void;
 }
 
 interface PassiveMetricItem {
+  id: 'bots' | 'chats' | 'sql' | 'core';
   label: string;
   value: string;
   hint: string;
-  target: AgencyNavigationTarget;
+  accentClass: string;
 }
 
 interface DesktopHomeCopy {
@@ -30,6 +44,7 @@ interface DesktopHomeCopy {
   primaryAction: string;
   secondaryAction: string;
   metricsAria: string;
+  imageAlt: string;
   metrics: PassiveMetricItem[];
 }
 
@@ -41,31 +56,36 @@ const DESKTOP_HOME_COPY: Record<SupportedLocale, DesktopHomeCopy> = {
       'Administra clientes, conecta Search Link Core y supervisa tu base SQL y motor de respuesta desde un entorno limpio y privado.',
     primaryAction: 'Ir a Bots',
     secondaryAction: 'Configurar .env',
-    metricsAria: 'Resumen pasivo del sistema',
+    metricsAria: 'Métricas iniciales del sistema',
+    imageAlt: 'Equipo de la agencia trabajando junto a la pantalla principal',
     metrics: [
       {
+        id: 'bots',
         label: 'Bots activos',
         value: '0',
         hint: 'Sin instancias creadas',
-        target: 'bots',
+        accentClass: 'border-emerald-400/55 bg-emerald-950/25',
       },
       {
+        id: 'chats',
         label: 'Conversaciones (24 h)',
         value: '0',
         hint: 'Esperando tráfico',
-        target: 'metrics',
+        accentClass: 'border-sky-400/45 bg-sky-950/20',
       },
       {
+        id: 'sql',
         label: 'Base SQL',
         value: 'Pendiente',
         hint: 'PostgreSQL / Supabase',
-        target: 'sql',
+        accentClass: 'border-amber-300/45 bg-amber-950/20',
       },
       {
+        id: 'core',
         label: 'Search Link Core',
         value: 'Inactivo',
         hint: 'Catálogo y endpoints',
-        target: 'searchlink',
+        accentClass: 'border-teal-300/45 bg-teal-950/20',
       },
     ],
   },
@@ -76,31 +96,36 @@ const DESKTOP_HOME_COPY: Record<SupportedLocale, DesktopHomeCopy> = {
       'Manage client instances, connect Search Link Core, and oversee your SQL database and response engine from one quiet private workspace.',
     primaryAction: 'Open Bots',
     secondaryAction: 'Configure .env',
-    metricsAria: 'Passive system overview',
+    metricsAria: 'Initial system metrics',
+    imageAlt: 'Agency team collaborating around the main studio display',
     metrics: [
       {
+        id: 'bots',
         label: 'Active bots',
         value: '0',
         hint: 'No instances created',
-        target: 'bots',
+        accentClass: 'border-emerald-400/55 bg-emerald-950/25',
       },
       {
+        id: 'chats',
         label: 'Conversations (24h)',
         value: '0',
         hint: 'Awaiting traffic',
-        target: 'metrics',
+        accentClass: 'border-sky-400/45 bg-sky-950/20',
       },
       {
+        id: 'sql',
         label: 'SQL Database',
         value: 'Pending',
         hint: 'PostgreSQL / Supabase',
-        target: 'sql',
+        accentClass: 'border-amber-300/45 bg-amber-950/20',
       },
       {
+        id: 'core',
         label: 'Search Link Core',
         value: 'Inactive',
         hint: 'Catalog & endpoints',
-        target: 'searchlink',
+        accentClass: 'border-teal-300/45 bg-teal-950/20',
       },
     ],
   },
@@ -111,31 +136,36 @@ const DESKTOP_HOME_COPY: Record<SupportedLocale, DesktopHomeCopy> = {
       'Gerencie clientes, conecte o Search Link Core e acompanhe sua base SQL e motor de resposta em um único ambiente privado.',
     primaryAction: 'Abrir Bots',
     secondaryAction: 'Configurar .env',
-    metricsAria: 'Resumo passivo do sistema',
+    metricsAria: 'Métricas iniciais do sistema',
+    imageAlt: 'Equipe da agência trabalhando ao redor da tela principal',
     metrics: [
       {
+        id: 'bots',
         label: 'Bots ativos',
         value: '0',
         hint: 'Nenhuma instância criada',
-        target: 'bots',
+        accentClass: 'border-emerald-400/55 bg-emerald-950/25',
       },
       {
+        id: 'chats',
         label: 'Conversas (24 h)',
         value: '0',
         hint: 'Aguardando tráfego',
-        target: 'metrics',
+        accentClass: 'border-sky-400/45 bg-sky-950/20',
       },
       {
+        id: 'sql',
         label: 'Base SQL',
         value: 'Pendente',
         hint: 'PostgreSQL / Supabase',
-        target: 'sql',
+        accentClass: 'border-amber-300/45 bg-amber-950/20',
       },
       {
+        id: 'core',
         label: 'Search Link Core',
         value: 'Inativo',
         hint: 'Catálogo e endpoints',
-        target: 'searchlink',
+        accentClass: 'border-teal-300/45 bg-teal-950/20',
       },
     ],
   },
@@ -144,43 +174,50 @@ const DESKTOP_HOME_COPY: Record<SupportedLocale, DesktopHomeCopy> = {
 export function AgencyDesktopHome({
   locale,
   onNavigate,
-  backgroundImageSrc = DEFAULT_DESKTOP_HOME_BG,
 }: AgencyDesktopHomeProps) {
-  const [bgLoadError, setBgLoadError] = useState(false);
   const copy = DESKTOP_HOME_COPY[locale] ?? DESKTOP_HOME_COPY.es;
-  const showBackgroundImage = Boolean(backgroundImageSrc) && !bgLoadError;
+  const [imageFailed, setImageFailed] = useState(
+    () => preloadedHeroStatus === 'error',
+  );
+
+  useEffect(() => {
+    preloadAgencyHeroImage();
+  }, []);
 
   return (
-    <div className="relative w-full h-full min-h-[600px] overflow-hidden bg-gradient-to-br from-[#1E293B] via-[#263448] to-[#314358] text-white flex flex-col justify-between select-none">
-      {/* Real photographic background slot when provided */}
-      {showBackgroundImage ? (
+    <div className="relative w-full h-full min-h-[600px] overflow-hidden bg-[#182230] text-white flex flex-col justify-between select-none">
+      {/* Cached immutable WebP hero photo with clean slate fallback if offline */}
+      {!imageFailed && (
         <img
-          src={backgroundImageSrc}
-          alt=""
+          src={DESKTOP_HOME_IMAGE_URL}
+          alt={copy.imageAlt}
           referrerPolicy="no-referrer"
-          onError={() => setBgLoadError(true)}
-          className="pointer-events-none absolute inset-0 w-full h-full object-cover"
-        />
-      ) : (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(134,239,172,0.12),transparent_55%),radial-gradient(ellipse_at_bottom_left,rgba(15,23,42,0.35),transparent_65%)]"
+          decoding="async"
+          loading="eager"
+          onLoad={() => {
+            preloadedHeroStatus = 'loaded';
+          }}
+          onError={() => {
+            preloadedHeroStatus = 'error';
+            setImageFailed(true);
+          }}
+          className="pointer-events-none absolute inset-0 w-full h-full object-cover object-center"
         />
       )}
 
-      {/* Measured scrim for crisp foreground legibility without blacking out the backdrop */}
+      {/* Measured contrast scrims focused on left text column and bottom strip so the center/right scene stays vivid */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#16202E]/88 via-[#16202E]/55 to-transparent"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0B121C]/88 via-[#0B121C]/48 to-transparent"
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#141D29]/90 via-transparent to-transparent"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0A1019]/90 via-[#0A1019]/25 to-transparent"
       />
 
       {/* Left focal column */}
       <div className="relative z-10 flex-1 flex flex-col justify-center px-12 xl:px-16 pt-14 pb-8 max-w-2xl">
-        <p className="text-[12.5px] font-medium text-slate-300 tracking-tight">
+        <p className="text-[12.5px] font-medium text-slate-200/90 tracking-tight">
           {copy.kicker}
         </p>
 
@@ -211,29 +248,27 @@ export function AgencyDesktopHome({
         </div>
       </div>
 
-      {/* Bottom passive operational readout */}
+      {/* Bottom passive real-time visual metrics (non-navigational) */}
       <footer
         aria-label={copy.metricsAria}
         className="relative z-10 px-12 xl:px-16 pb-9"
       >
-        <div className="border-t border-white/15 pt-6 grid grid-cols-4 gap-8 max-w-5xl">
+        <div className="grid grid-cols-4 gap-4 max-w-5xl">
           {copy.metrics.map((item) => (
-            <button
-              key={item.target}
-              type="button"
-              onClick={() => onNavigate(item.target)}
-              className="group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 rounded cursor-pointer"
+            <div
+              key={item.id}
+              className={`rounded-xl border px-4 py-3.5 backdrop-blur-[2px] ${item.accentClass}`}
             >
-              <span className="block text-[12px] font-medium text-slate-300 group-hover:text-white whitespace-nowrap truncate">
+              <span className="block text-[12px] font-medium text-slate-200/90 whitespace-nowrap truncate">
                 {item.label}
               </span>
               <span className="mt-1.5 block text-[22px] font-semibold tracking-tight text-white tabular-nums">
                 {item.value}
               </span>
-              <span className="mt-1 block text-[12px] text-slate-300/80 truncate">
+              <span className="mt-1 block text-[12px] text-slate-300/85 truncate">
                 {item.hint}
               </span>
-            </button>
+            </div>
           ))}
         </div>
       </footer>
