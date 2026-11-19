@@ -9,9 +9,11 @@ export type ClientServiceStatus =
 export interface AgencyClientRecord {
   id: string;
   fullName: string;
-  businessName: string;
+  businessName?: string;
   email: string;
   phone: string;
+  countryCode?: string;
+  countryName?: string;
   timezone: string;
   status: ClientServiceStatus;
   startDate: string;
@@ -69,9 +71,10 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
   {
     id: 'example-client-1',
     fullName: 'Francisco Pérez',
-    businessName: 'Comercializadora Pérez',
     email: 'francisco.perez@ejemplo.com',
     phone: '+52 55 1234 5678',
+    countryCode: 'MX',
+    countryName: 'México',
     timezone: 'America/Mexico_City',
     status: 'active',
     startDate: '2026-11-01',
@@ -81,9 +84,10 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
   {
     id: 'example-client-2',
     fullName: 'Camila Gutiérrez',
-    businessName: 'Estudio Gutiérrez',
     email: 'camila.gutierrez@ejemplo.com',
     phone: '+57 310 456 7890',
+    countryCode: 'CO',
+    countryName: 'Colombia',
     timezone: 'America/Bogota',
     status: 'expired',
     startDate: '2026-10-15',
@@ -93,9 +97,10 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
   {
     id: 'example-client-3',
     fullName: 'Mateo Ramírez',
-    businessName: 'Distribuciones Ramírez',
     email: 'mateo.ramirez@ejemplo.com',
     phone: '+54 11 3456 7890',
+    countryCode: 'AR',
+    countryName: 'Argentina',
     timezone: 'America/Argentina/Buenos_Aires',
     status: 'suspended',
     startDate: '2026-10-20',
@@ -105,9 +110,10 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
   {
     id: 'example-client-4',
     fullName: 'Valentina Morales',
-    businessName: 'Boutique Morales',
     email: 'valentina.morales@ejemplo.com',
     phone: '+34 612 345 678',
+    countryCode: 'ES',
+    countryName: 'España',
     timezone: 'Europe/Madrid',
     status: 'paused',
     startDate: '2026-11-05',
@@ -131,7 +137,52 @@ export function filterAgencyClients(
   return clients.filter(
     (client) =>
       client.fullName.toLowerCase().includes(normalized) ||
-      client.businessName.toLowerCase().includes(normalized) ||
-      client.email.toLowerCase().includes(normalized),
+      (client.businessName ?? '').toLowerCase().includes(normalized) ||
+      client.email.toLowerCase().includes(normalized) ||
+      (client.countryName ?? '').toLowerCase().includes(normalized),
   );
+}
+
+/**
+ * Validates DD/MM/YYYY HH:MM (or DD/MM/YYYY) input format.
+ */
+export function parseExpirationInput(raw: string): string | null {
+  const trimmed = raw.trim();
+  const match = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/.exec(
+    trimmed,
+  );
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const hour = match[4] !== undefined ? Number(match[4]) : 23;
+  const minute = match[5] !== undefined ? Number(match[5]) : 59;
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    year < 2024 ||
+    year > 2100 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  const probe = new Date(year, month - 1, day);
+  if (
+    probe.getFullYear() !== year ||
+    probe.getMonth() !== month - 1 ||
+    probe.getDate() !== day
+  ) {
+    return null;
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`;
 }

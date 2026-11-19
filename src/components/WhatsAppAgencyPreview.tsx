@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronUp, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import type { AgencyClientRecord } from '../lib/agencyClients';
 import { useI18n, type SupportedLocale } from '../lib/i18n';
 import type { AgencyTabId } from '../lib/agencyRoutes';
 import { AgencyDesktopClients } from './AgencyDesktopClients';
@@ -249,7 +250,14 @@ export function WhatsAppAgencyPreview({
   const { t, locale } = useI18n();
   const shouldReduceMotion = useReducedMotion();
   const [isMobileMenuCollapsed, setIsMobileMenuCollapsed] = useState(false);
+  const [registeredClients, setRegisteredClients] = useState<
+    AgencyClientRecord[]
+  >([]);
   const mobileNavRef = useRef<HTMLElement | null>(null);
+
+  const handleRegisterClient = (client: AgencyClientRecord) => {
+    setRegisteredClients((prev) => [client, ...prev]);
+  };
 
   useEffect(() => {
     if (!open || isMobileMenuCollapsed || !mobileNavRef.current) return;
@@ -345,7 +353,11 @@ export function WhatsAppAgencyPreview({
           {activeTab === 'home' ? (
             <AgencyDesktopHome locale={locale} onNavigate={onSelectTab} />
           ) : activeTab === 'clients' ? (
-            <AgencyDesktopClients locale={locale} />
+            <AgencyDesktopClients
+              locale={locale}
+              clients={registeredClients}
+              onRegisterClient={handleRegisterClient}
+            />
           ) : (
             <div className="max-w-4xl pr-12">
               <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
@@ -464,7 +476,11 @@ export function WhatsAppAgencyPreview({
           {activeTab === 'home' ? (
             <AgencyMobileHome locale={locale} />
           ) : activeTab === 'clients' ? (
-            <AgencyMobileClients locale={locale} />
+            <AgencyMobileClients
+              locale={locale}
+              clients={registeredClients}
+              onRegisterClient={handleRegisterClient}
+            />
           ) : (
             <div className="px-4 pt-5">
               <h2 className="text-[15px] font-semibold text-slate-950 tracking-tight">
