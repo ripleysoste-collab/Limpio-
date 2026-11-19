@@ -12,6 +12,7 @@ import type { AgencyTabId } from '../lib/agencyRoutes';
 import { AgencyDesktopBots } from './AgencyDesktopBots';
 import { AgencyDesktopClients } from './AgencyDesktopClients';
 import { AgencyDesktopHome } from './AgencyDesktopHome';
+import { AgencyMobileBots } from './AgencyMobileBots';
 import { AgencyMobileClients } from './AgencyMobileClients';
 import { AgencyMobileHome } from './AgencyMobileHome';
 
@@ -615,11 +616,23 @@ export function WhatsAppAgencyPreview({
           ) : activeTab === 'clients' ? (
             <AgencyMobileClients
               locale={locale}
-              clients={registeredClients}
+              clients={clientsWithSyncedBots}
               dismissedExampleIds={dismissedExampleIds}
               nowMs={nowMs}
               onRegisterClient={handleRegisterClient}
               onDeleteClient={handleDeleteClient}
+            />
+          ) : activeTab === 'bots' ? (
+            <AgencyMobileBots
+              locale={locale}
+              clients={clientsWithSyncedBots}
+              dismissedExampleClientIds={dismissedExampleIds}
+              bots={registeredBots}
+              dismissedExampleBotIds={dismissedExampleBotIds}
+              nowMs={nowMs}
+              onRegisterBot={handleRegisterBot}
+              onUpdateBotStatus={handleUpdateBotStatus}
+              onDeleteBot={handleDeleteBot}
             />
           ) : (
             <div className="px-4 pt-5">

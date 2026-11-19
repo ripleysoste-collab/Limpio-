@@ -46,19 +46,15 @@ interface AgencyDesktopBotsProps {
 
 interface DesktopBotsCopy {
   registerTitle: string;
-  registerSubtitle: string;
-  clientSearchLabel: string;
   clientSearchPlaceholder: string;
   clientSearchAria: string;
   clearSearchAria: string;
-  botPhoneLabel: string;
-  botPhonePlaceholder: string;
-  registerSubmit: string;
-  matchedClientLabel: string;
-  noClientSelectedHint: string;
-  noClientMatchTitle: string;
-  noClientMatchHint: string;
+  deselectClientAria: string;
+  noClientMatch: string;
   clientBlockedNotice: string;
+  botPhoneLabel: string;
+  defaultBotPhonePlaceholder: string;
+  registerSubmit: string;
   listTitle: string;
   closeListAria: string;
   clientStatusField: string;
@@ -87,37 +83,30 @@ interface DesktopBotsCopy {
 const DESKTOP_BOTS_COPY: Record<SupportedLocale, DesktopBotsCopy> = {
   es: {
     registerTitle: 'Registrar bots',
-    registerSubtitle:
-      'Busca un cliente registrado y asígnale su número de WhatsApp.',
-    clientSearchLabel: 'Buscar cliente dueño',
     clientSearchPlaceholder: 'Nombre, correo o teléfono personal...',
     clientSearchAria: 'Buscar cliente por nombre, correo o teléfono personal',
     clearSearchAria: 'Limpiar búsqueda',
-    botPhoneLabel: 'Número de teléfono del bot',
-    botPhonePlaceholder: '+57 300 412 8890',
-    registerSubmit: 'Registrar',
-    matchedClientLabel: 'Cliente emparejado',
-    noClientSelectedHint:
-      'Busca y selecciona a un cliente registrado para habilitar el registro.',
-    noClientMatchTitle: 'Cliente no encontrado',
-    noClientMatchHint:
-      'Este usuario no existe en Clientes. Regístralo primero en el módulo Clientes antes de asignarle un bot.',
+    deselectClientAria: 'Cambiar cliente seleccionado',
+    noClientMatch: 'No encontrado en Clientes.',
     clientBlockedNotice:
-      'Este cliente no está Activo. Renueva o reactiva su suscripción en Clientes para registrar o encender bots.',
+      'Cliente no activo. Reactívalo en Clientes para asignar un bot.',
+    botPhoneLabel: 'Número del bot',
+    defaultBotPhonePlaceholder: '+57 300 412 8890',
+    registerSubmit: 'Registrar',
     listTitle: 'Listar',
-    closeListAria: 'Cerrar panel de detalles del cliente',
-    clientStatusField: 'Estado en Clientes',
-    clientEmailField: 'Correo electrónico',
+    closeListAria: 'Cerrar panel de cliente',
+    clientStatusField: 'Estado',
+    clientEmailField: 'Correo',
     clientPhoneField: 'Teléfono personal',
     clientTimezoneField: 'País y zona horaria',
     clientExpirationField: 'Vencimiento',
-    noExpirationValue: 'Sin fecha de vencimiento',
-    clientBotsHeading: (count) => `Bots asignados (${count})`,
-    noClientBotsYet: 'Este cliente aún no tiene bots registrados.',
-    unnamedBusiness: 'Negocio pendiente por asignar',
+    noExpirationValue: 'Sin vencimiento',
+    clientBotsHeading: (count) => `Bots (${count})`,
+    noClientBotsYet: 'Sin bots registrados.',
+    unnamedBusiness: 'Negocio pendiente',
     missingPrefix: 'Falta',
     readyConfiguration: 'Configuración completa',
-    emptyColumnText: 'Sin bots en este estado.',
+    emptyColumnText: 'Sin bots.',
     rowActionsAria: (label) => `Acciones para ${label}`,
     pauseAction: 'Pausar bot',
     activateAction: 'Activar bot',
@@ -131,37 +120,30 @@ const DESKTOP_BOTS_COPY: Record<SupportedLocale, DesktopBotsCopy> = {
   },
   en: {
     registerTitle: 'Register bots',
-    registerSubtitle:
-      'Find a registered client and assign their WhatsApp number.',
-    clientSearchLabel: 'Search owner client',
     clientSearchPlaceholder: 'Name, email, or personal phone...',
     clientSearchAria: 'Search client by name, email, or personal phone',
     clearSearchAria: 'Clear search',
-    botPhoneLabel: 'Bot phone number',
-    botPhonePlaceholder: '+1 305 555 0199',
-    registerSubmit: 'Register',
-    matchedClientLabel: 'Paired client',
-    noClientSelectedHint:
-      'Search and select a registered client to enable bot registration.',
-    noClientMatchTitle: 'Client not found',
-    noClientMatchHint:
-      'This user does not exist in Clients. Register them in Clients first before assigning a bot.',
+    deselectClientAria: 'Change selected client',
+    noClientMatch: 'Not found in Clients.',
     clientBlockedNotice:
-      'This client is not Active. Renew or reactivate their plan in Clients before registering or enabling bots.',
+      'Client is inactive. Reactivate them in Clients to assign a bot.',
+    botPhoneLabel: 'Bot number',
+    defaultBotPhonePlaceholder: '+1 305 555 0199',
+    registerSubmit: 'Register',
     listTitle: 'List',
-    closeListAria: 'Close client details panel',
-    clientStatusField: 'Clients status',
-    clientEmailField: 'Email address',
+    closeListAria: 'Close client panel',
+    clientStatusField: 'Status',
+    clientEmailField: 'Email',
     clientPhoneField: 'Personal phone',
     clientTimezoneField: 'Country & timezone',
     clientExpirationField: 'Expiration',
-    noExpirationValue: 'No expiration date',
-    clientBotsHeading: (count) => `Assigned bots (${count})`,
-    noClientBotsYet: 'This client does not have registered bots yet.',
-    unnamedBusiness: 'Business pending assignment',
+    noExpirationValue: 'No expiration',
+    clientBotsHeading: (count) => `Bots (${count})`,
+    noClientBotsYet: 'No bots registered.',
+    unnamedBusiness: 'Pending business',
     missingPrefix: 'Missing',
     readyConfiguration: 'Complete setup',
-    emptyColumnText: 'No bots in this status.',
+    emptyColumnText: 'No bots.',
     rowActionsAria: (label) => `Actions for ${label}`,
     pauseAction: 'Pause bot',
     activateAction: 'Activate bot',
@@ -175,37 +157,30 @@ const DESKTOP_BOTS_COPY: Record<SupportedLocale, DesktopBotsCopy> = {
   },
   pt: {
     registerTitle: 'Registrar bots',
-    registerSubtitle:
-      'Busque um cliente cadastrado e atribua o número de WhatsApp.',
-    clientSearchLabel: 'Buscar cliente titular',
     clientSearchPlaceholder: 'Nome, e-mail ou telefone pessoal...',
     clientSearchAria: 'Buscar cliente por nome, e-mail ou telefone pessoal',
     clearSearchAria: 'Limpar busca',
-    botPhoneLabel: 'Número de telefone do bot',
-    botPhonePlaceholder: '+55 11 98765 4321',
-    registerSubmit: 'Registrar',
-    matchedClientLabel: 'Cliente vinculado',
-    noClientSelectedHint:
-      'Busque e selecione um cliente cadastrado para habilitar o registro.',
-    noClientMatchTitle: 'Cliente não encontrado',
-    noClientMatchHint:
-      'Este usuário não existe em Clientes. Cadastre-o primeiro em Clientes antes de atribuir um bot.',
+    deselectClientAria: 'Alterar cliente selecionado',
+    noClientMatch: 'Não encontrado em Clientes.',
     clientBlockedNotice:
-      'Este cliente não está Ativo. Renove ou reative a assinatura em Clientes para registrar ou ativar bots.',
+      'Cliente inativo. Reative em Clientes para atribuir um bot.',
+    botPhoneLabel: 'Número do bot',
+    defaultBotPhonePlaceholder: '+55 11 98765 4321',
+    registerSubmit: 'Registrar',
     listTitle: 'Listar',
-    closeListAria: 'Fechar painel de detalhes do cliente',
-    clientStatusField: 'Status em Clientes',
+    closeListAria: 'Fechar painel do cliente',
+    clientStatusField: 'Status',
     clientEmailField: 'E-mail',
     clientPhoneField: 'Telefone pessoal',
     clientTimezoneField: 'País e fuso horário',
     clientExpirationField: 'Vencimento',
-    noExpirationValue: 'Sem data de vencimento',
-    clientBotsHeading: (count) => `Bots vinculados (${count})`,
-    noClientBotsYet: 'Este cliente ainda não possui bots cadastrados.',
-    unnamedBusiness: 'Negócio pendente de atribuição',
+    noExpirationValue: 'Sem vencimento',
+    clientBotsHeading: (count) => `Bots (${count})`,
+    noClientBotsYet: 'Sem bots cadastrados.',
+    unnamedBusiness: 'Negócio pendente',
     missingPrefix: 'Falta',
     readyConfiguration: 'Configuração completa',
-    emptyColumnText: 'Sem bots neste status.',
+    emptyColumnText: 'Sem bots.',
     rowActionsAria: (label) => `Ações para ${label}`,
     pauseAction: 'Pausar bot',
     activateAction: 'Ativar bot',
@@ -252,7 +227,6 @@ export function AgencyDesktopBots({
   const shouldReduceMotion = useReducedMotion();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
-  const [isListDismissed, setIsListDismissed] = useState(false);
 
   const [botPhone, setBotPhone] = useState('');
   const [botPhoneBlurred, setBotPhoneBlurred] = useState(false);
@@ -287,35 +261,34 @@ export function AgencyDesktopBots({
     [visibleClients, searchQuery],
   );
 
+  const selectedClient = useMemo(
+    () =>
+      selectedClientId
+        ? visibleClients.find((c) => c.id === selectedClientId) ?? null
+        : null,
+    [selectedClientId, visibleClients],
+  );
+
   const hasSearchQuery = searchQuery.trim().length > 0;
-
-  const activeListedClient = useMemo(() => {
-    if (selectedClientId) {
-      const explicit = visibleClients.find((c) => c.id === selectedClientId);
-      if (explicit) return explicit;
-    }
-    if (hasSearchQuery && matchingClients.length > 0) {
-      return matchingClients[0];
-    }
-    return null;
-  }, [selectedClientId, visibleClients, hasSearchQuery, matchingClients]);
-
-  const showListPanel =
-    !isListDismissed && (hasSearchQuery || activeListedClient !== null);
+  const showListPanel = selectedClient !== null;
 
   const listedClientBots = useMemo(
-    () => getBotsForClient(visibleBots, activeListedClient),
-    [visibleBots, activeListedClient],
+    () => getBotsForClient(visibleBots, selectedClient),
+    [visibleBots, selectedClient],
   );
 
   const preferredCountry = useMemo(() => {
-    if (!activeListedClient?.countryCode) return null;
+    if (!selectedClient?.countryCode) return null;
     return (
       TOP_50_COMMERCIAL_COUNTRIES.find(
-        (c) => c.code === activeListedClient.countryCode,
+        (c) => c.code === selectedClient.countryCode,
       ) ?? null
     );
-  }, [activeListedClient]);
+  }, [selectedClient]);
+
+  const botPhonePlaceholder = preferredCountry
+    ? `+${preferredCountry.dialCode} ${preferredCountry.exampleNational}`
+    : copy.defaultBotPhonePlaceholder;
 
   const botPhoneValidation = useMemo(
     () =>
@@ -330,8 +303,7 @@ export function AgencyDesktopBots({
   );
 
   const isClientEligibleForBot =
-    activeListedClient !== null && activeListedClient.status === 'active';
-
+    selectedClient !== null && selectedClient.status === 'active';
   const canRegisterBot =
     isClientEligibleForBot && botPhoneValidation.isValid;
 
@@ -374,51 +346,38 @@ export function AgencyDesktopBots({
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    setIsListDismissed(false);
-    if (!value.trim()) {
+    if (selectedClientId) {
       setSelectedClientId(null);
-    } else {
-      const nextMatches = searchAgencyClientsForBot(visibleClients, value);
-      if (
-        selectedClientId &&
-        !nextMatches.some((client) => client.id === selectedClientId)
-      ) {
-        setSelectedClientId(null);
-      }
+      setBotPhone('');
+      setBotPhoneBlurred(false);
     }
   };
 
   const handleSelectMatchedClient = (client: AgencyClientRecord) => {
     setSelectedClientId(client.id);
-    setIsListDismissed(false);
-    if (!botPhone.trim()) {
-      const country = client.countryCode
-        ? TOP_50_COMMERCIAL_COUNTRIES.find((c) => c.code === client.countryCode)
-        : undefined;
-      if (country) {
-        setBotPhone(`+${country.dialCode} `);
-        setBotPhoneBlurred(false);
-      }
-    }
+    setSearchQuery(client.fullName);
+    setBotPhone('');
+    setBotPhoneBlurred(false);
   };
 
-  const handleCloseListPanel = () => {
-    setIsListDismissed(true);
+  const handleDeselectClient = () => {
     setSelectedClientId(null);
     setSearchQuery('');
+    setBotPhone('');
+    setBotPhoneBlurred(false);
   };
 
   const handleRegisterSubmit = (event: FormEvent) => {
     event.preventDefault();
     setBotPhoneBlurred(true);
-    if (!canRegisterBot || !activeListedClient) return;
+    if (!canRegisterBot || !selectedClient) return;
 
     const newBot: AgencyBotRecord = {
       id: `bot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      clientId: activeListedClient.id,
-      clientName: activeListedClient.fullName,
-      clientEmail: activeListedClient.email,
-      clientPhone: activeListedClient.phone,
+      clientId: selectedClient.id,
+      clientName: selectedClient.fullName,
+      clientEmail: selectedClient.email,
+      clientPhone: selectedClient.phone,
       botPhone: botPhone.trim(),
       status: 'incomplete',
       hasBusinessProfile: false,
@@ -430,7 +389,6 @@ export function AgencyDesktopBots({
     onRegisterBot?.(newBot);
     setBotPhone('');
     setBotPhoneBlurred(false);
-    setIsListDismissed(false);
   };
 
   return (
@@ -438,69 +396,55 @@ export function AgencyDesktopBots({
       ref={menuContainerRef}
       className="relative w-full h-full bg-white flex flex-col overflow-hidden"
     >
-      {/* Horizontal sliding board with clear bottom trackbar */}
       <div className="flex-1 min-h-0 w-full flex overflow-x-auto overflow-y-hidden scroll-smooth [scrollbar-width:thin] [scrollbar-color:#cbd5e1_#f8fafc] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-slate-100/90 [&::-webkit-scrollbar-track]:border-t [&::-webkit-scrollbar-track]:border-slate-200/80 [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb:hover]:bg-slate-400 [&::-webkit-scrollbar-thumb]:rounded-full">
-        {/* Panel 1 (40%): Bot registration & client pairing */}
+        {/* Panel 1 (40%): Registrar bots */}
         <section
           aria-label={copy.registerTitle}
           className="w-[40%] min-w-[380px] shrink-0 h-full border-r border-slate-200/85 bg-white px-7 pt-6 pb-8 flex flex-col overflow-y-auto"
         >
-          <div>
-            <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
-              {copy.registerTitle}
-            </h1>
-            <p className="mt-1 text-[12.5px] text-slate-500">
-              {copy.registerSubtitle}
-            </p>
-          </div>
+          <h1 className="text-[18px] font-semibold text-slate-950 tracking-tight">
+            {copy.registerTitle}
+          </h1>
 
           <form
             onSubmit={handleRegisterSubmit}
-            className="mt-5 flex-1 flex flex-col gap-5"
+            className="mt-4 flex-1 flex flex-col gap-4"
             noValidate
           >
-            {/* Client search input */}
-            <div>
-              <label
-                htmlFor="bot-client-search"
-                className="block text-[13px] font-medium text-slate-800 mb-2"
-              >
-                {copy.clientSearchLabel}
-              </label>
+            {/* Search input */}
+            <div
+              className={`relative flex items-center h-11 rounded-2xl border px-3.5 ${BASE_SURFACE_CLASS} border-slate-200/90 focus-within:border-slate-400 focus-within:shadow-[0_6px_20px_-6px_rgba(15,23,42,0.13)]`}
+            >
+              <Search
+                className="w-4 h-4 text-slate-400 shrink-0 mr-2.5"
+                aria-hidden="true"
+              />
+              <input
+                id="bot-client-search"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                placeholder={copy.clientSearchPlaceholder}
+                aria-label={copy.clientSearchAria}
+                className="w-full bg-transparent text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none pr-6"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={handleDeselectClient}
+                  aria-label={copy.clearSearchAria}
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </div>
 
-              <div
-                className={`relative flex items-center h-11 rounded-2xl border px-3.5 ${BASE_SURFACE_CLASS} border-slate-200/90 focus-within:border-slate-400 focus-within:shadow-[0_6px_20px_-6px_rgba(15,23,42,0.13)]`}
-              >
-                <Search
-                  className="w-4 h-4 text-slate-400 shrink-0 mr-2.5"
-                  aria-hidden="true"
-                />
-                <input
-                  id="bot-client-search"
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  placeholder={copy.clientSearchPlaceholder}
-                  aria-label={copy.clientSearchAria}
-                  className="w-full bg-transparent text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none pr-6"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => handleSearchChange('')}
-                    aria-label={copy.clearSearchAria}
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 cursor-pointer shrink-0"
-                  >
-                    <X className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-
-              {/* Live client match list while searching */}
-              {hasSearchQuery && matchingClients.length > 0 && (
-                <div className="mt-2.5 rounded-2xl border border-slate-200/85 bg-white divide-y divide-slate-100 max-h-44 overflow-y-auto shadow-[0_4px_14px_-6px_rgba(15,23,42,0.08)]">
+            {/* Search results shown until a client is selected */}
+            {!selectedClient && hasSearchQuery && (
+              matchingClients.length > 0 ? (
+                <div className="rounded-2xl border border-slate-200/85 bg-white divide-y divide-slate-100 max-h-60 overflow-y-auto shadow-[0_4px_14px_-6px_rgba(15,23,42,0.08)]">
                   {matchingClients.map((client) => {
-                    const isSelected = activeListedClient?.id === client.id;
                     const clientStatus = CLIENT_STATUS_STYLE[client.status];
                     const statusLabel =
                       clientStatus.labels[locale] ?? clientStatus.labels.es;
@@ -510,14 +454,10 @@ export function AgencyDesktopBots({
                         key={client.id}
                         type="button"
                         onClick={() => handleSelectMatchedClient(client)}
-                        className={`w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2.5 cursor-pointer transition-colors ${
-                          isSelected
-                            ? 'bg-slate-50/90'
-                            : 'hover:bg-slate-50/60'
-                        }`}
+                        className="w-full px-3.5 py-2.5 text-left flex items-center justify-between gap-2.5 hover:bg-slate-50/75 cursor-pointer transition-colors"
                       >
                         <div className="min-w-0">
-                          <p className="text-[13px] font-medium text-slate-950 truncate">
+                          <p className="text-[13.5px] font-medium text-slate-950 truncate">
                             {client.fullName}
                           </p>
                           <p className="text-[11.5px] text-slate-500 truncate">
@@ -537,97 +477,96 @@ export function AgencyDesktopBots({
                     );
                   })}
                 </div>
-              )}
-
-              {hasSearchQuery && matchingClients.length === 0 && (
-                <p className="mt-2.5 text-[12px] text-rose-600 leading-relaxed">
-                  {copy.noClientMatchHint}
-                </p>
-              )}
-            </div>
-
-            {/* Active paired client summary */}
-            {activeListedClient ? (
-              <div className="rounded-2xl border border-slate-200/85 bg-slate-50/60 px-4 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-medium text-slate-400">
-                    {copy.matchedClientLabel}
-                  </span>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span
-                      aria-hidden="true"
-                      className={`w-2.5 h-2.5 rounded-[3px] ${CLIENT_STATUS_STYLE[activeListedClient.status].squareClass}`}
-                    />
-                    <span className="text-[11.5px] font-medium text-slate-700">
-                      {CLIENT_STATUS_STYLE[activeListedClient.status].labels[
-                        locale
-                      ] ?? CLIENT_STATUS_STYLE[activeListedClient.status].labels.es}
-                    </span>
-                  </div>
-                </div>
-                <p className="mt-1 text-[13.5px] font-semibold text-slate-950 truncate">
-                  {activeListedClient.fullName}
-                </p>
-                <p className="text-[12px] text-slate-500 truncate">
-                  {activeListedClient.email} · {activeListedClient.phone}
-                </p>
-                {activeListedClient.status !== 'active' && (
-                  <p className="mt-2 text-[11.5px] text-rose-600 leading-snug">
-                    {copy.clientBlockedNotice}
-                  </p>
-                )}
-              </div>
-            ) : (
-              !hasSearchQuery && (
-                <p className="text-[12px] text-slate-400 leading-relaxed">
-                  {copy.noClientSelectedHint}
+              ) : (
+                <p className="px-1 text-[12.5px] text-rose-600">
+                  {copy.noClientMatch}
                 </p>
               )
             )}
 
-            {/* Dedicated WhatsApp bot phone field */}
-            <div>
-              <label
-                htmlFor="bot-whatsapp-phone"
-                className="block text-[13px] font-medium text-slate-800 mb-2"
-              >
-                {copy.botPhoneLabel}
-              </label>
-              <div
-                className={`h-11 rounded-2xl border px-3.5 flex items-center ${BASE_SURFACE_CLASS} ${getToneBorderClass(botPhoneValidation.tone)}`}
-              >
-                <input
-                  id="bot-whatsapp-phone"
-                  type="tel"
-                  value={botPhone}
-                  onChange={(e) => setBotPhone(e.target.value)}
-                  onBlur={() => setBotPhoneBlurred(true)}
-                  placeholder={copy.botPhonePlaceholder}
-                  disabled={!isClientEligibleForBot}
-                  className={`w-full bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none tabular-nums disabled:opacity-50 ${getToneTextClass(botPhoneValidation.tone)}`}
-                />
-              </div>
-            </div>
+            {/* Selected client + Bot phone field + Register action */}
+            {selectedClient && (
+              <>
+                <div className="rounded-2xl border border-slate-200/85 bg-slate-50/60 px-4 py-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden="true"
+                        className={`w-2.5 h-2.5 rounded-[3px] shrink-0 ${CLIENT_STATUS_STYLE[selectedClient.status].squareClass}`}
+                      />
+                      <p className="text-[13.5px] font-semibold text-slate-950 truncate">
+                        {selectedClient.fullName}
+                      </p>
+                    </div>
+                    <p className="mt-0.5 text-[12px] text-slate-500 truncate">
+                      {selectedClient.email} · {selectedClient.phone}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDeselectClient}
+                    aria-label={copy.deselectClientAria}
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white cursor-pointer shrink-0"
+                  >
+                    <X className="w-3.5 h-3.5" aria-hidden="true" />
+                  </button>
+                </div>
 
-            <div className="pt-1 mt-auto">
-              <button
-                type="submit"
-                disabled={!canRegisterBot}
-                className={`w-full h-11 rounded-2xl text-[13.5px] font-semibold transition-all duration-150 ${
-                  canRegisterBot
-                    ? 'bg-slate-950 text-white shadow-[0_8px_20px_-8px_rgba(15,23,42,0.5)] hover:bg-slate-800 cursor-pointer'
-                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                {copy.registerSubmit}
-              </button>
-            </div>
+                {selectedClient.status !== 'active' ? (
+                  <p className="px-1 text-[12.5px] text-rose-600 leading-snug">
+                    {copy.clientBlockedNotice}
+                  </p>
+                ) : (
+                  <>
+                    <div>
+                      <label
+                        htmlFor="bot-whatsapp-phone"
+                        className="block text-[13px] font-medium text-slate-800 mb-2"
+                      >
+                        {copy.botPhoneLabel}
+                      </label>
+                      <div
+                        className={`h-11 rounded-2xl border px-3.5 flex items-center ${BASE_SURFACE_CLASS} ${getToneBorderClass(botPhoneValidation.tone)}`}
+                      >
+                        <input
+                          id="bot-whatsapp-phone"
+                          type="tel"
+                          value={botPhone}
+                          onChange={(e) => {
+                            setBotPhone(e.target.value);
+                            if (botPhoneBlurred) setBotPhoneBlurred(false);
+                          }}
+                          onBlur={() => setBotPhoneBlurred(true)}
+                          placeholder={botPhonePlaceholder}
+                          autoFocus
+                          className={`w-full bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none tabular-nums ${getToneTextClass(botPhoneValidation.tone)}`}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-1 mt-auto">
+                      <button
+                        type="submit"
+                        disabled={!canRegisterBot}
+                        className={`w-full h-11 rounded-2xl text-[13.5px] font-semibold transition-all duration-150 ${
+                          canRegisterBot
+                            ? 'bg-slate-950 text-white shadow-[0_8px_20px_-8px_rgba(15,23,42,0.5)] hover:bg-slate-800 cursor-pointer'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        }`}
+                      >
+                        {copy.registerSubmit}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </form>
         </section>
 
-        {/* Animated expandable Panel ("Listar"): smoothly pushes status columns right */}
+        {/* Expandable Listar drawer when a client is selected */}
         <AnimatePresence initial={false}>
-          {showListPanel && (
+          {showListPanel && selectedClient && (
             <motion.section
               key="bots-client-list-drawer"
               aria-label={copy.listTitle}
@@ -655,15 +594,13 @@ export function AgencyDesktopBots({
                     <h2 className="text-[18px] font-semibold text-slate-950 tracking-tight truncate">
                       {copy.listTitle}
                     </h2>
-                    {activeListedClient && (
-                      <p className="mt-0.5 text-[12.5px] font-medium text-slate-600 truncate">
-                        {activeListedClient.fullName}
-                      </p>
-                    )}
+                    <p className="mt-0.5 text-[12.5px] font-medium text-slate-600 truncate">
+                      {selectedClient.fullName}
+                    </p>
                   </div>
                   <button
                     type="button"
-                    onClick={handleCloseListPanel}
+                    onClick={handleDeselectClient}
                     aria-label={copy.closeListAria}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white cursor-pointer shrink-0 transition-colors"
                   >
@@ -671,163 +608,151 @@ export function AgencyDesktopBots({
                   </button>
                 </div>
 
-                {activeListedClient ? (
-                  <div className="mt-4 flex flex-col gap-5">
-                    {/* Client configuration in the bot system */}
-                    <div className="rounded-2xl border border-slate-200/85 bg-white divide-y divide-slate-100 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.05)]">
-                      <div className="px-3.5 py-2.5 flex items-center justify-between gap-2">
-                        <span className="text-[11.5px] text-slate-400">
-                          {copy.clientStatusField}
+                <div className="mt-4 flex flex-col gap-5">
+                  <div className="rounded-2xl border border-slate-200/85 bg-white divide-y divide-slate-100 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.05)]">
+                    <div className="px-3.5 py-2.5 flex items-center justify-between gap-2">
+                      <span className="text-[11.5px] text-slate-400">
+                        {copy.clientStatusField}
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          aria-hidden="true"
+                          className={`w-3 h-3 rounded-[3px] ${CLIENT_STATUS_STYLE[selectedClient.status].squareClass}`}
+                        />
+                        <span className="text-[12.5px] font-medium text-slate-900">
+                          {CLIENT_STATUS_STYLE[selectedClient.status].labels[
+                            locale
+                          ] ??
+                            CLIENT_STATUS_STYLE[selectedClient.status].labels
+                              .es}
                         </span>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            aria-hidden="true"
-                            className={`w-3 h-3 rounded-[3px] ${CLIENT_STATUS_STYLE[activeListedClient.status].squareClass}`}
-                          />
-                          <span className="text-[12.5px] font-medium text-slate-900">
-                            {CLIENT_STATUS_STYLE[activeListedClient.status]
-                              .labels[locale] ??
-                              CLIENT_STATUS_STYLE[activeListedClient.status]
-                                .labels.es}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="px-3.5 py-2.5">
-                        <p className="text-[11px] text-slate-400">
-                          {copy.clientEmailField}
-                        </p>
-                        <p className="mt-0.5 text-[12.5px] text-slate-900 break-all">
-                          {activeListedClient.email}
-                        </p>
-                      </div>
-
-                      <div className="px-3.5 py-2.5">
-                        <p className="text-[11px] text-slate-400">
-                          {copy.clientPhoneField}
-                        </p>
-                        <p className="mt-0.5 text-[12.5px] text-slate-900 tabular-nums">
-                          {activeListedClient.phone}
-                        </p>
-                      </div>
-
-                      <div className="px-3.5 py-2.5">
-                        <p className="text-[11px] text-slate-400">
-                          {copy.clientTimezoneField}
-                        </p>
-                        <p className="mt-0.5 text-[12px] text-slate-700">
-                          {activeListedClient.countryName
-                            ? `${activeListedClient.countryName} · `
-                            : ''}
-                          {activeListedClient.timezone}
-                        </p>
-                      </div>
-
-                      <div className="px-3.5 py-2.5">
-                        <p className="text-[11px] text-slate-400">
-                          {copy.clientExpirationField}
-                        </p>
-                        <p className="mt-0.5 text-[12px] text-slate-700 tabular-nums">
-                          {activeListedClient.endDate
-                            ? formatAgencyDateDisplay(
-                                activeListedClient.endDate,
-                                activeListedClient.timezone,
-                              )
-                            : copy.noExpirationValue}
-                        </p>
                       </div>
                     </div>
 
-                    {/* All bots owned by this client */}
-                    <div>
-                      <h3 className="text-[12.5px] font-semibold text-slate-900 mb-2.5 tabular-nums">
-                        {copy.clientBotsHeading(listedClientBots.length)}
-                      </h3>
+                    <div className="px-3.5 py-2.5">
+                      <p className="text-[11px] text-slate-400">
+                        {copy.clientEmailField}
+                      </p>
+                      <p className="mt-0.5 text-[12.5px] text-slate-900 break-all">
+                        {selectedClient.email}
+                      </p>
+                    </div>
 
-                      {listedClientBots.length === 0 ? (
-                        <div className="rounded-2xl border border-slate-200/85 bg-white px-4 py-4 text-[12.5px] text-slate-400">
-                          {copy.noClientBotsYet}
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-2.5">
-                          {listedClientBots.map((bot) => {
-                            const statusMeta = BOT_STATUS_STYLE[bot.status];
-                            const statusLabel =
-                              statusMeta.labels[locale] ?? statusMeta.labels.es;
-                            const missing = getBotMissingModules(bot, locale);
+                    <div className="px-3.5 py-2.5">
+                      <p className="text-[11px] text-slate-400">
+                        {copy.clientPhoneField}
+                      </p>
+                      <p className="mt-0.5 text-[12.5px] text-slate-900 tabular-nums">
+                        {selectedClient.phone}
+                      </p>
+                    </div>
 
-                            return (
-                              <div
-                                key={bot.id}
-                                className="rounded-2xl border border-slate-200/85 bg-white px-3.5 py-3 shadow-[0_2px_8px_-4px_rgba(15,23,42,0.05)]"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <p className="text-[13px] font-semibold text-slate-950 truncate">
-                                      {bot.businessName || copy.unnamedBusiness}
-                                    </p>
-                                    <p className="mt-0.5 text-[12px] text-slate-600 tabular-nums">
-                                      {bot.botPhone}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
-                                    <span
-                                      aria-hidden="true"
-                                      className={`w-2.5 h-2.5 rounded-[3px] ${statusMeta.squareClass}`}
-                                    />
-                                    <span className="text-[11.5px] font-medium text-slate-700 whitespace-nowrap">
-                                      {statusLabel}
-                                    </span>
-                                  </div>
+                    <div className="px-3.5 py-2.5">
+                      <p className="text-[11px] text-slate-400">
+                        {copy.clientTimezoneField}
+                      </p>
+                      <p className="mt-0.5 text-[12px] text-slate-700">
+                        {selectedClient.countryName
+                          ? `${selectedClient.countryName} · `
+                          : ''}
+                        {selectedClient.timezone}
+                      </p>
+                    </div>
+
+                    <div className="px-3.5 py-2.5">
+                      <p className="text-[11px] text-slate-400">
+                        {copy.clientExpirationField}
+                      </p>
+                      <p className="mt-0.5 text-[12px] text-slate-700 tabular-nums">
+                        {selectedClient.endDate
+                          ? formatAgencyDateDisplay(
+                              selectedClient.endDate,
+                              selectedClient.timezone,
+                            )
+                          : copy.noExpirationValue}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-[12.5px] font-semibold text-slate-900 mb-2.5 tabular-nums">
+                      {copy.clientBotsHeading(listedClientBots.length)}
+                    </h3>
+
+                    {listedClientBots.length === 0 ? (
+                      <div className="rounded-2xl border border-slate-200/85 bg-white px-4 py-4 text-[12.5px] text-slate-400">
+                        {copy.noClientBotsYet}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2.5">
+                        {listedClientBots.map((bot) => {
+                          const statusMeta = BOT_STATUS_STYLE[bot.status];
+                          const statusLabel =
+                            statusMeta.labels[locale] ?? statusMeta.labels.es;
+                          const missing = getBotMissingModules(bot, locale);
+
+                          return (
+                            <div
+                              key={bot.id}
+                              className="rounded-2xl border border-slate-200/85 bg-white px-3.5 py-3 shadow-[0_2px_8px_-4px_rgba(15,23,42,0.05)]"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="text-[13px] font-semibold text-slate-950 truncate">
+                                    {bot.businessName || copy.unnamedBusiness}
+                                  </p>
+                                  <p className="mt-0.5 text-[12px] text-slate-600 tabular-nums">
+                                    {bot.botPhone}
+                                  </p>
                                 </div>
-
-                                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-slate-500">
-                                  {missing.length === 0 ? (
-                                    <>
-                                      <Check
-                                        className="w-3.5 h-3.5 text-emerald-600 shrink-0"
-                                        aria-hidden="true"
-                                      />
-                                      <span className="truncate">
-                                        {copy.readyConfiguration}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Clock
-                                        className="w-3.5 h-3.5 text-amber-500 shrink-0"
-                                        aria-hidden="true"
-                                      />
-                                      <span className="truncate">
-                                        {copy.missingPrefix}:{' '}
-                                        {missing.join(' · ')}
-                                      </span>
-                                    </>
-                                  )}
+                                <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                                  <span
+                                    aria-hidden="true"
+                                    className={`w-2.5 h-2.5 rounded-[3px] ${statusMeta.squareClass}`}
+                                  />
+                                  <span className="text-[11.5px] font-medium text-slate-700 whitespace-nowrap">
+                                    {statusLabel}
+                                  </span>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+
+                              <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[11px] text-slate-500">
+                                {missing.length === 0 ? (
+                                  <>
+                                    <Check
+                                      className="w-3.5 h-3.5 text-emerald-600 shrink-0"
+                                      aria-hidden="true"
+                                    />
+                                    <span className="truncate">
+                                      {copy.readyConfiguration}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Clock
+                                      className="w-3.5 h-3.5 text-amber-500 shrink-0"
+                                      aria-hidden="true"
+                                    />
+                                    <span className="truncate">
+                                      {copy.missingPrefix}:{' '}
+                                      {missing.join(' · ')}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="mt-6 rounded-2xl border border-slate-200/85 bg-white px-4 py-5">
-                    <p className="text-[13.5px] font-semibold text-slate-900">
-                      {copy.noClientMatchTitle}
-                    </p>
-                    <p className="mt-1.5 text-[12.5px] text-slate-500 leading-relaxed">
-                      {copy.noClientMatchHint}
-                    </p>
-                  </div>
-                )}
+                </div>
               </div>
             </motion.section>
           )}
         </AnimatePresence>
 
-        {/* Panels 2..6 (30% each): All Bot Operational Status Columns */}
+        {/* Status Columns (30% each) */}
         {BOT_COLUMN_ORDER.map((statusKey) => {
           const columnMeta = BOT_STATUS_STYLE[statusKey];
           const columnTitle =
@@ -880,7 +805,9 @@ export function AgencyDesktopBots({
                             type="button"
                             onClick={() => {
                               setSelectedClientId(bot.clientId);
-                              setIsListDismissed(false);
+                              setSearchQuery(bot.clientName);
+                              setBotPhone('');
+                              setBotPhoneBlurred(false);
                             }}
                             className="min-w-0 flex-1 text-left cursor-pointer focus-visible:outline-none"
                           >
@@ -1006,7 +933,6 @@ export function AgencyDesktopBots({
         })}
       </div>
 
-      {/* Confirmation dialog for single-bot deletion */}
       {deleteConfirmBot && (
         <div
           role="dialog"

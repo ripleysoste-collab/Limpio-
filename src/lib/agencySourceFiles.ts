@@ -11,6 +11,7 @@ import agencyMobileClientsRaw from '../components/AgencyMobileClients.tsx?raw';
 import agencyClientRowMenuRaw from '../components/AgencyClientRowMenu.tsx?raw';
 import agencyClientDetailPanelRaw from '../components/AgencyClientDetailPanel.tsx?raw';
 import agencyDesktopBotsRaw from '../components/AgencyDesktopBots.tsx?raw';
+import agencyMobileBotsRaw from '../components/AgencyMobileBots.tsx?raw';
 import type { AgencyTabId } from './agencyRoutes';
 
 export type AgencySourceLanguage = 'json' | 'tsx' | 'ts';
@@ -211,6 +212,15 @@ export const AGENCY_SOURCE_FOLDERS: AgencySourceFolderGroup[] = [
         language: 'tsx',
         previewTab: 'bots',
         content: agencyDesktopBotsRaw,
+      },
+      {
+        id: 'bots-mobile',
+        name: 'AgencyMobileBots.tsx',
+        path: 'bots/AgencyMobileBots.tsx',
+        folderId: 'bots',
+        language: 'tsx',
+        previewTab: 'bots',
+        content: agencyMobileBotsRaw,
       },
     ],
   },
