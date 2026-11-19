@@ -5,6 +5,7 @@ import { useI18n } from '../lib/i18n';
 interface SourceCodeLibrarySectionProps {
   visible: boolean;
   onOpenPreview?: () => void;
+  onOpenEditor?: () => void;
 }
 
 type LibraryActionId = 'github' | 'zip' | 'editor' | 'preview';
@@ -14,6 +15,7 @@ const ACTION_IDS: LibraryActionId[] = ['github', 'zip', 'editor', 'preview'];
 export function SourceCodeLibrarySection({
   visible,
   onOpenPreview,
+  onOpenEditor,
 }: SourceCodeLibrarySectionProps) {
   const shouldReduceMotion = useReducedMotion();
   const { t } = useI18n();
@@ -25,6 +27,11 @@ export function SourceCodeLibrarySection({
     if (actionId === 'preview' && onOpenPreview) {
       setSelectedAction(null);
       onOpenPreview();
+      return;
+    }
+    if (actionId === 'editor' && onOpenEditor) {
+      setSelectedAction(null);
+      onOpenEditor();
       return;
     }
     setSelectedAction((prev) => (prev === actionId ? null : actionId));

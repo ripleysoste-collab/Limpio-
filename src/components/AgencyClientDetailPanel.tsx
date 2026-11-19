@@ -223,7 +223,7 @@ export function AgencyClientDetailPanel({
         </p>
       </div>
 
-      {/* Bottom delete action ("abajo a lo último, muestra para eliminar") */}
+      {/* Bottom destructive action */}
       <div className="mt-auto pt-4 border-t border-slate-200/80 flex items-center justify-start">
         <button
           type="button"

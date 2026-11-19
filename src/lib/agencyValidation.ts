@@ -505,6 +505,7 @@ export function validateExpirationMasked(
   noExpiration: boolean,
   blurred: boolean,
   timezone: string | null = null,
+  nowMs = Date.now(),
 ): ExpirationValidationResult {
   if (noExpiration) {
     return { tone: 'neutral', isValid: true, iso: null };
@@ -515,7 +516,7 @@ export function validateExpirationMasked(
     return { tone: 'neutral', isValid: false, iso: null };
   }
 
-  const nowTz = getCurrentWallClockInTimezone(timezone);
+  const nowTz = getCurrentWallClockInTimezone(timezone, nowMs);
   const currentYear = nowTz.year;
   const currentYearStr = String(currentYear);
 
@@ -587,7 +588,10 @@ export function validateExpirationMasked(
     if (hour < 0 || hour > 23) {
       return { tone: 'red', isValid: false, iso: null };
     }
-    if (isToday && hour < nowTz.hour) {
+    if (
+      isToday &&
+      (hour < nowTz.hour || (hour === nowTz.hour && nowTz.minute >= 59))
+    ) {
       return { tone: 'red', isValid: false, iso: null };
     }
   }

@@ -227,6 +227,7 @@ export function AgencyDesktopClients({
     [phone, matchedCountry, phoneBlurred, clients],
   );
 
+  const minuteBucket = Math.floor((nowMs ?? Date.now()) / 60000);
   const expirationValidation = useMemo(
     () =>
       validateExpirationMasked(
@@ -234,12 +235,14 @@ export function AgencyDesktopClients({
         noExpiration,
         expirationBlurred,
         countryValidation.resolvedTimezone,
+        minuteBucket * 60000,
       ),
     [
       expirationText,
       noExpiration,
       expirationBlurred,
       countryValidation.resolvedTimezone,
+      minuteBucket,
     ],
   );
 

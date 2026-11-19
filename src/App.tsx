@@ -27,6 +27,7 @@ import {
 } from './components/MobileCatalogCarousel';
 import { SearchLinkChatDrawer } from './components/SearchLinkChatDrawer';
 import { SearchLinkLogo } from './components/SearchLinkLogo';
+import { WhatsAppAgencyEditor } from './components/WhatsAppAgencyEditor';
 import { WhatsAppAgencyPreview } from './components/WhatsAppAgencyPreview';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
 import { useI18n } from './lib/i18n';
@@ -59,7 +60,9 @@ import {
 } from './lib/supabaseClient';
 
 import {
+  AGENCY_EDITOR_PATH,
   getAgencyPathForTab,
+  isAgencyEditorPath,
   isAgencyPath,
   resolveAgencyTabFromPath,
   type AgencyTabId,
@@ -102,7 +105,15 @@ export default function App() {
         ? resolveAgencyTabFromPath(window.location.pathname)
         : null,
   );
+  const [isAgencyEditorOpen, setIsAgencyEditorOpen] = useState<boolean>(() =>
+    typeof window !== 'undefined'
+      ? isAgencyEditorPath(window.location.pathname)
+      : false,
+  );
   const isAgencyPreviewOpen = agencyPreviewTab !== null;
+  const isEmbeddedAgency =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('embed') === '1';
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileAccountModalOpen, setIsMobileAccountModalOpen] = useState(false);
@@ -574,15 +585,18 @@ export default function App() {
   };
 
   const selectAgencyTab = (tab: AgencyTabId) => {
-    const targetPath = getAgencyPathForTab(tab);
+    const basePath = getAgencyPathForTab(tab);
+    const targetUrl = isEmbeddedAgency
+      ? `${basePath}${window.location.search}`
+      : basePath;
     if (
       typeof window !== 'undefined' &&
-      window.location.pathname !== targetPath
+      window.location.pathname !== basePath
     ) {
       window.history.pushState(
         { agencyPreviewRoute: true, tab },
         '',
-        targetPath,
+        targetUrl,
       );
     }
     setAgencyPreviewTab(tab);
@@ -593,6 +607,30 @@ export default function App() {
     if (
       typeof window !== 'undefined' &&
       isAgencyPath(window.location.pathname)
+    ) {
+      window.history.replaceState(null, '', '/');
+    }
+  };
+
+  const openAgencyEditor = () => {
+    if (
+      typeof window !== 'undefined' &&
+      window.location.pathname !== AGENCY_EDITOR_PATH
+    ) {
+      window.history.pushState(
+        { agencyEditorRoute: true },
+        '',
+        AGENCY_EDITOR_PATH,
+      );
+    }
+    setIsAgencyEditorOpen(true);
+  };
+
+  const closeAgencyEditor = () => {
+    setIsAgencyEditorOpen(false);
+    if (
+      typeof window !== 'undefined' &&
+      isAgencyEditorPath(window.location.pathname)
     ) {
       window.history.replaceState(null, '', '/');
     }
@@ -651,6 +689,7 @@ export default function App() {
       }
 
       setAgencyPreviewTab(resolveAgencyTabFromPath(window.location.pathname));
+      setIsAgencyEditorOpen(isAgencyEditorPath(window.location.pathname));
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -683,6 +722,7 @@ export default function App() {
     if (
       !isAuthOpen &&
       !isAgencyPreviewOpen &&
+      !isAgencyEditorOpen &&
       !isDesktopMenuOpen &&
       !isMobileMenuOpen &&
       !isMobileAccountModalOpen &&
@@ -696,6 +736,10 @@ export default function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        if (isAgencyEditorOpen) {
+          closeAgencyEditor();
+          return;
+        }
         if (isAgencyPreviewOpen) {
           closeAgencyPreview();
           return;
@@ -727,6 +771,11 @@ export default function App() {
             target.isContentEditable);
         if (isInputFocused) return;
 
+        if (isAgencyEditorOpen) {
+          event.preventDefault();
+          closeAgencyEditor();
+          return;
+        }
         if (isAgencyPreviewOpen) {
           event.preventDefault();
           closeAgencyPreview();
@@ -744,6 +793,7 @@ export default function App() {
   }, [
     isAuthOpen,
     isAgencyPreviewOpen,
+    isAgencyEditorOpen,
     isDesktopMenuOpen,
     isMobileMenuOpen,
     isMobileAccountModalOpen,
@@ -1907,6 +1957,7 @@ export default function App() {
       <SourceCodeLibrarySection
         visible={!hasSearched && !isFileUploadFlow && !isExtracting}
         onOpenPreview={() => openAgencyPreview('home')}
+        onOpenEditor={openAgencyEditor}
       />
       </div>
 
@@ -1982,8 +2033,15 @@ export default function App() {
       <WhatsAppAgencyPreview
         open={isAgencyPreviewOpen}
         activeTab={agencyPreviewTab ?? 'home'}
+        embedded={isEmbeddedAgency}
         onSelectTab={selectAgencyTab}
         onClose={closeAgencyPreview}
+      />
+
+      {/* Full-screen pure-white Agency Code Editor on independent /editor/agencia-whatsapp route */}
+      <WhatsAppAgencyEditor
+        open={isAgencyEditorOpen}
+        onClose={closeAgencyEditor}
       />
     </main>
   );

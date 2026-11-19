@@ -13,6 +13,7 @@ export type AgencyTabId =
   | 'settings';
 
 export const WHATSAPP_AGENCY_PREVIEW_PATH = '/preview/agencia-whatsapp';
+export const AGENCY_EDITOR_PATH = '/editor/agencia-whatsapp';
 export const AGENCY_ROUTE_PREFIX = '/agencia';
 
 export const AGENCY_TAB_PATHS: Record<AgencyTabId, string> = {
@@ -62,6 +63,10 @@ const PATH_ALIAS_MAP: Record<string, AgencyTabId> = {
 function normalizePathname(pathname: string): string {
   const trimmed = pathname.trim().toLowerCase().replace(/\/+$/, '');
   return trimmed || '/';
+}
+
+export function isAgencyEditorPath(pathname: string): boolean {
+  return normalizePathname(pathname) === AGENCY_EDITOR_PATH;
 }
 
 export function isAgencyPath(pathname: string): boolean {

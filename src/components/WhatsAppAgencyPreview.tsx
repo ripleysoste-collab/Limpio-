@@ -16,6 +16,7 @@ import { AgencyMobileHome } from './AgencyMobileHome';
 interface WhatsAppAgencyPreviewProps {
   open: boolean;
   activeTab: AgencyTabId;
+  embedded?: boolean;
   onSelectTab: (tab: AgencyTabId) => void;
   onClose: () => void;
 }
@@ -248,6 +249,7 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
 export function WhatsAppAgencyPreview({
   open,
   activeTab,
+  embedded = false,
   onSelectTab,
   onClose,
 }: WhatsAppAgencyPreviewProps) {
@@ -371,19 +373,21 @@ export function WhatsAppAgencyPreview({
                 : 'overflow-y-auto bg-white px-8 pt-7 pb-10'
           }`}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t.sourceCode.closePreviewAria}
-            title={t.sourceCode.closePreviewAria}
-            className={`absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 cursor-pointer ${
-              activeTab === 'home'
-                ? 'text-white/80 hover:text-white hover:bg-white/12 focus-visible:ring-white/50'
-                : 'text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:ring-slate-400'
-            }`}
-          >
-            <X className="w-5 h-5" aria-hidden="true" />
-          </button>
+          {!embedded && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label={t.sourceCode.closePreviewAria}
+              title={t.sourceCode.closePreviewAria}
+              className={`absolute top-4 right-5 z-20 w-9 h-9 rounded-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 cursor-pointer ${
+                activeTab === 'home'
+                  ? 'text-white/80 hover:text-white hover:bg-white/12 focus-visible:ring-white/50'
+                  : 'text-slate-500 hover:text-slate-950 hover:bg-slate-100 focus-visible:ring-slate-400'
+              }`}
+            >
+              <X className="w-5 h-5" aria-hidden="true" />
+            </button>
+          )}
 
           {activeTab === 'home' ? (
             <AgencyDesktopHome locale={locale} onNavigate={onSelectTab} />
@@ -450,15 +454,17 @@ export function WhatsAppAgencyPreview({
               />
             </button>
 
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={t.sourceCode.closePreviewAria}
-              title={t.sourceCode.closePreviewAria}
-              className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 active:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-            >
-              <X className="w-5 h-5" aria-hidden="true" />
-            </button>
+            {!embedded && (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label={t.sourceCode.closePreviewAria}
+                title={t.sourceCode.closePreviewAria}
+                className="w-9 h-9 -mr-1.5 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-950 active:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            )}
           </div>
         </header>
 
