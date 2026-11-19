@@ -401,7 +401,7 @@ export function WhatsAppAgencyPreview({
           }`}
         >
           {activeTab === 'home' ? (
-            <AgencyMobileHome locale={locale} onNavigate={onSelectTab} />
+            <AgencyMobileHome locale={locale} />
           ) : (
             <div className="px-4 pt-5">
               <h2 className="text-[15px] font-semibold text-slate-950 tracking-tight">
