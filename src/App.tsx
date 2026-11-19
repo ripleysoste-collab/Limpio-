@@ -27,8 +27,6 @@ import {
 } from './components/MobileCatalogCarousel';
 import { SearchLinkChatDrawer } from './components/SearchLinkChatDrawer';
 import { SearchLinkLogo } from './components/SearchLinkLogo';
-import { WhatsAppAgencyEditor } from './components/WhatsAppAgencyEditor';
-import { WhatsAppAgencyPreview } from './components/WhatsAppAgencyPreview';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
 import { useI18n } from './lib/i18n';
 import {
@@ -58,15 +56,6 @@ import {
   upsertUserOrganization,
   type SaveCatalogBatchInput,
 } from './lib/supabaseClient';
-
-import {
-  AGENCY_EDITOR_PATH,
-  getAgencyPathForTab,
-  isAgencyEditorPath,
-  isAgencyPath,
-  resolveAgencyTabFromPath,
-  type AgencyTabId,
-} from './lib/agencyRoutes';
 
 const MAX_FREE_UPLOAD_IMAGES = 10;
 const COMPRESSION_START_DELAY_MS = 2000;
@@ -99,21 +88,6 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(() =>
     typeof window !== 'undefined' && window.location.pathname === '/login',
   );
-  const [agencyPreviewTab, setAgencyPreviewTab] = useState<AgencyTabId | null>(
-    () =>
-      typeof window !== 'undefined'
-        ? resolveAgencyTabFromPath(window.location.pathname)
-        : null,
-  );
-  const [isAgencyEditorOpen, setIsAgencyEditorOpen] = useState<boolean>(() =>
-    typeof window !== 'undefined'
-      ? isAgencyEditorPath(window.location.pathname)
-      : false,
-  );
-  const isAgencyPreviewOpen = agencyPreviewTab !== null;
-  const isEmbeddedAgency =
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('embed') === '1';
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileAccountModalOpen, setIsMobileAccountModalOpen] = useState(false);
@@ -569,73 +543,6 @@ export default function App() {
     }
   };
 
-  const openAgencyPreview = (tab: AgencyTabId = 'home') => {
-    const targetPath = getAgencyPathForTab(tab);
-    if (
-      typeof window !== 'undefined' &&
-      window.location.pathname !== targetPath
-    ) {
-      window.history.pushState(
-        { agencyPreviewRoute: true, tab },
-        '',
-        targetPath,
-      );
-    }
-    setAgencyPreviewTab(tab);
-  };
-
-  const selectAgencyTab = (tab: AgencyTabId) => {
-    const basePath = getAgencyPathForTab(tab);
-    const targetUrl = isEmbeddedAgency
-      ? `${basePath}${window.location.search}`
-      : basePath;
-    if (
-      typeof window !== 'undefined' &&
-      window.location.pathname !== basePath
-    ) {
-      window.history.pushState(
-        { agencyPreviewRoute: true, tab },
-        '',
-        targetUrl,
-      );
-    }
-    setAgencyPreviewTab(tab);
-  };
-
-  const closeAgencyPreview = () => {
-    setAgencyPreviewTab(null);
-    if (
-      typeof window !== 'undefined' &&
-      isAgencyPath(window.location.pathname)
-    ) {
-      window.history.replaceState(null, '', '/');
-    }
-  };
-
-  const openAgencyEditor = () => {
-    if (
-      typeof window !== 'undefined' &&
-      window.location.pathname !== AGENCY_EDITOR_PATH
-    ) {
-      window.history.pushState(
-        { agencyEditorRoute: true },
-        '',
-        AGENCY_EDITOR_PATH,
-      );
-    }
-    setIsAgencyEditorOpen(true);
-  };
-
-  const closeAgencyEditor = () => {
-    setIsAgencyEditorOpen(false);
-    if (
-      typeof window !== 'undefined' &&
-      isAgencyEditorPath(window.location.pathname)
-    ) {
-      window.history.replaceState(null, '', '/');
-    }
-  };
-
   useEffect(() => {
     if (!supabase) return;
     let active = true;
@@ -687,9 +594,6 @@ export default function App() {
       } else {
         setIsAuthOpen(false);
       }
-
-      setAgencyPreviewTab(resolveAgencyTabFromPath(window.location.pathname));
-      setIsAgencyEditorOpen(isAgencyEditorPath(window.location.pathname));
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -721,8 +625,6 @@ export default function App() {
   useEffect(() => {
     if (
       !isAuthOpen &&
-      !isAgencyPreviewOpen &&
-      !isAgencyEditorOpen &&
       !isDesktopMenuOpen &&
       !isMobileMenuOpen &&
       !isMobileAccountModalOpen &&
@@ -736,14 +638,6 @@ export default function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        if (isAgencyEditorOpen) {
-          closeAgencyEditor();
-          return;
-        }
-        if (isAgencyPreviewOpen) {
-          closeAgencyPreview();
-          return;
-        }
         if (activeChatServiceId) {
           setActiveChatServiceId(null);
           return;
@@ -758,33 +652,14 @@ export default function App() {
       }
 
       if (
+        isAuthOpen &&
         event.ctrlKey &&
         !event.altKey &&
         !event.metaKey &&
         event.key.toLowerCase() === 'x'
       ) {
-        const target = event.target as HTMLElement | null;
-        const isInputFocused =
-          target !== null &&
-          (target.tagName === 'INPUT' ||
-            target.tagName === 'TEXTAREA' ||
-            target.isContentEditable);
-        if (isInputFocused) return;
-
-        if (isAgencyEditorOpen) {
-          event.preventDefault();
-          closeAgencyEditor();
-          return;
-        }
-        if (isAgencyPreviewOpen) {
-          event.preventDefault();
-          closeAgencyPreview();
-          return;
-        }
-        if (isAuthOpen) {
-          event.preventDefault();
-          closeAuthFlow();
-        }
+        event.preventDefault();
+        closeAuthFlow();
       }
     };
 
@@ -792,8 +667,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isAuthOpen,
-    isAgencyPreviewOpen,
-    isAgencyEditorOpen,
     isDesktopMenuOpen,
     isMobileMenuOpen,
     isMobileAccountModalOpen,
@@ -1900,9 +1773,7 @@ export default function App() {
         activeBackgroundId={activeBgImage?.id ?? null}
         onSelectBackground={handleSelectBackground}
         suspendShortcuts={
-          (isAuthOpen && !authUser) ||
-          (isDesktopMenuOpen && Boolean(authUser)) ||
-          isAgencyPreviewOpen
+          (isAuthOpen && !authUser) || (isDesktopMenuOpen && Boolean(authUser))
         }
         isFileUploadFlow={isFileUploadFlow}
         showCompressionBox={showCompressionBox}
@@ -1921,6 +1792,11 @@ export default function App() {
 
       {/* Desktop-only animated automation examples below the home showcase; fades out once an automation flow starts */}
       <AutomationExamplesSection
+        visible={!hasSearched && !isFileUploadFlow && !isExtracting}
+      />
+
+      {/* Desktop-only free source code library below automation examples */}
+      <SourceCodeLibrarySection
         visible={!hasSearched && !isFileUploadFlow && !isExtracting}
       />
 
@@ -1951,13 +1827,6 @@ export default function App() {
             openAuthFlow();
           }
         }}
-      />
-
-      {/* Responsive source code library: below automation examples on desktop, below catalog carousel on mobile */}
-      <SourceCodeLibrarySection
-        visible={!hasSearched && !isFileUploadFlow && !isExtracting}
-        onOpenPreview={() => openAgencyPreview('home')}
-        onOpenEditor={openAgencyEditor}
       />
       </div>
 
@@ -2027,21 +1896,6 @@ export default function App() {
         user={authUser}
         pendingBatch={pendingSaveBatch}
         onPendingBatchSaved={() => setPendingSaveBatch(null)}
-      />
-
-      {/* Full-screen pure-white Agency workspace on independent /agencia/* routes */}
-      <WhatsAppAgencyPreview
-        open={isAgencyPreviewOpen}
-        activeTab={agencyPreviewTab ?? 'home'}
-        embedded={isEmbeddedAgency}
-        onSelectTab={selectAgencyTab}
-        onClose={closeAgencyPreview}
-      />
-
-      {/* Full-screen pure-white Agency Code Editor on independent /editor/agencia-whatsapp route */}
-      <WhatsAppAgencyEditor
-        open={isAgencyEditorOpen}
-        onClose={closeAgencyEditor}
       />
     </main>
   );
