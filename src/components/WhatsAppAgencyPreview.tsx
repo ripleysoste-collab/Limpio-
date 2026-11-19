@@ -50,19 +50,29 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
         description: 'Resumen general de la agencia, accesos rápidos y estado del sistema',
       },
       {
+        id: 'clients',
+        label: 'Clientes',
+        description: 'Registrar clientes, suscripciones, fechas límite y estado del servicio',
+      },
+      {
         id: 'bots',
         label: 'Bots',
-        description: 'Crear clientes, encender, pausar y suspender bots',
+        description: 'Emparejar números de WhatsApp con clientes registrados y controlar su estado',
+      },
+      {
+        id: 'businesses',
+        label: 'Negocios',
+        description: 'Registrar el perfil comercial y los datos del negocio de cada bot',
+      },
+      {
+        id: 'training',
+        label: 'Entrenamiento',
+        description: 'Cargar conocimiento del negocio o asignar el enlace privado al cliente',
       },
       {
         id: 'metrics',
         label: 'Métricas',
         description: 'Mensajes procesados, bots activos y rendimiento en vivo',
-      },
-      {
-        id: 'clients',
-        label: 'Clientes',
-        description: 'Registrar clientes, suscripciones, fechas límite y estado del servicio',
       },
       {
         id: 'searchlink',
@@ -119,19 +129,29 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
         description: 'Agency overview, quick shortcuts, and system status',
       },
       {
+        id: 'clients',
+        label: 'Clients',
+        description: 'Register clients, subscriptions, expiration dates, and service status',
+      },
+      {
         id: 'bots',
         label: 'Bots',
-        description: 'Create clients, toggle power, and suspend bots',
+        description: 'Pair WhatsApp bot numbers with registered clients and manage state',
+      },
+      {
+        id: 'businesses',
+        label: 'Businesses',
+        description: 'Register the commercial profile and business details for each bot',
+      },
+      {
+        id: 'training',
+        label: 'Training',
+        description: 'Load business knowledge or assign a private portal link to the client',
       },
       {
         id: 'metrics',
         label: 'Metrics',
         description: 'Processed messages, active bots, and live performance',
-      },
-      {
-        id: 'clients',
-        label: 'Clients',
-        description: 'Register clients, subscriptions, expiration dates, and service status',
       },
       {
         id: 'searchlink',
@@ -188,19 +208,29 @@ const PREVIEW_COPY: Record<SupportedLocale, PreviewCopyBundle> = {
         description: 'Resumo geral da agência, atalhos e status do sistema',
       },
       {
+        id: 'clients',
+        label: 'Clientes',
+        description: 'Cadastrar clientes, assinaturas, datas limite e status do serviço',
+      },
+      {
         id: 'bots',
         label: 'Bots',
-        description: 'Criar clientes, ligar, pausar e suspender bots',
+        description: 'Vincular números de WhatsApp a clientes cadastrados e controlar status',
+      },
+      {
+        id: 'businesses',
+        label: 'Negócios',
+        description: 'Cadastrar o perfil comercial e dados do negócio de cada bot',
+      },
+      {
+        id: 'training',
+        label: 'Treinamento',
+        description: 'Carregar conhecimento do negócio ou gerar o link privado para o cliente',
       },
       {
         id: 'metrics',
         label: 'Métricas',
         description: 'Mensagens processadas, bots ativos e desempenho ao vivo',
-      },
-      {
-        id: 'clients',
-        label: 'Clientes',
-        description: 'Cadastrar clientes, assinaturas, datas limite e status do serviço',
       },
       {
         id: 'searchlink',

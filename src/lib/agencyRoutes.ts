@@ -1,8 +1,10 @@
 export type AgencyTabId =
   | 'home'
-  | 'bots'
-  | 'metrics'
   | 'clients'
+  | 'bots'
+  | 'businesses'
+  | 'training'
+  | 'metrics'
   | 'searchlink'
   | 'superintelligence'
   | 'whatsapp'
@@ -18,9 +20,11 @@ export const AGENCY_ROUTE_PREFIX = '/agencia';
 
 export const AGENCY_TAB_PATHS: Record<AgencyTabId, string> = {
   home: '/agencia/inicio',
-  bots: '/agencia/bots',
-  metrics: '/agencia/metricas',
   clients: '/agencia/clientes',
+  bots: '/agencia/bots',
+  businesses: '/agencia/negocios',
+  training: '/agencia/entrenamiento',
+  metrics: '/agencia/metricas',
   searchlink: '/agencia/search-link',
   superintelligence: '/agencia/superinteligencia',
   whatsapp: '/agencia/whatsapp',
@@ -37,13 +41,17 @@ const PATH_ALIAS_MAP: Record<string, AgencyTabId> = {
   '/agencia/inicio': 'home',
   '/agencia/home': 'home',
   '/agencia/dashboard': 'home',
-  '/agencia/bots': 'bots',
-  '/agencia/metricas': 'metrics',
-  '/agencia/metrics': 'metrics',
   '/agencia/clientes': 'clients',
   '/agencia/clients': 'clients',
   '/agencia/usuarios': 'clients',
   '/agencia/users': 'clients',
+  '/agencia/bots': 'bots',
+  '/agencia/negocios': 'businesses',
+  '/agencia/businesses': 'businesses',
+  '/agencia/entrenamiento': 'training',
+  '/agencia/training': 'training',
+  '/agencia/metricas': 'metrics',
+  '/agencia/metrics': 'metrics',
   '/agencia/search-link': 'searchlink',
   '/agencia/searchlink': 'searchlink',
   '/agencia/superinteligencia': 'superintelligence',
