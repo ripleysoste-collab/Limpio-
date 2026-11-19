@@ -2,7 +2,7 @@ export type AgencyTabId =
   | 'home'
   | 'bots'
   | 'metrics'
-  | 'users'
+  | 'clients'
   | 'searchlink'
   | 'superintelligence'
   | 'whatsapp'
@@ -19,7 +19,7 @@ export const AGENCY_TAB_PATHS: Record<AgencyTabId, string> = {
   home: '/agencia/inicio',
   bots: '/agencia/bots',
   metrics: '/agencia/metricas',
-  users: '/agencia/usuarios',
+  clients: '/agencia/clientes',
   searchlink: '/agencia/search-link',
   superintelligence: '/agencia/superinteligencia',
   whatsapp: '/agencia/whatsapp',
@@ -39,8 +39,10 @@ const PATH_ALIAS_MAP: Record<string, AgencyTabId> = {
   '/agencia/bots': 'bots',
   '/agencia/metricas': 'metrics',
   '/agencia/metrics': 'metrics',
-  '/agencia/usuarios': 'users',
-  '/agencia/users': 'users',
+  '/agencia/clientes': 'clients',
+  '/agencia/clients': 'clients',
+  '/agencia/usuarios': 'clients',
+  '/agencia/users': 'clients',
   '/agencia/search-link': 'searchlink',
   '/agencia/searchlink': 'searchlink',
   '/agencia/superinteligencia': 'superintelligence',
