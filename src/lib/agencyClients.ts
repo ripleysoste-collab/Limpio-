@@ -156,13 +156,124 @@ export function applyAutoExpirationToClients(
   });
 }
 
+export const CLIENT_PURGE_CASCADE_TARGETS = [
+  'primary_client_record',
+  'bot_instances',
+  'whatsapp_webhooks_and_credentials',
+  'automation_metrics_and_logs',
+  'searchlink_endpoints_cache',
+  'scheduled_expiration_jobs',
+  'backup_archives_and_local_storage',
+] as const;
+
+export type ClientPurgeCascadeTarget =
+  (typeof CLIENT_PURGE_CASCADE_TARGETS)[number];
+
+export interface ClientPurgeOutcome {
+  nextClients: AgencyClientRecord[];
+  nextDismissedExampleIds: string[];
+  purgedClientId: string;
+  clearedBackupKeys: number;
+  cascades: readonly ClientPurgeCascadeTarget[];
+}
+
+/**
+ * Purges a client completely across the primary client store, starter examples,
+ * browser storage backups/caches, and notifies active agency subsystems via event dispatch
+ * so all backing data tied to the client is irreversibly deleted.
+ */
+export function purgeAgencyClientEverywhere(
+  target: AgencyClientRecord,
+  clients: AgencyClientRecord[],
+  dismissedExampleIds: string[] = [],
+): ClientPurgeOutcome {
+  const normalizedTargetEmail = target.email.trim().toLowerCase();
+  const targetPhoneDigits = target.phone.replace(/\D/g, '');
+
+  const nextClients = target.isExample
+    ? clients
+    : clients.filter(
+        (client) =>
+          client.id !== target.id &&
+          client.email.trim().toLowerCase() !== normalizedTargetEmail &&
+          (!targetPhoneDigits ||
+            client.phone.replace(/\D/g, '') !== targetPhoneDigits),
+      );
+
+  const nextDismissedExampleIds = target.isExample
+    ? dismissedExampleIds.includes(target.id)
+      ? dismissedExampleIds
+      : [...dismissedExampleIds, target.id]
+    : dismissedExampleIds;
+
+  let clearedBackupKeys = 0;
+
+  if (typeof window !== 'undefined') {
+    const scrubStorage = (storage: Storage | undefined) => {
+      if (!storage) return;
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < storage.length; i += 1) {
+          const key = storage.key(i);
+          if (!key) continue;
+          if (
+            key.includes(target.id) ||
+            (normalizedTargetEmail &&
+              key.toLowerCase().includes(normalizedTargetEmail))
+          ) {
+            keysToRemove.push(key);
+          }
+        }
+        for (const key of keysToRemove) {
+          storage.removeItem(key);
+          clearedBackupKeys += 1;
+        }
+      } catch {
+        // Ignore restricted storage environments
+      }
+    };
+
+    scrubStorage(window.localStorage);
+    scrubStorage(window.sessionStorage);
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent('agency:client-purged', {
+          detail: {
+            clientId: target.id,
+            email: normalizedTargetEmail,
+            cascades: CLIENT_PURGE_CASCADE_TARGETS,
+          },
+        }),
+      );
+    } catch {
+      // Ignore environments without CustomEvent support
+    }
+  }
+
+  return {
+    nextClients,
+    nextDismissedExampleIds,
+    purgedClientId: target.id,
+    clearedBackupKeys,
+    cascades: CLIENT_PURGE_CASCADE_TARGETS,
+  };
+}
+
 export function getVisibleAgencyClients(
   realClients: AgencyClientRecord[],
   nowMs = Date.now(),
+  dismissedExampleIds: string[] = [],
 ): AgencyClientRecord[] {
-  return realClients.length > 0
-    ? applyAutoExpirationToClients(realClients, nowMs)
-    : DEFAULT_EXAMPLE_CLIENTS;
+  if (realClients.length > 0) {
+    return applyAutoExpirationToClients(realClients, nowMs);
+  }
+  if (dismissedExampleIds.length === 0) {
+    return DEFAULT_EXAMPLE_CLIENTS;
+  }
+  return DEFAULT_EXAMPLE_CLIENTS.filter(
+    (example) => !dismissedExampleIds.includes(example.id),
+  );
 }
 
 export function filterAgencyClients(
@@ -178,6 +289,61 @@ export function filterAgencyClients(
       client.email.toLowerCase().includes(normalized) ||
       (client.countryName ?? '').toLowerCase().includes(normalized),
   );
+}
+
+/**
+ * Formats an ISO timestamp or YYYY-MM-DD[THH:mm] wall-clock string into DD/MM/YYYY HH:mm.
+ */
+export function formatAgencyDateDisplay(
+  rawValue: string | null | undefined,
+  timezone?: string,
+): string {
+  if (!rawValue) return '';
+  const trimmed = rawValue.trim();
+
+  const dateOnlyMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnlyMatch) {
+    return `${dateOnlyMatch[3]}/${dateOnlyMatch[2]}/${dateOnlyMatch[1]}`;
+  }
+
+  const wallClockMatch = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(
+    trimmed,
+  );
+  if (wallClockMatch) {
+    return `${wallClockMatch[3]}/${wallClockMatch[2]}/${wallClockMatch[1]} ${wallClockMatch[4]}:${wallClockMatch[5]}`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone || undefined,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).formatToParts(parsed);
+      const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+        parts.find((p) => p.type === type)?.value ?? '';
+      const year = getPart('year');
+      const month = getPart('month');
+      const day = getPart('day');
+      const rawHour = getPart('hour');
+      const hour = rawHour === '24' ? '00' : rawHour;
+      const minute = getPart('minute');
+      if (year && month && day) {
+        return `${day}/${month}/${year} ${hour}:${minute}`;
+      }
+    } catch {
+      // Fallback below
+    }
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${pad(parsed.getDate())}/${pad(parsed.getMonth() + 1)}/${parsed.getFullYear()} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+  }
+
+  return trimmed;
 }
 
 /**

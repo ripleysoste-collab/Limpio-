@@ -3,6 +3,7 @@ import { ChevronUp, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   applyAutoExpirationToClients,
+  purgeAgencyClientEverywhere,
   type AgencyClientRecord,
 } from '../lib/agencyClients';
 import { useI18n, type SupportedLocale } from '../lib/i18n';
@@ -256,11 +257,22 @@ export function WhatsAppAgencyPreview({
   const [registeredClients, setRegisteredClients] = useState<
     AgencyClientRecord[]
   >([]);
+  const [dismissedExampleIds, setDismissedExampleIds] = useState<string[]>([]);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const mobileNavRef = useRef<HTMLElement | null>(null);
 
   const handleRegisterClient = (client: AgencyClientRecord) => {
     setRegisteredClients((prev) => [client, ...prev]);
+  };
+
+  const handleDeleteClient = (target: AgencyClientRecord) => {
+    const outcome = purgeAgencyClientEverywhere(
+      target,
+      registeredClients,
+      dismissedExampleIds,
+    );
+    setRegisteredClients(outcome.nextClients);
+    setDismissedExampleIds(outcome.nextDismissedExampleIds);
   };
 
   useEffect(() => {
@@ -379,8 +391,10 @@ export function WhatsAppAgencyPreview({
             <AgencyDesktopClients
               locale={locale}
               clients={registeredClients}
+              dismissedExampleIds={dismissedExampleIds}
               nowMs={nowMs}
               onRegisterClient={handleRegisterClient}
+              onDeleteClient={handleDeleteClient}
             />
           ) : (
             <div className="max-w-4xl pr-12">
@@ -503,8 +517,10 @@ export function WhatsAppAgencyPreview({
             <AgencyMobileClients
               locale={locale}
               clients={registeredClients}
+              dismissedExampleIds={dismissedExampleIds}
               nowMs={nowMs}
               onRegisterClient={handleRegisterClient}
+              onDeleteClient={handleDeleteClient}
             />
           ) : (
             <div className="px-4 pt-5">

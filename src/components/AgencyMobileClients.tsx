@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { MoreHorizontal, Plus, Search, X } from 'lucide-react';
+import { Plus, Search, X } from 'lucide-react';
 import {
   CLIENT_STATUS_STYLE,
   filterAgencyClients,
@@ -16,12 +16,18 @@ import {
   type ValidationTone,
 } from '../lib/agencyValidation';
 import type { SupportedLocale } from '../lib/i18n';
+import {
+  AgencyClientActionModals,
+  AgencyClientRowActionsTrigger,
+} from './AgencyClientRowMenu';
 
 interface AgencyMobileClientsProps {
   locale: SupportedLocale;
   clients?: AgencyClientRecord[];
+  dismissedExampleIds?: string[];
   nowMs?: number;
   onRegisterClient?: (client: AgencyClientRecord) => void;
+  onDeleteClient?: (client: AgencyClientRecord) => void;
 }
 
 interface MobileClientsCopy {
@@ -31,6 +37,7 @@ interface MobileClientsCopy {
   clearSearchAria: string;
   listAria: string;
   noMatches: string;
+  emptyClients: string;
   addClientAria: string;
   rowActionsAria: (name: string) => string;
   registerTitle: string;
@@ -61,6 +68,7 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     clearSearchAria: 'Limpiar búsqueda',
     listAria: 'Lista de clientes registrados',
     noMatches: 'No hay coincidencias con esa búsqueda.',
+    emptyClients: 'Sin clientes registrados.',
     addClientAria: 'Agregar cliente',
     rowActionsAria: (name) => `Acciones para ${name}`,
     registerTitle: 'Registrar',
@@ -89,6 +97,7 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     clearSearchAria: 'Clear search',
     listAria: 'Registered clients list',
     noMatches: 'No clients match your search.',
+    emptyClients: 'No registered clients.',
     addClientAria: 'Add client',
     rowActionsAria: (name) => `Actions for ${name}`,
     registerTitle: 'Register',
@@ -117,6 +126,7 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     clearSearchAria: 'Limpar busca',
     listAria: 'Lista de clientes cadastrados',
     noMatches: 'Nenhum cliente corresponde à busca.',
+    emptyClients: 'Nenhum cliente cadastrado.',
     addClientAria: 'Adicionar cliente',
     rowActionsAria: (name) => `Ações para ${name}`,
     registerTitle: 'Registrar',
@@ -162,11 +172,20 @@ function getToneTextClass(tone: ValidationTone): string {
 export function AgencyMobileClients({
   locale,
   clients = [],
+  dismissedExampleIds = [],
   nowMs,
   onRegisterClient,
+  onDeleteClient,
 }: AgencyMobileClientsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [openMenuClientId, setOpenMenuClientId] = useState<string | null>(null);
+  const [viewClient, setViewClient] = useState<AgencyClientRecord | null>(null);
+  const [statusClient, setStatusClient] = useState<AgencyClientRecord | null>(
+    null,
+  );
+  const [deleteConfirmClient, setDeleteConfirmClient] =
+    useState<AgencyClientRecord | null>(null);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -182,7 +201,11 @@ export function AgencyMobileClients({
 
   const copy = MOBILE_CLIENTS_COPY[locale] ?? MOBILE_CLIENTS_COPY.es;
 
-  const visibleClients = getVisibleAgencyClients(clients, nowMs);
+  const visibleClients = getVisibleAgencyClients(
+    clients,
+    nowMs,
+    dismissedExampleIds,
+  );
   const filteredClients = filterAgencyClients(visibleClients, searchQuery);
 
   const countryValidation = useMemo(
@@ -316,17 +339,24 @@ export function AgencyMobileClients({
       <section aria-label={copy.listAria} className="mt-4 -mx-4 flex-1 flex flex-col">
         {filteredClients.length === 0 ? (
           <div className="px-4 py-10 text-center">
-            <p className="text-[13px] text-slate-400">{copy.noMatches}</p>
+            <p className="text-[13px] text-slate-400">
+              {visibleClients.length === 0 ? copy.emptyClients : copy.noMatches}
+            </p>
           </div>
         ) : (
           <ul className="border-t border-b border-slate-200/85 divide-y divide-slate-200/85">
-            {filteredClients.map((client) => {
+            {filteredClients.map((client, index) => {
               const statusMeta = CLIENT_STATUS_STYLE[client.status];
               const statusLabel = statusMeta.labels[locale] ?? statusMeta.labels.es;
+              const isMenuOpen = openMenuClientId === client.id;
+              const openUpward =
+                filteredClients.length >= 3 && index >= filteredClients.length - 2;
               return (
                 <li
                   key={client.id}
-                  className="h-[52px] px-4 bg-white flex items-center justify-between gap-3"
+                  className={`relative h-[52px] px-4 bg-white flex items-center justify-between gap-3 ${
+                    isMenuOpen ? 'z-30' : 'z-0'
+                  }`}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
                     <span
@@ -339,13 +369,22 @@ export function AgencyMobileClients({
                     </span>
                   </div>
 
-                  <button
-                    type="button"
-                    aria-label={copy.rowActionsAria(client.fullName)}
-                    className="w-8 h-8 -mr-1.5 rounded-full flex items-center justify-center text-slate-700 hover:text-slate-950 active:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                  >
-                    <MoreHorizontal className="w-[18px] h-[18px]" aria-hidden="true" />
-                  </button>
+                  <AgencyClientRowActionsTrigger
+                    client={client}
+                    locale={locale}
+                    isOpen={isMenuOpen}
+                    openUpward={openUpward}
+                    triggerAriaLabel={copy.rowActionsAria(client.fullName)}
+                    onToggle={() =>
+                      setOpenMenuClientId((prev) =>
+                        prev === client.id ? null : client.id,
+                      )
+                    }
+                    onClose={() => setOpenMenuClientId(null)}
+                    onView={(target) => setViewClient(target)}
+                    onViewStatus={(target) => setStatusClient(target)}
+                    onRequestDelete={(target) => setDeleteConfirmClient(target)}
+                  />
                 </li>
               );
             })}
@@ -599,6 +638,22 @@ export function AgencyMobileClients({
           </form>
         </div>
       )}
+
+      <AgencyClientActionModals
+        locale={locale}
+        viewClient={viewClient}
+        statusClient={statusClient}
+        deleteConfirmClient={deleteConfirmClient}
+        onCloseView={() => setViewClient(null)}
+        onCloseStatus={() => setStatusClient(null)}
+        onCancelDelete={() => setDeleteConfirmClient(null)}
+        onConfirmDelete={(target) => {
+          onDeleteClient?.(target);
+          setDeleteConfirmClient(null);
+          if (viewClient?.id === target.id) setViewClient(null);
+          if (statusClient?.id === target.id) setStatusClient(null);
+        }}
+      />
     </div>
   );
 }
