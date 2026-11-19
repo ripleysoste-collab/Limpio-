@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useI18n, type SupportedLocale } from '../lib/i18n';
 import { AgencyDesktopHome } from './AgencyDesktopHome';
+import { AgencyMobileHome } from './AgencyMobileHome';
 
 interface WhatsAppAgencyPreviewProps {
   open: boolean;
@@ -246,6 +247,19 @@ export function WhatsAppAgencyPreview({
 }: WhatsAppAgencyPreviewProps) {
   const { t, locale } = useI18n();
   const [activeTab, setActiveTab] = useState<AgencyTabId>('home');
+  const mobileNavRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open || !mobileNavRef.current) return;
+    const activeButton = mobileNavRef.current.querySelector<HTMLButtonElement>(
+      `[data-tab-id="${activeTab}"]`
+    );
+    activeButton?.scrollIntoView({
+      behavior: 'auto',
+      inline: 'nearest',
+      block: 'nearest',
+    });
+  }, [activeTab, open]);
 
   if (!open) return null;
 
@@ -367,6 +381,7 @@ export function WhatsAppAgencyPreview({
         </header>
 
         <nav
+          ref={mobileNavRef}
           aria-label={copy.tabsAria}
           className="shrink-0 border-b border-slate-200/85 bg-white px-4 flex items-center gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
@@ -375,15 +390,9 @@ export function WhatsAppAgencyPreview({
             return (
               <button
                 key={`mob-${tab.id}`}
+                data-tab-id={tab.id}
                 type="button"
-                onClick={(event) => {
-                  setActiveTab(tab.id);
-                  event.currentTarget.scrollIntoView({
-                    behavior: 'auto',
-                    inline: 'nearest',
-                    block: 'nearest',
-                  });
-                }}
+                onClick={() => setActiveTab(tab.id)}
                 className={`py-3 text-[13px] whitespace-nowrap shrink-0 border-b-2 -mb-px cursor-pointer focus-visible:outline-none ${
                   isActive
                     ? 'border-slate-950 text-slate-950 font-semibold'
@@ -396,13 +405,19 @@ export function WhatsAppAgencyPreview({
           })}
         </nav>
 
-        <div className="flex-1 min-h-0 overflow-y-auto bg-white px-4 pt-5">
-          <h2 className="text-[15px] font-semibold text-slate-950 tracking-tight">
-            {currentTab.label}
-          </h2>
-          <p className="mt-1 text-[12px] text-slate-500">
-            {currentTab.description}
-          </p>
+        <div className="flex-1 min-h-0 overflow-y-auto bg-white">
+          {activeTab === 'home' ? (
+            <AgencyMobileHome locale={locale} onNavigate={setActiveTab} />
+          ) : (
+            <div className="px-4 pt-5">
+              <h2 className="text-[15px] font-semibold text-slate-950 tracking-tight">
+                {currentTab.label}
+              </h2>
+              <p className="mt-1 text-[12px] text-slate-500">
+                {currentTab.description}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </section>
