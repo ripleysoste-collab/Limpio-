@@ -1,151 +1,43 @@
+import smilingBotImg from '../assets/images/smiling_whatsapp_bot_1795059037308.jpg';
 import type { SupportedLocale } from '../lib/i18n';
 import type { AgencyTabId } from '../lib/agencyRoutes';
 
-export type MobileHomeTarget = Extract<
-  AgencyTabId,
-  'bots' | 'metrics' | 'sql' | 'searchlink' | 'env'
->;
+export type MobileHomeTarget = Extract<AgencyTabId, 'bots' | 'env'>;
 
 interface AgencyMobileHomeProps {
   locale: SupportedLocale;
   onNavigate: (tab: MobileHomeTarget) => void;
 }
 
-interface PassiveMetricItem {
-  label: string;
-  value: string;
-  hint: string;
-  target: MobileHomeTarget;
-  borderClass: string;
-}
-
 interface MobileHomeCopy {
-  kicker: string;
+  illustrationAlt: string;
   headline: string;
   subcopy: string;
   primaryAction: string;
   secondaryAction: string;
-  metricsAria: string;
-  metrics: PassiveMetricItem[];
 }
 
 const MOBILE_HOME_COPY: Record<SupportedLocale, MobileHomeCopy> = {
   es: {
-    kicker: 'Panel operativo · Código fuente propio',
-    headline: 'Control central para tus bots de WhatsApp',
-    subcopy:
-      'Administra clientes, activa Search Link Core y supervisa tu base SQL desde un entorno limpio y privado.',
+    illustrationAlt: 'Robot asistente sonriente de WhatsApp',
+    headline: 'Tu agencia de bots en WhatsApp',
+    subcopy: 'Crea bots, conecta tu base SQL y responde en automático.',
     primaryAction: 'Ir a Bots',
     secondaryAction: 'Configurar .env',
-    metricsAria: 'Resumen pasivo del sistema',
-    metrics: [
-      {
-        label: 'Bots activos',
-        value: '0',
-        hint: 'Sin instancias',
-        target: 'bots',
-        borderClass: 'border-emerald-400/80 active:bg-emerald-50/40',
-      },
-      {
-        label: 'Chats (24 h)',
-        value: '0',
-        hint: 'Esperando tráfico',
-        target: 'metrics',
-        borderClass: 'border-sky-400/80 active:bg-sky-50/40',
-      },
-      {
-        label: 'Base SQL',
-        value: 'Pendiente',
-        hint: 'PostgreSQL / Supabase',
-        target: 'sql',
-        borderClass: 'border-amber-400/80 active:bg-amber-50/40',
-      },
-      {
-        label: 'Search Link Core',
-        value: 'Inactivo',
-        hint: 'Catálogo y API',
-        target: 'searchlink',
-        borderClass: 'border-violet-400/80 active:bg-violet-50/40',
-      },
-    ],
   },
   en: {
-    kicker: 'Operations console · Open source stack',
-    headline: 'Central control for your WhatsApp bots',
-    subcopy:
-      'Manage client bots, connect Search Link Core, and oversee your SQL database from one private workspace.',
+    illustrationAlt: 'Smiling WhatsApp assistant robot',
+    headline: 'Your WhatsApp bot agency',
+    subcopy: 'Create bots, connect your SQL database, and reply automatically.',
     primaryAction: 'Open Bots',
     secondaryAction: 'Configure .env',
-    metricsAria: 'Passive system overview',
-    metrics: [
-      {
-        label: 'Active bots',
-        value: '0',
-        hint: 'No instances',
-        target: 'bots',
-        borderClass: 'border-emerald-400/80 active:bg-emerald-50/40',
-      },
-      {
-        label: 'Chats (24h)',
-        value: '0',
-        hint: 'Awaiting traffic',
-        target: 'metrics',
-        borderClass: 'border-sky-400/80 active:bg-sky-50/40',
-      },
-      {
-        label: 'SQL Database',
-        value: 'Pending',
-        hint: 'PostgreSQL / Supabase',
-        target: 'sql',
-        borderClass: 'border-amber-400/80 active:bg-amber-50/40',
-      },
-      {
-        label: 'Search Link Core',
-        value: 'Inactive',
-        hint: 'Catalog & API',
-        target: 'searchlink',
-        borderClass: 'border-violet-400/80 active:bg-violet-50/40',
-      },
-    ],
   },
   pt: {
-    kicker: 'Painel operacional · Código-fonte próprio',
-    headline: 'Controle central dos seus bots de WhatsApp',
-    subcopy:
-      'Gerencie clientes, ative o Search Link Core e acompanhe sua base SQL em um ambiente limpo e privado.',
+    illustrationAlt: 'Robô assistente sorridente do WhatsApp',
+    headline: 'Sua agência de bots no WhatsApp',
+    subcopy: 'Crie bots, conecte sua base SQL e responda no automático.',
     primaryAction: 'Abrir Bots',
     secondaryAction: 'Configurar .env',
-    metricsAria: 'Resumo passivo do sistema',
-    metrics: [
-      {
-        label: 'Bots ativos',
-        value: '0',
-        hint: 'Sem instâncias',
-        target: 'bots',
-        borderClass: 'border-emerald-400/80 active:bg-emerald-50/40',
-      },
-      {
-        label: 'Conversas (24 h)',
-        value: '0',
-        hint: 'Aguardando tráfego',
-        target: 'metrics',
-        borderClass: 'border-sky-400/80 active:bg-sky-50/40',
-      },
-      {
-        label: 'Base SQL',
-        value: 'Pendente',
-        hint: 'PostgreSQL / Supabase',
-        target: 'sql',
-        borderClass: 'border-amber-400/80 active:bg-amber-50/40',
-      },
-      {
-        label: 'Search Link Core',
-        value: 'Inativo',
-        hint: 'Catálogo e API',
-        target: 'searchlink',
-        borderClass: 'border-violet-400/80 active:bg-violet-50/40',
-      },
-    ],
   },
 };
 
@@ -156,60 +48,43 @@ export function AgencyMobileHome({
   const copy = MOBILE_HOME_COPY[locale] ?? MOBILE_HOME_COPY.es;
 
   return (
-    <div className="relative min-h-full bg-white text-slate-950 px-5 pt-6 pb-12">
-      <p className="text-[12px] font-medium text-slate-500 tracking-tight">
-        {copy.kicker}
-      </p>
-
-      <h2 className="mt-2 text-[24px] leading-[1.18] font-semibold tracking-[-0.02em] text-slate-950 text-balance">
-        {copy.headline}
-      </h2>
-
-      <p className="mt-3 text-[13.5px] leading-[1.6] text-slate-600">
-        {copy.subcopy}
-      </p>
-
-      <div className="mt-6 flex items-center gap-4">
-        <button
-          type="button"
-          onClick={() => onNavigate('bots')}
-          className="min-h-[44px] px-5 rounded-xl bg-[#86EFAC] active:bg-[#4ADE80] text-slate-950 border border-[#4ADE80]/70 text-[13.5px] font-semibold whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#22C55E]"
-        >
-          {copy.primaryAction}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onNavigate('env')}
-          className="min-h-[44px] px-2 flex items-center text-[13.5px] font-medium text-slate-700 underline underline-offset-4 decoration-slate-300 active:text-slate-950 whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded"
-        >
-          {copy.secondaryAction}
-        </button>
-      </div>
-
-      {/* Minimalist 2x2 operational summary with distinct colored borders */}
-      <section aria-label={copy.metricsAria} className="mt-8">
-        <div className="grid grid-cols-2 gap-2.5">
-          {copy.metrics.map((item) => (
-            <button
-              key={item.target}
-              type="button"
-              onClick={() => onNavigate(item.target)}
-              className={`min-h-[86px] rounded-xl border bg-white px-3.5 py-3.5 text-left flex flex-col justify-center cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${item.borderClass}`}
-            >
-              <span className="text-[11.5px] font-medium text-slate-500 truncate">
-                {item.label}
-              </span>
-              <span className="mt-1 text-[19px] font-semibold tracking-tight text-slate-950 tabular-nums truncate">
-                {item.value}
-              </span>
-              <span className="mt-0.5 text-[11px] text-slate-400 truncate">
-                {item.hint}
-              </span>
-            </button>
-          ))}
+    <div className="min-h-full bg-[#25D366] text-slate-950 px-6 py-8 flex flex-col items-center justify-center text-center select-none">
+      <div className="w-full max-w-[290px] flex flex-col items-center">
+        <div className="w-36 h-36 rounded-full overflow-hidden ring-2 ring-white/40 shadow-[0_14px_30px_-8px_rgba(6,78,59,0.28)] bg-[#25D366] shrink-0">
+          <img
+            src={smilingBotImg}
+            alt={copy.illustrationAlt}
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover object-top scale-[1.03]"
+          />
         </div>
-      </section>
+
+        <h2 className="mt-5 text-[22px] leading-[1.18] font-semibold tracking-[-0.02em] text-slate-950 text-balance">
+          {copy.headline}
+        </h2>
+
+        <p className="mt-2 text-[13.5px] leading-[1.45] text-slate-950/80 text-balance">
+          {copy.subcopy}
+        </p>
+
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate('bots')}
+            className="h-9 px-5 rounded-xl bg-slate-950 active:bg-slate-800 text-white text-[12.5px] font-semibold tracking-tight shadow-[0_8px_18px_-8px_rgba(2,6,23,0.45)] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950"
+          >
+            {copy.primaryAction}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigate('env')}
+            className="py-1.5 px-3 text-[12.5px] font-medium text-slate-950/85 underline underline-offset-4 decoration-slate-950/35 active:text-slate-950 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950/50 rounded"
+          >
+            {copy.secondaryAction}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

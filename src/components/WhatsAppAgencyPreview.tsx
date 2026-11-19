@@ -395,7 +395,11 @@ export function WhatsAppAgencyPreview({
           })}
         </nav>
 
-        <div className="flex-1 min-h-0 overflow-y-auto bg-white">
+        <div
+          className={`flex-1 min-h-0 overflow-y-auto ${
+            activeTab === 'home' ? 'bg-[#25D366]' : 'bg-white'
+          }`}
+        >
           {activeTab === 'home' ? (
             <AgencyMobileHome locale={locale} onNavigate={onSelectTab} />
           ) : (
