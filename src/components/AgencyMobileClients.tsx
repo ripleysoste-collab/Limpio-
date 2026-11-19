@@ -1,9 +1,16 @@
 import { useState } from 'react';
-import { Plus, Search, X } from 'lucide-react';
+import { MoreHorizontal, Plus, Search, X } from 'lucide-react';
+import {
+  CLIENT_STATUS_STYLE,
+  filterAgencyClients,
+  getVisibleAgencyClients,
+  type AgencyClientRecord,
+} from '../lib/agencyClients';
 import type { SupportedLocale } from '../lib/i18n';
 
 interface AgencyMobileClientsProps {
   locale: SupportedLocale;
+  clients?: AgencyClientRecord[];
   onAddClient?: () => void;
 }
 
@@ -13,8 +20,9 @@ interface MobileClientsCopy {
   searchAria: string;
   clearSearchAria: string;
   listAria: string;
-  emptyState: string;
+  noMatches: string;
   addClientAria: string;
+  rowActionsAria: (name: string) => string;
 }
 
 const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
@@ -24,8 +32,9 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     searchAria: 'Buscar clientes registrados',
     clearSearchAria: 'Limpiar búsqueda',
     listAria: 'Lista de clientes registrados',
-    emptyState: 'Aún no hay clientes registrados.',
+    noMatches: 'No hay coincidencias con esa búsqueda.',
     addClientAria: 'Agregar cliente',
+    rowActionsAria: (name) => `Acciones para ${name}`,
   },
   en: {
     title: 'Clients',
@@ -33,8 +42,9 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     searchAria: 'Search registered clients',
     clearSearchAria: 'Clear search',
     listAria: 'Registered clients list',
-    emptyState: 'No clients registered yet.',
+    noMatches: 'No clients match your search.',
     addClientAria: 'Add client',
+    rowActionsAria: (name) => `Actions for ${name}`,
   },
   pt: {
     title: 'Clientes',
@@ -42,17 +52,22 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     searchAria: 'Buscar clientes cadastrados',
     clearSearchAria: 'Limpar busca',
     listAria: 'Lista de clientes cadastrados',
-    emptyState: 'Ainda não há clientes cadastrados.',
+    noMatches: 'Nenhum cliente corresponde à busca.',
     addClientAria: 'Adicionar cliente',
+    rowActionsAria: (name) => `Ações para ${name}`,
   },
 };
 
 export function AgencyMobileClients({
   locale,
+  clients = [],
   onAddClient,
 }: AgencyMobileClientsProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const copy = MOBILE_CLIENTS_COPY[locale] ?? MOBILE_CLIENTS_COPY.es;
+
+  const visibleClients = getVisibleAgencyClients(clients);
+  const filteredClients = filterAgencyClients(visibleClients, searchQuery);
 
   return (
     <div className="relative min-h-full bg-white text-slate-950 px-4 pt-4 pb-24 flex flex-col">
@@ -88,11 +103,45 @@ export function AgencyMobileClients({
         </div>
       </div>
 
-      {/* Vertical stack container directly below search input for client rows */}
-      <section aria-label={copy.listAria} className="mt-4 flex-1 flex flex-col">
-        <div className="py-10 text-center">
-          <p className="text-[13px] text-slate-400">{copy.emptyState}</p>
-        </div>
+      {/* Uniform hairline-divided rows directly below search bar */}
+      <section aria-label={copy.listAria} className="mt-4 -mx-4 flex-1 flex flex-col">
+        {filteredClients.length === 0 ? (
+          <div className="px-4 py-10 text-center">
+            <p className="text-[13px] text-slate-400">{copy.noMatches}</p>
+          </div>
+        ) : (
+          <ul className="border-t border-b border-slate-200/85 divide-y divide-slate-200/85">
+            {filteredClients.map((client) => {
+              const statusMeta = CLIENT_STATUS_STYLE[client.status];
+              const statusLabel = statusMeta.labels[locale] ?? statusMeta.labels.es;
+              return (
+                <li
+                  key={client.id}
+                  className="h-[52px] px-4 bg-white flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <span
+                      title={statusLabel}
+                      aria-label={statusLabel}
+                      className={`w-[18px] h-[18px] rounded-[5px] shrink-0 ${statusMeta.squareClass}`}
+                    />
+                    <span className="text-[14px] font-normal text-slate-900 truncate">
+                      {client.fullName}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    aria-label={copy.rowActionsAria(client.fullName)}
+                    className="w-8 h-8 -mr-1.5 rounded-full flex items-center justify-center text-slate-700 hover:text-slate-950 active:bg-slate-100 cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                  >
+                    <MoreHorizontal className="w-[18px] h-[18px]" aria-hidden="true" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       {/* Compact WhatsApp-green floating + button anchored bottom-right */}
