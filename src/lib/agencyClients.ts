@@ -1,4 +1,5 @@
 import type { SupportedLocale } from './i18n';
+import { getCurrentWallClockInTimezone } from './agencyValidation';
 
 export type ClientServiceStatus =
   | 'active'
@@ -122,10 +123,46 @@ export const DEFAULT_EXAMPLE_CLIENTS: AgencyClientRecord[] = [
   },
 ];
 
+/**
+ * Resolves effective client status using the client's saved timezone clock.
+ * Active clients automatically become 'expired' (purple) once endDate is reached.
+ */
+export function resolveEffectiveClientStatus(
+  client: AgencyClientRecord,
+  nowMs = Date.now(),
+): ClientServiceStatus {
+  if (client.isExample) return client.status;
+  if (client.status === 'paused' || client.status === 'suspended') {
+    return client.status;
+  }
+  if (client.status === 'active' && client.endDate) {
+    const nowInClientTz = getCurrentWallClockInTimezone(client.timezone, nowMs);
+    if (nowInClientTz.comparableIso >= client.endDate) {
+      return 'expired';
+    }
+  }
+  return client.status;
+}
+
+export function applyAutoExpirationToClients(
+  clients: AgencyClientRecord[],
+  nowMs = Date.now(),
+): AgencyClientRecord[] {
+  return clients.map((client) => {
+    const nextStatus = resolveEffectiveClientStatus(client, nowMs);
+    return nextStatus === client.status
+      ? client
+      : { ...client, status: nextStatus };
+  });
+}
+
 export function getVisibleAgencyClients(
   realClients: AgencyClientRecord[],
+  nowMs = Date.now(),
 ): AgencyClientRecord[] {
-  return realClients.length > 0 ? realClients : DEFAULT_EXAMPLE_CLIENTS;
+  return realClients.length > 0
+    ? applyAutoExpirationToClients(realClients, nowMs)
+    : DEFAULT_EXAMPLE_CLIENTS;
 }
 
 export function filterAgencyClients(

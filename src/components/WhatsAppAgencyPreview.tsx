@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronUp, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import type { AgencyClientRecord } from '../lib/agencyClients';
+import {
+  applyAutoExpirationToClients,
+  type AgencyClientRecord,
+} from '../lib/agencyClients';
 import { useI18n, type SupportedLocale } from '../lib/i18n';
 import type { AgencyTabId } from '../lib/agencyRoutes';
 import { AgencyDesktopClients } from './AgencyDesktopClients';
@@ -253,11 +256,31 @@ export function WhatsAppAgencyPreview({
   const [registeredClients, setRegisteredClients] = useState<
     AgencyClientRecord[]
   >([]);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
   const mobileNavRef = useRef<HTMLElement | null>(null);
 
   const handleRegisterClient = (client: AgencyClientRecord) => {
     setRegisteredClients((prev) => [client, ...prev]);
   };
+
+  useEffect(() => {
+    if (!open) return;
+
+    const syncClock = () => {
+      const now = Date.now();
+      setNowMs(now);
+      setRegisteredClients((prev) => {
+        if (prev.length === 0) return prev;
+        const next = applyAutoExpirationToClients(prev, now);
+        const changed = next.some((item, idx) => item.status !== prev[idx]?.status);
+        return changed ? next : prev;
+      });
+    };
+
+    syncClock();
+    const intervalId = window.setInterval(syncClock, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [open]);
 
   useEffect(() => {
     if (!open || isMobileMenuCollapsed || !mobileNavRef.current) return;
@@ -356,6 +379,7 @@ export function WhatsAppAgencyPreview({
             <AgencyDesktopClients
               locale={locale}
               clients={registeredClients}
+              nowMs={nowMs}
               onRegisterClient={handleRegisterClient}
             />
           ) : (
@@ -479,6 +503,7 @@ export function WhatsAppAgencyPreview({
             <AgencyMobileClients
               locale={locale}
               clients={registeredClients}
+              nowMs={nowMs}
               onRegisterClient={handleRegisterClient}
             />
           ) : (

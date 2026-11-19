@@ -20,6 +20,7 @@ import type { SupportedLocale } from '../lib/i18n';
 interface AgencyDesktopClientsProps {
   locale: SupportedLocale;
   clients?: AgencyClientRecord[];
+  nowMs?: number;
   onRegisterClient?: (client: AgencyClientRecord) => void;
 }
 
@@ -157,6 +158,7 @@ function getToneTextClass(tone: ValidationTone): string {
 export function AgencyDesktopClients({
   locale,
   clients = [],
+  nowMs,
   onRegisterClient,
 }: AgencyDesktopClientsProps) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -175,7 +177,7 @@ export function AgencyDesktopClients({
 
   const copy = DESKTOP_CLIENTS_COPY[locale] ?? DESKTOP_CLIENTS_COPY.es;
 
-  const visibleClients = getVisibleAgencyClients(clients);
+  const visibleClients = getVisibleAgencyClients(clients, nowMs);
   const filteredClients = filterAgencyClients(visibleClients, searchQuery);
 
   const countryValidation = useMemo(
@@ -185,19 +187,29 @@ export function AgencyDesktopClients({
   const matchedCountry = countryValidation.matched;
 
   const emailValidation = useMemo(
-    () => validateGmailEmail(email, emailBlurred),
-    [email, emailBlurred],
+    () => validateGmailEmail(email, emailBlurred, clients),
+    [email, emailBlurred, clients],
   );
 
   const phoneValidation = useMemo(
-    () => validatePersonalPhone(phone, matchedCountry, phoneBlurred),
-    [phone, matchedCountry, phoneBlurred],
+    () => validatePersonalPhone(phone, matchedCountry, phoneBlurred, clients),
+    [phone, matchedCountry, phoneBlurred, clients],
   );
 
   const expirationValidation = useMemo(
     () =>
-      validateExpirationMasked(expirationText, noExpiration, expirationBlurred),
-    [expirationText, noExpiration, expirationBlurred],
+      validateExpirationMasked(
+        expirationText,
+        noExpiration,
+        expirationBlurred,
+        countryValidation.resolvedTimezone,
+      ),
+    [
+      expirationText,
+      noExpiration,
+      expirationBlurred,
+      countryValidation.resolvedTimezone,
+    ],
   );
 
   const noteLen = note.trim().length;
