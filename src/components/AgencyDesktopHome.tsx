@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import type { SupportedLocale } from '../lib/i18n';
+import type { AgencyTabId } from '../lib/agencyRoutes';
 
-export type AgencyNavigationTarget =
-  | 'bots'
-  | 'metrics'
-  | 'sql'
-  | 'searchlink'
-  | 'env';
+const DEFAULT_DESKTOP_HOME_BG =
+  'https://limpioso.vercel.app/api/media?k=catalog%2F2026-11%2Fc523daefbd9f4c25.webp';
+
+export type AgencyNavigationTarget = Extract<
+  AgencyTabId,
+  'bots' | 'metrics' | 'sql' | 'searchlink' | 'env'
+>;
 
 interface AgencyDesktopHomeProps {
   locale: SupportedLocale;
@@ -141,18 +144,21 @@ const DESKTOP_HOME_COPY: Record<SupportedLocale, DesktopHomeCopy> = {
 export function AgencyDesktopHome({
   locale,
   onNavigate,
-  backgroundImageSrc,
+  backgroundImageSrc = DEFAULT_DESKTOP_HOME_BG,
 }: AgencyDesktopHomeProps) {
+  const [bgLoadError, setBgLoadError] = useState(false);
   const copy = DESKTOP_HOME_COPY[locale] ?? DESKTOP_HOME_COPY.es;
+  const showBackgroundImage = Boolean(backgroundImageSrc) && !bgLoadError;
 
   return (
     <div className="relative w-full h-full min-h-[600px] overflow-hidden bg-gradient-to-br from-[#1E293B] via-[#263448] to-[#314358] text-white flex flex-col justify-between select-none">
       {/* Real photographic background slot when provided */}
-      {backgroundImageSrc ? (
+      {showBackgroundImage ? (
         <img
           src={backgroundImageSrc}
           alt=""
           referrerPolicy="no-referrer"
+          onError={() => setBgLoadError(true)}
           className="pointer-events-none absolute inset-0 w-full h-full object-cover"
         />
       ) : (

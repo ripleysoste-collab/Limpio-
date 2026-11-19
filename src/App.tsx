@@ -58,6 +58,13 @@ import {
   type SaveCatalogBatchInput,
 } from './lib/supabaseClient';
 
+import {
+  getAgencyPathForTab,
+  isAgencyPath,
+  resolveAgencyTabFromPath,
+  type AgencyTabId,
+} from './lib/agencyRoutes';
+
 const MAX_FREE_UPLOAD_IMAGES = 10;
 const COMPRESSION_START_DELAY_MS = 2000;
 const UPLOAD_START_DELAY_MS = 1000;
@@ -69,8 +76,6 @@ const MIN_RENDER_STEP_MS = 230;
 const MIN_TILE_STEP_MS = 260;
 const MIN_RECEIVE_STEP_MS = 230;
 const MIN_MAP_STEP_MS = 230;
-
-const WHATSAPP_AGENCY_PREVIEW_PATH = '/preview/agencia-whatsapp';
 
 type BatchImageSource =
   | { kind: 'file'; file: File }
@@ -91,10 +96,13 @@ export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(() =>
     typeof window !== 'undefined' && window.location.pathname === '/login',
   );
-  const [isAgencyPreviewOpen, setIsAgencyPreviewOpen] = useState(() =>
-    typeof window !== 'undefined' &&
-    window.location.pathname === WHATSAPP_AGENCY_PREVIEW_PATH,
+  const [agencyPreviewTab, setAgencyPreviewTab] = useState<AgencyTabId | null>(
+    () =>
+      typeof window !== 'undefined'
+        ? resolveAgencyTabFromPath(window.location.pathname)
+        : null,
   );
+  const isAgencyPreviewOpen = agencyPreviewTab !== null;
   const [isDesktopMenuOpen, setIsDesktopMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobileAccountModalOpen, setIsMobileAccountModalOpen] = useState(false);
@@ -550,25 +558,41 @@ export default function App() {
     }
   };
 
-  const openAgencyPreview = () => {
+  const openAgencyPreview = (tab: AgencyTabId = 'home') => {
+    const targetPath = getAgencyPathForTab(tab);
     if (
       typeof window !== 'undefined' &&
-      window.location.pathname !== WHATSAPP_AGENCY_PREVIEW_PATH
+      window.location.pathname !== targetPath
     ) {
       window.history.pushState(
-        { agencyPreviewRoute: true },
+        { agencyPreviewRoute: true, tab },
         '',
-        WHATSAPP_AGENCY_PREVIEW_PATH,
+        targetPath,
       );
     }
-    setIsAgencyPreviewOpen(true);
+    setAgencyPreviewTab(tab);
+  };
+
+  const selectAgencyTab = (tab: AgencyTabId) => {
+    const targetPath = getAgencyPathForTab(tab);
+    if (
+      typeof window !== 'undefined' &&
+      window.location.pathname !== targetPath
+    ) {
+      window.history.pushState(
+        { agencyPreviewRoute: true, tab },
+        '',
+        targetPath,
+      );
+    }
+    setAgencyPreviewTab(tab);
   };
 
   const closeAgencyPreview = () => {
-    setIsAgencyPreviewOpen(false);
+    setAgencyPreviewTab(null);
     if (
       typeof window !== 'undefined' &&
-      window.location.pathname === WHATSAPP_AGENCY_PREVIEW_PATH
+      isAgencyPath(window.location.pathname)
     ) {
       window.history.replaceState(null, '', '/');
     }
@@ -626,9 +650,7 @@ export default function App() {
         setIsAuthOpen(false);
       }
 
-      setIsAgencyPreviewOpen(
-        window.location.pathname === WHATSAPP_AGENCY_PREVIEW_PATH,
-      );
+      setAgencyPreviewTab(resolveAgencyTabFromPath(window.location.pathname));
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -1884,7 +1906,7 @@ export default function App() {
       {/* Responsive source code library: below automation examples on desktop, below catalog carousel on mobile */}
       <SourceCodeLibrarySection
         visible={!hasSearched && !isFileUploadFlow && !isExtracting}
-        onOpenPreview={openAgencyPreview}
+        onOpenPreview={() => openAgencyPreview('home')}
       />
       </div>
 
@@ -1956,9 +1978,11 @@ export default function App() {
         onPendingBatchSaved={() => setPendingSaveBatch(null)}
       />
 
-      {/* Full-screen pure-white Preview view on independent /preview/agencia-whatsapp route */}
+      {/* Full-screen pure-white Agency workspace on independent /agencia/* routes */}
       <WhatsAppAgencyPreview
         open={isAgencyPreviewOpen}
+        activeTab={agencyPreviewTab ?? 'home'}
+        onSelectTab={selectAgencyTab}
         onClose={closeAgencyPreview}
       />
     </main>
