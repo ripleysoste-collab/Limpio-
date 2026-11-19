@@ -1,6 +1,3 @@
-export const SEARCH_LINK_CORE_SYSTEM_NAME = 'Search Link Core';
-export const SEARCH_LINK_CORE_VERSION = '1.0';
-
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }

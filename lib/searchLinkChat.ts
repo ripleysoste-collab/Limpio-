@@ -69,27 +69,6 @@ export type SearchLinkChatStreamEvent =
       error: string;
     };
 
-export type SearchLinkChatResult =
-  | {
-      ok: true;
-      reply: string;
-      products: SearchLinkCoreProduct[];
-      coreStatus: number;
-      coreSource: 'live_core' | 'session_cache';
-      totalCatalogProducts: number;
-      provider: 'groq';
-      dailyLimit: {
-        used: number;
-        limit: number;
-        day: string;
-      };
-    }
-  | {
-      ok: false;
-      status: number;
-      error: string;
-    };
-
 function cleanEnv(value: string | undefined): string {
   return (value || '').trim().replace(/^["']|["']$/g, '').trim();
 }
@@ -553,46 +532,4 @@ export async function* streamSearchLinkChat(
       error: `No se pudo responder con Groq: ${msg}`,
     };
   }
-}
-
-export async function runSearchLinkChat(
-  input: SearchLinkChatInput,
-): Promise<SearchLinkChatResult> {
-  let products: SearchLinkCoreProduct[] = [];
-  let totalCatalogProducts = 0;
-  let coreSource: 'live_core' | 'session_cache' = 'session_cache';
-  let reply = '';
-  let dailyLimit = {
-    used: SEARCH_LINK_IA_DAILY_LIMIT,
-    limit: SEARCH_LINK_IA_DAILY_LIMIT,
-    day: getTodayUtcDateString(),
-  };
-
-  for await (const evt of streamSearchLinkChat(input)) {
-    if (evt.type === 'error') {
-      return { ok: false, status: evt.status, error: evt.error };
-    }
-    if (evt.type === 'products') {
-      products = evt.products;
-      totalCatalogProducts = evt.totalCatalogProducts;
-      coreSource = evt.coreSource;
-    }
-    if (evt.type === 'delta') {
-      reply += evt.text;
-    }
-    if (evt.type === 'done') {
-      dailyLimit = evt.dailyLimit;
-    }
-  }
-
-  return {
-    ok: true,
-    reply: reply.trim(),
-    products,
-    coreStatus: 200,
-    coreSource,
-    totalCatalogProducts,
-    provider: 'groq',
-    dailyLimit,
-  };
 }

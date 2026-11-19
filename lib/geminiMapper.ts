@@ -17,10 +17,6 @@ function getGeminiApiKey(): string {
     .trim();
 }
 
-export function isGeminiConfigured(): boolean {
-  return Boolean(getGeminiApiKey());
-}
-
 export async function mapStoredImageWithGemini(options: {
   key?: string;
   imageUrl: string;

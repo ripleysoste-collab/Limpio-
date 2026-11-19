@@ -287,14 +287,6 @@ export async function uploadCompressedImage(
   };
 }
 
-export async function compressAndUploadImage(
-  file: File,
-  signal?: AbortSignal,
-): Promise<UploadedCompressedImage> {
-  const compressed = await compressImageToWebp(file);
-  return uploadCompressedImage(compressed, signal, 'catalog');
-}
-
 export async function compressAndUploadOrgLogo(
   file: File,
   signal?: AbortSignal,

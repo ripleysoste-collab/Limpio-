@@ -49,11 +49,9 @@ import {
   fetchUserOrganizationSafe,
   renameCoreServiceInSupabase,
   rotateCoreServiceApiKeyInSupabase,
-  saveMappedCatalogToSupabase,
   supabase,
   toggleCoreServiceActiveInSupabase,
   upsertUserOrganization,
-  type SaveCatalogBatchInput,
 } from './lib/supabaseClient';
 
 const MAX_FREE_UPLOAD_IMAGES = 10;
@@ -118,8 +116,6 @@ export default function App() {
     Record<string, CompressedImageMeta>
   >({});
   const [authUser, setAuthUser] = useState<User | null>(null);
-  const [pendingSaveBatch, setPendingSaveBatch] =
-    useState<SaveCatalogBatchInput | null>(null);
   const [orgProfile, setOrgProfile] = useState<OrganizationProfile>({
     name: 'Sin nombre',
     logoUrl: null,
@@ -1118,7 +1114,9 @@ export default function App() {
         }
 
         let firstMapError: string | null = null;
-        const collectedMappedItems: SaveCatalogBatchInput['items'] = [];
+        const collectedMappedItems: Array<
+          MappedImageMetadata & { r2Key?: string; savedPercent?: number }
+        > = [];
         const mappedPayloads: Array<MappedImageMetadata | null> = new Array(
           items.length,
         ).fill(null);
@@ -1275,22 +1273,6 @@ export default function App() {
             return updated;
           });
 
-          let batchTitle = t.app.batchTitleFallback(collectedMappedItems.length);
-          if (originPageUrl) {
-            try {
-              batchTitle = new URL(originPageUrl).hostname.replace(/^www\./, '');
-            } catch {
-              batchTitle = originPageUrl;
-            }
-          }
-
-          const batchToSave: SaveCatalogBatchInput = {
-            title: batchTitle,
-            sourceType: originPageUrl ? 'url' : 'files',
-            sourceUrl: originPageUrl,
-            items: collectedMappedItems,
-          };
-
           if (authUserRef.current) {
             const coreSave = await createCoreServiceInSupabase({
               publicSlug: serviceSlug,
@@ -1321,26 +1303,10 @@ export default function App() {
                 }
                 return synced;
               });
-              setPendingSaveBatch(null);
               if (!firstMapError) {
                 setBatchNotice(t.app.coreSavedNotice);
               }
-            } else {
-              // Fallback to legacy batch save if Core tables aren't installed yet
-              const saveOutcome = await saveMappedCatalogToSupabase(batchToSave);
-              if (saveOutcome.saved) {
-                setPendingSaveBatch(null);
-              } else if (
-                coreSave.tableMissing ||
-                (saveOutcome.reason &&
-                  (saveOutcome.reason.includes('relation') ||
-                    saveOutcome.reason.includes('schema cache')))
-              ) {
-                setPendingSaveBatch(batchToSave);
-              }
             }
-          } else {
-            setPendingSaveBatch(batchToSave);
           }
         }
       })();
@@ -1623,7 +1589,6 @@ export default function App() {
               variant="light"
               expanded={authUser ? isMobileMenuOpen : isAuthOpen}
               user={authUser}
-              interactiveWhenSignedIn
               onClick={() => {
                 if (authUser) {
                   setIsMobileMenuOpen((prev) => !prev);
@@ -1753,7 +1718,6 @@ export default function App() {
             variant="dark"
             expanded={authUser ? isDesktopMenuOpen : isAuthOpen}
             user={authUser}
-            interactiveWhenSignedIn
             onClick={() => {
               if (authUser) {
                 setIsDesktopMenuOpen((prev) => !prev);
@@ -1887,9 +1851,6 @@ export default function App() {
       <AuthDrawer
         open={isAuthOpen && !authUser}
         onClose={closeAuthFlow}
-        user={authUser}
-        pendingBatch={pendingSaveBatch}
-        onPendingBatchSaved={() => setPendingSaveBatch(null)}
       />
     </main>
   );
@@ -1899,7 +1860,6 @@ interface GuestAvatarSketchProps {
   variant: 'light' | 'dark';
   expanded: boolean;
   user: User | null;
-  interactiveWhenSignedIn?: boolean;
   onClick: () => void;
 }
 
@@ -1907,7 +1867,6 @@ function GuestAvatarSketch({
   variant,
   expanded,
   user,
-  interactiveWhenSignedIn = false,
   onClick,
 }: GuestAvatarSketchProps) {
   const { t } = useI18n();
@@ -1964,33 +1923,19 @@ function GuestAvatarSketch({
         </span>
       );
 
-    if (interactiveWhenSignedIn) {
-      return (
-        <button
-          type="button"
-          onClick={onClick}
-          aria-expanded={expanded}
-          aria-label={t.app.openAccountMenuAria(rawName)}
-          title={rawName}
-          className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border overflow-hidden flex items-center justify-center select-none cursor-pointer transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/85 shrink-0 ${ringClass} ${
-            showGooglePhoto ? 'bg-slate-100' : letterBgClass
-          }`}
-        >
-          {avatarContent}
-        </button>
-      );
-    }
-
     return (
-      <div
-        aria-label={t.app.connectedAccountAria(rawName)}
+      <button
+        type="button"
+        onClick={onClick}
+        aria-expanded={expanded}
+        aria-label={t.app.openAccountMenuAria(rawName)}
         title={rawName}
-        className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border overflow-hidden flex items-center justify-center select-none shrink-0 ${ringClass} ${
+        className={`relative w-8 h-8 sm:w-9 sm:h-9 rounded-full border overflow-hidden flex items-center justify-center select-none cursor-pointer transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/85 shrink-0 ${ringClass} ${
           showGooglePhoto ? 'bg-slate-100' : letterBgClass
         }`}
       >
         {avatarContent}
-      </div>
+      </button>
     );
   }
 

@@ -1,11 +1,9 @@
 import crypto from 'node:crypto';
 import {
-  DeleteObjectCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const ALLOWED_KEY_REGEX =
   /^[a-z0-9][a-z0-9/_-]{2,180}\.(webp|jpe?g|png|gif|avif)$/i;
@@ -203,42 +201,4 @@ export async function readImageFromR2(key: string): Promise<StoredR2Image> {
     contentType,
     etag: result.ETag,
   };
-}
-
-export async function createPresignedPutUrl(options: {
-  key: string;
-  contentType: string;
-  expiresInSeconds?: number;
-}): Promise<string> {
-  if (!isValidMediaKey(options.key)) {
-    throw new Error('Clave de destino no válida.');
-  }
-  if (!options.contentType.toLowerCase().startsWith('image/')) {
-    throw new Error('Solo se permiten imágenes.');
-  }
-
-  const client = getR2Client();
-  const bucketName = getR2BucketName();
-
-  const command = new PutObjectCommand({
-    Bucket: bucketName,
-    Key: options.key,
-    ContentType: options.contentType,
-  });
-
-  return getSignedUrl(client, command, {
-    expiresIn: Math.min(Math.max(options.expiresInSeconds ?? 300, 60), 900),
-  });
-}
-
-export async function deleteImageFromR2(key: string): Promise<void> {
-  if (!isValidMediaKey(key)) return;
-  const client = getR2Client();
-  const bucketName = getR2BucketName();
-  await client.send(
-    new DeleteObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-    }),
-  );
 }

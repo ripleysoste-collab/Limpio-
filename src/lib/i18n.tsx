@@ -75,14 +75,11 @@ export interface TranslationDictionary {
     uploadImageError: string;
     mapImageError: string;
     serviceDefaultPrefix: (productName: string) => string;
-    batchTitleFallback: (count: number) => string;
     coreSavedNotice: string;
     imageFallbackAlt: (index: number) => string;
     openAccountMenuAria: (name: string) => string;
-    connectedAccountAria: (name: string) => string;
     openAuthAria: string;
     openAuthTitle: string;
-    untitledOrgSentinel: string;
     imageUploadAria: (status: string, alt: string) => string;
     receiveStatusAria: (status: string, alt: string) => string;
     compressionStatusAria: (status: string, alt: string) => string;
@@ -152,66 +149,24 @@ export interface TranslationDictionary {
   };
   auth: {
     acceptTermsLabel: string;
-    accessPlanLine: (providerLabel: string, isPro: boolean) => string;
-    allMyCatalogs: string;
-    associatedCatalogAria: string;
     bullet1: string;
     bullet2: string;
     bullet3: string;
     closePanelAria: string;
     connectingGoogle: string;
     continueWithGoogle: string;
-    copyFullJsonTitle: string;
-    copyUrl: string;
-    createApiKey: string;
-    deleteBatchAria: (title: string) => string;
-    drawerAriaAuth: string;
     drawerAriaGuest: string;
-    emailPasswordProvider: string;
-    endpointsTab: (count: number) => string;
-    errCreateKey: string;
-    errCreateKeySchema: string;
-    errDeleteBatch: string;
-    errDeleteKey: string;
-    errLoadData: string;
     errProviderNotEnabled: string;
     errRateLimit: string;
-    generateKeyTitle: string;
     googleLinkError: string;
     googleSignInError: string;
     googleSignedInSuccess: string;
-    keyNamePlaceholder: string;
-    loadingSupabase: string;
     loginHeading: string;
     loginSubtitle: string;
-    myCatalogsTab: (count: number) => string;
-    newKeyCreatedHint: string;
-    noCatalogsDesc: string;
-    noCatalogsTitle: string;
-    onlyCatalogPrefix: (title: string) => string;
     openGoogleNewTab: string;
-    pendingBatchText: (count: number) => string;
     popupBlockedError: string;
-    productsCount: (count: number) => string;
-    readEndpointDescMiddle: string;
-    readEndpointDescPrefix: string;
-    readEndpointDescSuffix: string;
-    readEndpointTitle: string;
-    refreshAccountAria: string;
-    revokeKeyAria: (name: string) => string;
-    saveNow: string;
-    sessionActive: string;
-    sessionMissingProfilesTable: string;
-    sessionSynced: string;
-    signOutAria: string;
-    signOutShort: string;
-    step2PendingDesc: string;
-    step2PendingTitle: string;
-    step3PendingDesc: string;
-    step3PendingTitle: string;
     supabaseMissingError: string;
     termsError: string;
-    urlCopied: string;
   };
   chat: {
     clearConversation: string;
@@ -410,14 +365,11 @@ const ES_DICTIONARY: TranslationDictionary = {
     uploadImageError: 'Error al subir la imagen.',
     mapImageError: 'Error al renderizar y mapear la imagen con IA.',
     serviceDefaultPrefix: (name) => `Servicio ${name}`,
-    batchTitleFallback: (count) => `Catálogo (${count} imágenes)`,
     coreSavedNotice: 'Servicio y API guardados en Search Link Core.',
     imageFallbackAlt: (index) => `Imagen ${index}`,
     openAccountMenuAria: (name) => `Abrir menú de cuenta (${name})`,
-    connectedAccountAria: (name) => `Cuenta conectada (${name})`,
     openAuthAria: 'Abrir registro de cuenta',
     openAuthTitle: 'Crear cuenta o iniciar sesión',
-    untitledOrgSentinel: 'Sin nombre',
     imageUploadAria: (status, alt) =>
       status === 'pending'
         ? `En cola para guardar ${alt}`
@@ -595,78 +547,28 @@ const ES_DICTIONARY: TranslationDictionary = {
   },
   auth: {
     acceptTermsLabel: 'Acepto los términos y políticas de privacidad de Search Link.',
-    accessPlanLine: (providerLabel, isPro) =>
-      `${providerLabel} · Plan ${isPro ? 'Pro' : 'Gratuito'}`,
-    allMyCatalogs: 'Todos mis catálogos',
-    associatedCatalogAria: 'Catálogo asociado',
     bullet1: 'Sesión segura y cifrada con Google',
     bullet2: 'Catálogos y medios sincronizados en la nube',
     bullet3: 'API Keys y endpoints Search Link Core al instante',
     closePanelAria: 'Cerrar panel de cuenta',
     connectingGoogle: 'Conectando con Google…',
     continueWithGoogle: 'Continuar con Google',
-    copyFullJsonTitle: 'Copiar JSON completo',
-    copyUrl: 'Copiar URL',
-    createApiKey: 'Crear API Key',
-    deleteBatchAria: (title) => `Eliminar catálogo ${title}`,
-    drawerAriaAuth: 'Panel de cuenta de Search Link',
     drawerAriaGuest: 'Iniciar sesión en Search Link',
-    emailPasswordProvider: 'Correo y contraseña',
-    endpointsTab: (count) => `API y Endpoints (${count})`,
-    errCreateKey: 'No se pudo crear la API Key.',
-    errCreateKeySchema:
-      'Falta crear las tablas de Supabase Core para generar API Keys persistentes.',
-    errDeleteBatch: 'No se pudo eliminar el catálogo.',
-    errDeleteKey: 'No se pudo revocar la API Key.',
-    errLoadData: 'Error cargando datos de tu cuenta.',
     errProviderNotEnabled:
       'Google OAuth aún no está habilitado en este proyecto de Supabase.',
     errRateLimit: 'Demasiados intentos en poco tiempo. Espera un momento.',
-    generateKeyTitle: 'Generar nueva API Key',
     googleLinkError: 'No pudimos generar el enlace de Google OAuth.',
     googleSignInError: 'Ocurrió un error al iniciar sesión con Google.',
     googleSignedInSuccess: 'Sesión iniciada con Google correctamente.',
-    keyNamePlaceholder: 'Nombre (ej. Bot WhatsApp)',
-    loadingSupabase: 'Sincronizando con Supabase…',
     loginHeading: 'Guarda tus catálogos y obtén tu API',
     loginSubtitle:
       'Conecta tu cuenta de Google en un clic para sincronizar productos, endpoints y métricas en tiempo real.',
-    myCatalogsTab: (count) => `Mis catálogos (${count})`,
-    newKeyCreatedHint: 'Nueva API Key creada (cópiala ahora, no se volverá a mostrar completa):',
-    noCatalogsDesc:
-      'Procesa cualquier página web o sube imágenes desde la pantalla principal para guardarlas aquí.',
-    noCatalogsTitle: 'Aún no tienes catálogos guardados',
-    onlyCatalogPrefix: (title) => `Solo: ${title}`,
     openGoogleNewTab: 'Abrir Google en pestaña nueva',
-    pendingBatchText: (count) =>
-      `Tienes ${count} producto${count === 1 ? '' : 's'} listo${count === 1 ? '' : 's'} para guardar en tu cuenta.`,
     popupBlockedError:
       'El navegador bloqueó la ventana emergente de Google. Usa el enlace de abajo.',
-    productsCount: (count) =>
-      `${count} producto${count === 1 ? '' : 's'}`,
-    readEndpointDescMiddle: ' o header ',
-    readEndpointDescPrefix: 'Consulta tu catálogo JSON desde cualquier chatbot enviando ',
-    readEndpointDescSuffix: ' a:',
-    readEndpointTitle: 'Endpoint de lectura Search Link Core',
-    refreshAccountAria: 'Actualizar datos de la cuenta',
-    revokeKeyAria: (name) => `Revocar API Key ${name}`,
-    saveNow: 'Guardar ahora',
-    sessionActive: 'Sesión activa correctamente',
-    sessionMissingProfilesTable:
-      'Sesión activa (tabla profiles pendiente en Supabase)',
-    sessionSynced: 'Cuenta sincronizada con Supabase',
-    signOutAria: 'Cerrar sesión',
-    signOutShort: 'Salir',
-    step2PendingDesc:
-      'Ejecuta la migración de catálogos en Supabase para persistir lotes aquí.',
-    step2PendingTitle: 'Tablas de catálogos pendientes',
-    step3PendingDesc:
-      'Ejecuta la migración de API Keys en Supabase para gestionar llaves aquí.',
-    step3PendingTitle: 'Tabla de API Keys pendiente',
     supabaseMissingError:
       'La configuración de Supabase no está disponible en este entorno.',
     termsError: 'Acepta los términos para continuar con Google.',
-    urlCopied: 'URL copiada',
   },
   chat: {
     clearConversation: 'Reiniciar conversación',
@@ -904,14 +806,11 @@ const EN_DICTIONARY: TranslationDictionary = {
     uploadImageError: 'Failed to upload image.',
     mapImageError: 'Failed to render and map image with AI.',
     serviceDefaultPrefix: (name) => `${name} Service`,
-    batchTitleFallback: (count) => `Catalog (${count} images)`,
     coreSavedNotice: 'Service & API saved to Search Link Core.',
     imageFallbackAlt: (index) => `Image ${index}`,
     openAccountMenuAria: (name) => `Open account menu (${name})`,
-    connectedAccountAria: (name) => `Connected account (${name})`,
     openAuthAria: 'Open account sign in',
     openAuthTitle: 'Create account or sign in',
-    untitledOrgSentinel: 'Sin nombre',
     imageUploadAria: (status, alt) =>
       status === 'pending'
         ? `Queued to save ${alt}`
@@ -1090,79 +989,28 @@ const EN_DICTIONARY: TranslationDictionary = {
   },
   auth: {
     acceptTermsLabel: 'I accept the Search Link terms of service and privacy policy.',
-    accessPlanLine: (providerLabel, isPro) =>
-      `${providerLabel} · ${isPro ? 'Pro' : 'Free'} Plan`,
-    allMyCatalogs: 'All my catalogs',
-    associatedCatalogAria: 'Associated catalog',
     bullet1: 'Encrypted Google authentication',
     bullet2: 'Cloud-synced catalogs & optimized media',
     bullet3: 'Instant Search Link Core API Keys & endpoints',
     closePanelAria: 'Close account panel',
     connectingGoogle: 'Connecting with Google…',
     continueWithGoogle: 'Continue with Google',
-    copyFullJsonTitle: 'Copy full JSON',
-    copyUrl: 'Copy URL',
-    createApiKey: 'Create API Key',
-    deleteBatchAria: (title) => `Delete catalog ${title}`,
-    drawerAriaAuth: 'Search Link account panel',
     drawerAriaGuest: 'Sign in to Search Link',
-    emailPasswordProvider: 'Email & password',
-    endpointsTab: (count) => `API & Endpoints (${count})`,
-    errCreateKey: 'Could not create the API Key.',
-    errCreateKeySchema:
-      'Supabase Core tables are required to create persistent API Keys.',
-    errDeleteBatch: 'Could not delete catalog.',
-    errDeleteKey: 'Could not revoke API Key.',
-    errLoadData: 'Error loading account data.',
     errProviderNotEnabled:
       'Google OAuth is not enabled yet on this Supabase project.',
     errRateLimit: 'Too many requests. Please wait a moment.',
-    generateKeyTitle: 'Generate new API Key',
     googleLinkError: 'Could not generate the Google OAuth link.',
     googleSignInError: 'An error occurred while signing in with Google.',
     googleSignedInSuccess: 'Signed in with Google successfully.',
-    keyNamePlaceholder: 'Name (e.g. WhatsApp Bot)',
-    loadingSupabase: 'Syncing with Supabase…',
     loginHeading: 'Save your catalogs & get your API',
     loginSubtitle:
       'Connect your Google account in one click to sync products, endpoints, and live usage.',
-    myCatalogsTab: (count) => `My catalogs (${count})`,
-    newKeyCreatedHint:
-      'New API Key created (copy it now, it will not be shown in full again):',
-    noCatalogsDesc:
-      'Process any webpage or upload images from the home screen to store them here.',
-    noCatalogsTitle: 'No saved catalogs yet',
-    onlyCatalogPrefix: (title) => `Only: ${title}`,
     openGoogleNewTab: 'Open Google in a new tab',
-    pendingBatchText: (count) =>
-      `You have ${count} product${count === 1 ? '' : 's'} ready to save to your account.`,
     popupBlockedError:
       'Your browser blocked the Google popup window. Use the link below instead.',
-    productsCount: (count) =>
-      `${count} product${count === 1 ? '' : 's'}`,
-    readEndpointDescMiddle: ' or ',
-    readEndpointDescPrefix: 'Query your JSON catalog from any chatbot by sending ',
-    readEndpointDescSuffix: ' header to:',
-    readEndpointTitle: 'Search Link Core Read Endpoint',
-    refreshAccountAria: 'Refresh account data',
-    revokeKeyAria: (name) => `Revoke API Key ${name}`,
-    saveNow: 'Save now',
-    sessionActive: 'Session active',
-    sessionMissingProfilesTable:
-      'Session active (profiles table pending in Supabase)',
-    sessionSynced: 'Account synced with Supabase',
-    signOutAria: 'Sign out',
-    signOutShort: 'Sign out',
-    step2PendingDesc:
-      'Run the catalog migration in Supabase to persist batches here.',
-    step2PendingTitle: 'Catalog tables pending',
-    step3PendingDesc:
-      'Run the API Keys migration in Supabase to manage keys here.',
-    step3PendingTitle: 'API Keys table pending',
     supabaseMissingError:
       'Supabase configuration is unavailable in this environment.',
     termsError: 'Please accept the terms to continue with Google.',
-    urlCopied: 'URL copied',
   },
   chat: {
     clearConversation: 'Reset conversation',
@@ -1400,14 +1248,11 @@ const PT_DICTIONARY: TranslationDictionary = {
     uploadImageError: 'Erro ao enviar a imagem.',
     mapImageError: 'Erro ao renderizar e mapear a imagem com IA.',
     serviceDefaultPrefix: (name) => `Serviço ${name}`,
-    batchTitleFallback: (count) => `Catálogo (${count} imagens)`,
     coreSavedNotice: 'Serviço e API salvos no Search Link Core.',
     imageFallbackAlt: (index) => `Imagem ${index}`,
     openAccountMenuAria: (name) => `Abrir menu da conta (${name})`,
-    connectedAccountAria: (name) => `Conta conectada (${name})`,
     openAuthAria: 'Abrir cadastro de conta',
     openAuthTitle: 'Criar conta ou entrar',
-    untitledOrgSentinel: 'Sin nombre',
     imageUploadAria: (status, alt) =>
       status === 'pending'
         ? `Na fila para salvar ${alt}`
@@ -1587,79 +1432,28 @@ const PT_DICTIONARY: TranslationDictionary = {
   auth: {
     acceptTermsLabel:
       'Aceito os termos de serviço e a política de privacidade do Search Link.',
-    accessPlanLine: (providerLabel, isPro) =>
-      `${providerLabel} · Plano ${isPro ? 'Pro' : 'Gratuito'}`,
-    allMyCatalogs: 'Todos os meus catálogos',
-    associatedCatalogAria: 'Catálogo associado',
     bullet1: 'Sessão segura e criptografada com Google',
     bullet2: 'Catálogos e mídias sincronizados na nuvem',
     bullet3: 'API Keys e endpoints Search Link Core na hora',
     closePanelAria: 'Fechar painel da conta',
     connectingGoogle: 'Conectando com o Google…',
     continueWithGoogle: 'Continuar com o Google',
-    copyFullJsonTitle: 'Copiar JSON completo',
-    copyUrl: 'Copiar URL',
-    createApiKey: 'Criar API Key',
-    deleteBatchAria: (title) => `Excluir catálogo ${title}`,
-    drawerAriaAuth: 'Painel da conta Search Link',
     drawerAriaGuest: 'Entrar no Search Link',
-    emailPasswordProvider: 'E-mail e senha',
-    endpointsTab: (count) => `API e Endpoints (${count})`,
-    errCreateKey: 'Não foi possível criar a API Key.',
-    errCreateKeySchema:
-      'É necessário criar as tabelas do Supabase Core para gerar API Keys persistentes.',
-    errDeleteBatch: 'Não foi possível excluir o catálogo.',
-    errDeleteKey: 'Não foi possível revogar a API Key.',
-    errLoadData: 'Erro ao carregar os dados da sua conta.',
     errProviderNotEnabled:
       'O Google OAuth ainda não está ativado neste projeto Supabase.',
     errRateLimit: 'Muitas tentativas seguidas. Aguarde um instante.',
-    generateKeyTitle: 'Gerar nova API Key',
     googleLinkError: 'Não foi possível gerar o link do Google OAuth.',
     googleSignInError: 'Ocorreu um erro ao entrar com o Google.',
     googleSignedInSuccess: 'Login com Google realizado com sucesso.',
-    keyNamePlaceholder: 'Nome (ex. Bot WhatsApp)',
-    loadingSupabase: 'Sincronizando com Supabase…',
     loginHeading: 'Salve seus catálogos e gere sua API',
     loginSubtitle:
       'Conecte sua conta Google em um clique para sincronizar produtos, endpoints e uso em tempo real.',
-    myCatalogsTab: (count) => `Meus catálogos (${count})`,
-    newKeyCreatedHint:
-      'Nova API Key criada (copie agora, não será exibida completa novamente):',
-    noCatalogsDesc:
-      'Processe qualquer site ou envie imagens na tela inicial para salvá-las aqui.',
-    noCatalogsTitle: 'Você ainda não tem catálogos salvos',
-    onlyCatalogPrefix: (title) => `Somente: ${title}`,
     openGoogleNewTab: 'Abrir Google em nova aba',
-    pendingBatchText: (count) =>
-      `Você tem ${count} produto${count === 1 ? '' : 's'} pronto${count === 1 ? '' : 's'} para salvar na sua conta.`,
     popupBlockedError:
       'O navegador bloqueou a janela pop-up do Google. Use o link abaixo.',
-    productsCount: (count) =>
-      `${count} produto${count === 1 ? '' : 's'}`,
-    readEndpointDescMiddle: ' ou cabeçalho ',
-    readEndpointDescPrefix: 'Consulte seu catálogo JSON em qualquer chatbot enviando ',
-    readEndpointDescSuffix: ' para:',
-    readEndpointTitle: 'Endpoint de leitura Search Link Core',
-    refreshAccountAria: 'Atualizar dados da conta',
-    revokeKeyAria: (name) => `Revogar API Key ${name}`,
-    saveNow: 'Salvar agora',
-    sessionActive: 'Sessão ativa corretamente',
-    sessionMissingProfilesTable:
-      'Sessão ativa (tabela profiles pendente no Supabase)',
-    sessionSynced: 'Conta sincronizada com Supabase',
-    signOutAria: 'Sair',
-    signOutShort: 'Sair',
-    step2PendingDesc:
-      'Execute a migração de catálogos no Supabase para salvar lotes aqui.',
-    step2PendingTitle: 'Tabelas de catálogos pendentes',
-    step3PendingDesc:
-      'Execute a migração de API Keys no Supabase para gerenciar chaves aqui.',
-    step3PendingTitle: 'Tabela de API Keys pendente',
     supabaseMissingError:
       'A configuração do Supabase não está disponível neste ambiente.',
     termsError: 'Aceite os termos para continuar com o Google.',
-    urlCopied: 'URL copiada',
   },
   chat: {
     clearConversation: 'Reiniciar conversa',
@@ -1900,23 +1694,6 @@ export function formatCreationDate(
     }).format(date);
   } catch {
     return unavailableLabel;
-  }
-}
-
-export function formatShortDateTime(
-  iso: string | undefined | null,
-  locale: SupportedLocale,
-): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  try {
-    return new Intl.DateTimeFormat(getDateLocaleTag(locale), {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(date);
-  } catch {
-    return '';
   }
 }
 
