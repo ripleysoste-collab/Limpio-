@@ -4,10 +4,17 @@ import {
   CLIENT_STATUS_STYLE,
   filterAgencyClients,
   getVisibleAgencyClients,
-  parseExpirationInput,
   type AgencyClientRecord,
 } from '../lib/agencyClients';
-import { matchCommercialCountry } from '../lib/agencyCountries';
+import {
+  formatCountryWithUtcPrompt,
+  formatExpirationInput,
+  validateCountryField,
+  validateExpirationMasked,
+  validateGmailEmail,
+  validatePersonalPhone,
+  type ValidationTone,
+} from '../lib/agencyValidation';
 import type { SupportedLocale } from '../lib/i18n';
 
 interface AgencyDesktopClientsProps {
@@ -31,7 +38,7 @@ interface DesktopClientsCopy {
   emailLabel: string;
   emailPlaceholder: string;
   phoneLabel: string;
-  phonePlaceholder: string;
+  phoneDefaultPlaceholder: string;
   countryLabel: string;
   countryPlaceholder: string;
   expirationLabel: string;
@@ -58,13 +65,13 @@ const DESKTOP_CLIENTS_COPY: Record<SupportedLocale, DesktopClientsCopy> = {
     nameLabel: 'Escribe el apellido y nombre de tu cliente',
     namePlaceholder: 'Ej: Pérez Francisco',
     emailLabel: 'Pon el correo de tu cliente',
-    emailPlaceholder: 'correo@ejemplo.com',
+    emailPlaceholder: 'nombrecliente@gmail.com',
     phoneLabel: 'Pon su número de teléfono personal',
-    phonePlaceholder: '+57 300 000 0000',
+    phoneDefaultPlaceholder: '+57 300 123 4567',
     countryLabel: 'Escribe el país',
     countryPlaceholder: 'Ej: Colombia',
     expirationLabel: 'Pon la fecha de vencimiento',
-    expirationPlaceholder: 'Ej: 18/12/2026 23:59',
+    expirationPlaceholder: 'Ej: 18/12/2026 23:52',
     noExpirationAction: 'No agregar fecha de vencimiento',
     noExpirationMarkedAria: 'Sin fecha de vencimiento',
     noteLabel: 'Pon una nota',
@@ -85,13 +92,13 @@ const DESKTOP_CLIENTS_COPY: Record<SupportedLocale, DesktopClientsCopy> = {
     nameLabel: "Enter your client's last and first name",
     namePlaceholder: 'e.g. Smith John',
     emailLabel: "Enter your client's email",
-    emailPlaceholder: 'email@example.com',
+    emailPlaceholder: 'clientname@gmail.com',
     phoneLabel: 'Enter their personal phone number',
-    phonePlaceholder: '+1 555 000 0000',
+    phoneDefaultPlaceholder: '+1 305 555 0199',
     countryLabel: 'Write the country',
     countryPlaceholder: 'e.g. Colombia',
     expirationLabel: 'Set the expiration date',
-    expirationPlaceholder: 'e.g. 18/12/2026 23:59',
+    expirationPlaceholder: 'e.g. 18/12/2026 23:52',
     noExpirationAction: 'Do not add expiration date',
     noExpirationMarkedAria: 'No expiration date',
     noteLabel: 'Add a note',
@@ -112,13 +119,13 @@ const DESKTOP_CLIENTS_COPY: Record<SupportedLocale, DesktopClientsCopy> = {
     nameLabel: 'Escreva o sobrenome e nome do seu cliente',
     namePlaceholder: 'Ex: Silva João',
     emailLabel: 'Coloque o e-mail do seu cliente',
-    emailPlaceholder: 'email@exemplo.com',
+    emailPlaceholder: 'nomecliente@gmail.com',
     phoneLabel: 'Coloque o telefone pessoal dele',
-    phonePlaceholder: '+55 11 90000 0000',
+    phoneDefaultPlaceholder: '+55 11 98765 4321',
     countryLabel: 'Escreva o país',
     countryPlaceholder: 'Ex: Brasil',
     expirationLabel: 'Coloque a data de vencimento',
-    expirationPlaceholder: 'Ex: 18/12/2026 23:59',
+    expirationPlaceholder: 'Ex: 18/12/2026 23:52',
     noExpirationAction: 'Não adicionar data de vencimento',
     noExpirationMarkedAria: 'Sem data de vencimento',
     noteLabel: 'Adicione uma nota',
@@ -128,8 +135,24 @@ const DESKTOP_CLIENTS_COPY: Record<SupportedLocale, DesktopClientsCopy> = {
   },
 };
 
-const FIELD_SURFACE_CLASS =
-  'bg-white border border-slate-200/90 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08),0_1px_2px_rgba(15,23,42,0.04)] focus-within:border-slate-400 focus-within:shadow-[0_6px_20px_-6px_rgba(15,23,42,0.13)] transition-all duration-150';
+const BASE_SURFACE_CLASS =
+  'bg-white shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08),0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-150';
+
+function getToneBorderClass(tone: ValidationTone): string {
+  if (tone === 'blue') {
+    return 'border-blue-300/90 focus-within:border-blue-500 focus-within:shadow-[0_6px_20px_-6px_rgba(37,99,235,0.16)]';
+  }
+  if (tone === 'red') {
+    return 'border-rose-300/90 focus-within:border-rose-500 focus-within:shadow-[0_6px_20px_-6px_rgba(225,29,72,0.16)]';
+  }
+  return 'border-slate-200/90 focus-within:border-slate-400 focus-within:shadow-[0_6px_20px_-6px_rgba(15,23,42,0.13)]';
+}
+
+function getToneTextClass(tone: ValidationTone): string {
+  if (tone === 'blue') return 'text-blue-600 font-medium';
+  if (tone === 'red') return 'text-rose-600 font-medium';
+  return 'text-slate-900';
+}
 
 export function AgencyDesktopClients({
   locale,
@@ -140,9 +163,13 @@ export function AgencyDesktopClients({
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [emailBlurred, setEmailBlurred] = useState(false);
   const [phone, setPhone] = useState('');
+  const [phoneBlurred, setPhoneBlurred] = useState(false);
   const [countryText, setCountryText] = useState('');
+  const [countryBlurred, setCountryBlurred] = useState(false);
   const [expirationText, setExpirationText] = useState('');
+  const [expirationBlurred, setExpirationBlurred] = useState(false);
   const [noExpiration, setNoExpiration] = useState(false);
   const [note, setNote] = useState('');
 
@@ -151,41 +178,62 @@ export function AgencyDesktopClients({
   const visibleClients = getVisibleAgencyClients(clients);
   const filteredClients = filterAgencyClients(visibleClients, searchQuery);
 
-  const matchedCountry = useMemo(
-    () => matchCommercialCountry(countryText),
-    [countryText],
+  const countryValidation = useMemo(
+    () => validateCountryField(countryText, countryBlurred),
+    [countryText, countryBlurred],
+  );
+  const matchedCountry = countryValidation.matched;
+
+  const emailValidation = useMemo(
+    () => validateGmailEmail(email, emailBlurred),
+    [email, emailBlurred],
   );
 
-  const parsedExpiration = useMemo(
-    () => (noExpiration ? null : parseExpirationInput(expirationText)),
-    [expirationText, noExpiration],
+  const phoneValidation = useMemo(
+    () => validatePersonalPhone(phone, matchedCountry, phoneBlurred),
+    [phone, matchedCountry, phoneBlurred],
+  );
+
+  const expirationValidation = useMemo(
+    () =>
+      validateExpirationMasked(expirationText, noExpiration, expirationBlurred),
+    [expirationText, noExpiration, expirationBlurred],
   );
 
   const noteLen = note.trim().length;
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const isPhoneValid = phone.replace(/\D/g, '').length >= 6;
-  const isExpirationValid = noExpiration || parsedExpiration !== null;
   const isFormReady =
     fullName.trim().length >= 2 &&
-    isEmailValid &&
-    isPhoneValid &&
+    emailValidation.isValid &&
+    phoneValidation.isValid &&
+    countryValidation.isValid &&
     matchedCountry !== null &&
-    isExpirationValid &&
+    countryValidation.resolvedTimezone !== null &&
+    expirationValidation.isValid &&
     noteLen >= 30;
 
   const resetForm = () => {
     setFullName('');
     setEmail('');
+    setEmailBlurred(false);
     setPhone('');
+    setPhoneBlurred(false);
     setCountryText('');
+    setCountryBlurred(false);
     setExpirationText('');
+    setExpirationBlurred(false);
     setNoExpiration(false);
     setNote('');
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isFormReady || !matchedCountry) return;
+    if (
+      !isFormReady ||
+      !matchedCountry ||
+      !countryValidation.resolvedTimezone
+    ) {
+      return;
+    }
 
     const nowIso = new Date().toISOString();
     const record: AgencyClientRecord = {
@@ -195,16 +243,20 @@ export function AgencyDesktopClients({
       phone: phone.trim(),
       countryCode: matchedCountry.code,
       countryName: matchedCountry.name,
-      timezone: matchedCountry.timezone,
+      timezone: countryValidation.resolvedTimezone,
       status: 'active',
       startDate: nowIso,
-      endDate: noExpiration ? null : parsedExpiration,
+      endDate: noExpiration ? null : expirationValidation.iso,
       notes: note.trim(),
     };
 
     onRegisterClient?.(record);
     resetForm();
   };
+
+  const phonePlaceholder = matchedCountry
+    ? `+${matchedCountry.dialCode} ${matchedCountry.exampleNational}`
+    : copy.phoneDefaultPlaceholder;
 
   return (
     <div className="w-full h-full bg-white text-slate-950 grid grid-cols-2 overflow-hidden">
@@ -220,7 +272,7 @@ export function AgencyDesktopClients({
 
           <div className="mt-4">
             <div
-              className={`group flex items-center gap-2.5 h-11 px-4 rounded-full ${FIELD_SURFACE_CLASS}`}
+              className={`group flex items-center gap-2.5 h-11 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass('neutral')}`}
             >
               <Search
                 className="w-4 h-4 text-slate-400 group-focus-within:text-slate-700 transition-colors shrink-0"
@@ -289,7 +341,7 @@ export function AgencyDesktopClients({
         </div>
       </section>
 
-      {/* Right half: Registros form with country text recognition */}
+      {/* Right half: Registros form with smart validations */}
       <section
         aria-label={copy.registrationAria}
         className="h-full min-w-0 px-8 pt-7 pb-10 pr-16 flex flex-col overflow-y-auto bg-white"
@@ -312,91 +364,131 @@ export function AgencyDesktopClients({
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder={copy.namePlaceholder}
-              className={`w-full h-10 px-4 rounded-full text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none ${FIELD_SURFACE_CLASS}`}
+              className={`w-full h-10 px-4 rounded-full border text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none ${BASE_SURFACE_CLASS} ${getToneBorderClass('neutral')}`}
             />
           </label>
 
-          {/* 2. Correo */}
+          {/* 2. Correo (@gmail.com con más de 6 caracteres antes de @) */}
           <label className="block">
             <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
               {copy.emailLabel}
             </span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={copy.emailPlaceholder}
-              className={`w-full h-10 px-4 rounded-full text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none ${FIELD_SURFACE_CLASS}`}
-            />
+            <div
+              className={`flex items-center h-10 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass(emailValidation.tone)}`}
+            >
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (emailBlurred) setEmailBlurred(false);
+                }}
+                onBlur={() => setEmailBlurred(true)}
+                placeholder={copy.emailPlaceholder}
+                autoComplete="off"
+                spellCheck={false}
+                className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${getToneTextClass(emailValidation.tone)}`}
+              />
+            </div>
           </label>
 
-          {/* 3. Teléfono personal */}
+          {/* 3. Teléfono personal (+prefijo nacional lógico del país) */}
           <label className="block">
             <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
               {copy.phoneLabel}
             </span>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder={copy.phonePlaceholder}
-              className={`w-full h-10 px-4 rounded-full text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none ${FIELD_SURFACE_CLASS}`}
-            />
+            <div
+              className={`flex items-center h-10 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass(phoneValidation.tone)}`}
+            >
+              <input
+                type="tel"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  if (phoneBlurred) setPhoneBlurred(false);
+                }}
+                onBlur={() => setPhoneBlurred(true)}
+                placeholder={phonePlaceholder}
+                className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${getToneTextClass(phoneValidation.tone)}`}
+              />
+            </div>
           </label>
 
-          {/* 4. Escribe el país: turns blue immediately when recognized from top 50 countries */}
+          {/* 4. Escribe el país + UTC automático si tiene múltiples husos horarios */}
           <label className="block">
             <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
               {copy.countryLabel}
             </span>
             <div
-              className={`flex items-center gap-2 h-10 px-4 rounded-full ${FIELD_SURFACE_CLASS} ${
-                matchedCountry ? 'border-blue-300/90' : ''
-              }`}
+              className={`flex items-center gap-2 h-10 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass(countryValidation.tone)}`}
             >
               <input
                 type="text"
                 value={countryText}
-                onChange={(e) => setCountryText(e.target.value)}
+                onChange={(e) => {
+                  const nextVal = e.target.value;
+                  if (countryBlurred) setCountryBlurred(false);
+                  setCountryText((prev) =>
+                    formatCountryWithUtcPrompt(nextVal, prev),
+                  );
+                }}
+                onBlur={() => setCountryBlurred(true)}
                 placeholder={copy.countryPlaceholder}
-                className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${
-                  matchedCountry
-                    ? 'text-blue-600 font-medium'
-                    : 'text-slate-900'
-                }`}
+                className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${getToneTextClass(countryValidation.tone)}`}
               />
               {matchedCountry && (
-                <span
-                  aria-label={matchedCountry.name}
-                  title={matchedCountry.name}
-                  className="text-[15px] leading-none shrink-0"
-                >
-                  {matchedCountry.flag}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {countryValidation.requiresUtc &&
+                    !countryValidation.isValid &&
+                    countryValidation.utcHint && (
+                      <span className="text-[11px] text-slate-400 tabular-nums">
+                        {countryValidation.utcHint}
+                      </span>
+                    )}
+                  <span
+                    aria-label={matchedCountry.name}
+                    title={matchedCountry.name}
+                    className="text-[15px] leading-none"
+                  >
+                    {matchedCountry.flag}
+                  </span>
+                </div>
               )}
             </div>
           </label>
 
-          {/* 5. Fecha de vencimiento + No agregar fecha de vencimiento */}
+          {/* 5. Fecha de vencimiento autoformateada DD/MM/AAAA HH:mm */}
           <div>
             <label className="block">
               <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
                 {copy.expirationLabel}
               </span>
               <div
-                className={`flex items-center gap-2 h-10 px-4 rounded-full ${FIELD_SURFACE_CLASS}`}
+                className={`flex items-center gap-2 h-10 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass(expirationValidation.tone)}`}
               >
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={noExpiration ? '' : expirationText}
                   onChange={(e) => {
                     setNoExpiration(false);
-                    setExpirationText(e.target.value);
+                    setExpirationBlurred(false);
+                    setExpirationText((prev) =>
+                      formatExpirationInput(e.target.value, prev),
+                    );
+                  }}
+                  onBlur={() => {
+                    if (!noExpiration && expirationText.length > 0) {
+                      setExpirationBlurred(true);
+                    }
                   }}
                   readOnly={noExpiration}
                   placeholder={copy.expirationPlaceholder}
-                  className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${
-                    noExpiration ? 'text-slate-400 cursor-default' : 'text-slate-900'
+                  className={`flex-1 min-w-0 bg-transparent text-[13.5px] tabular-nums placeholder:text-slate-400 focus:outline-none ${
+                    noExpiration
+                      ? 'text-slate-400 cursor-default'
+                      : getToneTextClass(expirationValidation.tone)
                   }`}
                 />
                 {noExpiration && (
@@ -417,7 +509,10 @@ export function AgencyDesktopClients({
               onClick={() => {
                 setNoExpiration((prev) => {
                   const next = !prev;
-                  if (next) setExpirationText('');
+                  if (next) {
+                    setExpirationText('');
+                    setExpirationBlurred(false);
+                  }
                   return next;
                 });
               }}
@@ -450,7 +545,7 @@ export function AgencyDesktopClients({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder={copy.notePlaceholder}
-              className={`w-full rounded-2xl px-4 py-2.5 text-[13.5px] text-slate-900 placeholder:text-slate-400 resize-none focus:outline-none ${FIELD_SURFACE_CLASS}`}
+              className={`w-full rounded-2xl border px-4 py-2.5 text-[13.5px] text-slate-900 placeholder:text-slate-400 resize-none focus:outline-none ${BASE_SURFACE_CLASS} ${getToneBorderClass('neutral')}`}
             />
           </label>
 

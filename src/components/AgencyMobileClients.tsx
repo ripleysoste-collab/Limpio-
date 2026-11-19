@@ -1,17 +1,20 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { MoreHorizontal, Plus, Search, X } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   CLIENT_STATUS_STYLE,
   filterAgencyClients,
   getVisibleAgencyClients,
-  parseExpirationInput,
   type AgencyClientRecord,
 } from '../lib/agencyClients';
 import {
-  TOP_50_COMMERCIAL_COUNTRIES,
-  type CommercialCountry,
-} from '../lib/agencyCountries';
+  formatCountryWithUtcPrompt,
+  formatExpirationInput,
+  validateCountryField,
+  validateExpirationMasked,
+  validateGmailEmail,
+  validatePersonalPhone,
+  type ValidationTone,
+} from '../lib/agencyValidation';
 import type { SupportedLocale } from '../lib/i18n';
 
 interface AgencyMobileClientsProps {
@@ -36,10 +39,9 @@ interface MobileClientsCopy {
   emailLabel: string;
   emailPlaceholder: string;
   phoneLabel: string;
-  phonePlaceholder: string;
+  phoneDefaultPlaceholder: string;
   countryLabel: string;
-  selectCountryBtn: string;
-  countrySheetAria: string;
+  countryPlaceholder: string;
   expirationLabel: string;
   expirationPlaceholder: string;
   noExpirationAction: string;
@@ -65,14 +67,13 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     nameLabel: 'Escribe el apellido y nombre de tu cliente',
     namePlaceholder: 'Ej: Pérez Francisco',
     emailLabel: 'Pon el correo de tu cliente',
-    emailPlaceholder: 'correo@ejemplo.com',
+    emailPlaceholder: 'nombrecliente@gmail.com',
     phoneLabel: 'Pon su número de teléfono personal',
-    phonePlaceholder: '+57 300 000 0000',
-    countryLabel: 'Pon la zona horaria del país',
-    selectCountryBtn: 'Seleccionar',
-    countrySheetAria: 'Seleccionar país comercial',
+    phoneDefaultPlaceholder: '+57 300 123 4567',
+    countryLabel: 'Escribe el país',
+    countryPlaceholder: 'Ej: Colombia',
     expirationLabel: 'Pon la fecha de vencimiento',
-    expirationPlaceholder: 'Ej: 18/12/2026 23:59',
+    expirationPlaceholder: 'Ej: 18/12/2026 23:52',
     noExpirationAction: 'No agregar fecha de vencimiento',
     noExpirationMarkedAria: 'Sin fecha de vencimiento',
     noteLabel: 'Pon una nota',
@@ -94,14 +95,13 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     nameLabel: "Enter your client's last and first name",
     namePlaceholder: 'e.g. Smith John',
     emailLabel: "Enter your client's email",
-    emailPlaceholder: 'email@example.com',
+    emailPlaceholder: 'clientname@gmail.com',
     phoneLabel: 'Enter their personal phone number',
-    phonePlaceholder: '+1 555 000 0000',
-    countryLabel: "Set the country's time zone",
-    selectCountryBtn: 'Select',
-    countrySheetAria: 'Select commercial country',
+    phoneDefaultPlaceholder: '+1 305 555 0199',
+    countryLabel: 'Write the country',
+    countryPlaceholder: 'e.g. Colombia',
     expirationLabel: 'Set the expiration date',
-    expirationPlaceholder: 'e.g. 18/12/2026 23:59',
+    expirationPlaceholder: 'e.g. 18/12/2026 23:52',
     noExpirationAction: 'Do not add expiration date',
     noExpirationMarkedAria: 'No expiration date',
     noteLabel: 'Add a note',
@@ -123,14 +123,13 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
     nameLabel: 'Escreva o sobrenome e nome do seu cliente',
     namePlaceholder: 'Ex: Silva João',
     emailLabel: 'Coloque o e-mail do seu cliente',
-    emailPlaceholder: 'email@exemplo.com',
+    emailPlaceholder: 'nomecliente@gmail.com',
     phoneLabel: 'Coloque o telefone pessoal dele',
-    phonePlaceholder: '+55 11 90000 0000',
-    countryLabel: 'Defina o fuso horário do país',
-    selectCountryBtn: 'Selecionar',
-    countrySheetAria: 'Selecionar país comercial',
+    phoneDefaultPlaceholder: '+55 11 98765 4321',
+    countryLabel: 'Escreva o país',
+    countryPlaceholder: 'Ex: Brasil',
     expirationLabel: 'Coloque a data de vencimento',
-    expirationPlaceholder: 'Ex: 18/12/2026 23:59',
+    expirationPlaceholder: 'Ex: 18/12/2026 23:52',
     noExpirationAction: 'Não adicionar data de vencimento',
     noExpirationMarkedAria: 'Sem data de vencimento',
     noteLabel: 'Adicione uma nota',
@@ -140,25 +139,42 @@ const MOBILE_CLIENTS_COPY: Record<SupportedLocale, MobileClientsCopy> = {
   },
 };
 
-const FIELD_SURFACE_CLASS =
-  'bg-white border border-slate-200/90 shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08),0_1px_2px_rgba(15,23,42,0.04)] focus-within:border-slate-400 focus-within:shadow-[0_6px_20px_-6px_rgba(15,23,42,0.13)] transition-all duration-150';
+const BASE_SURFACE_CLASS =
+  'bg-white shadow-[0_2px_10px_-4px_rgba(15,23,42,0.08),0_1px_2px_rgba(15,23,42,0.04)] transition-all duration-150';
+
+function getToneBorderClass(tone: ValidationTone): string {
+  if (tone === 'blue') {
+    return 'border-blue-300/90 focus-within:border-blue-500 focus-within:shadow-[0_6px_20px_-6px_rgba(37,99,235,0.16)]';
+  }
+  if (tone === 'red') {
+    return 'border-rose-300/90 focus-within:border-rose-500 focus-within:shadow-[0_6px_20px_-6px_rgba(225,29,72,0.16)]';
+  }
+  return 'border-slate-200/90 focus-within:border-slate-400 focus-within:shadow-[0_6px_20px_-6px_rgba(15,23,42,0.13)]';
+}
+
+function getToneTextClass(tone: ValidationTone): string {
+  if (tone === 'blue') return 'text-blue-600 font-medium';
+  if (tone === 'red') return 'text-rose-600 font-medium';
+  return 'text-slate-900';
+}
 
 export function AgencyMobileClients({
   locale,
   clients = [],
   onRegisterClient,
 }: AgencyMobileClientsProps) {
-  const shouldReduceMotion = useReducedMotion();
   const [searchQuery, setSearchQuery] = useState('');
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [emailBlurred, setEmailBlurred] = useState(false);
   const [phone, setPhone] = useState('');
-  const [selectedCountry, setSelectedCountry] =
-    useState<CommercialCountry | null>(null);
-  const [isCountrySheetOpen, setIsCountrySheetOpen] = useState(false);
+  const [phoneBlurred, setPhoneBlurred] = useState(false);
+  const [countryText, setCountryText] = useState('');
+  const [countryBlurred, setCountryBlurred] = useState(false);
   const [expirationText, setExpirationText] = useState('');
+  const [expirationBlurred, setExpirationBlurred] = useState(false);
   const [noExpiration, setNoExpiration] = useState(false);
   const [note, setNote] = useState('');
 
@@ -167,37 +183,62 @@ export function AgencyMobileClients({
   const visibleClients = getVisibleAgencyClients(clients);
   const filteredClients = filterAgencyClients(visibleClients, searchQuery);
 
-  const parsedExpiration = useMemo(
-    () => (noExpiration ? null : parseExpirationInput(expirationText)),
-    [expirationText, noExpiration],
+  const countryValidation = useMemo(
+    () => validateCountryField(countryText, countryBlurred),
+    [countryText, countryBlurred],
+  );
+  const matchedCountry = countryValidation.matched;
+
+  const emailValidation = useMemo(
+    () => validateGmailEmail(email, emailBlurred),
+    [email, emailBlurred],
+  );
+
+  const phoneValidation = useMemo(
+    () => validatePersonalPhone(phone, matchedCountry, phoneBlurred),
+    [phone, matchedCountry, phoneBlurred],
+  );
+
+  const expirationValidation = useMemo(
+    () =>
+      validateExpirationMasked(expirationText, noExpiration, expirationBlurred),
+    [expirationText, noExpiration, expirationBlurred],
   );
 
   const noteLen = note.trim().length;
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-  const isPhoneValid = phone.replace(/\D/g, '').length >= 6;
-  const isExpirationValid = noExpiration || parsedExpiration !== null;
   const isFormReady =
     fullName.trim().length >= 2 &&
-    isEmailValid &&
-    isPhoneValid &&
-    selectedCountry !== null &&
-    isExpirationValid &&
+    emailValidation.isValid &&
+    phoneValidation.isValid &&
+    countryValidation.isValid &&
+    matchedCountry !== null &&
+    countryValidation.resolvedTimezone !== null &&
+    expirationValidation.isValid &&
     noteLen >= 30;
 
   const resetForm = () => {
     setFullName('');
     setEmail('');
+    setEmailBlurred(false);
     setPhone('');
-    setSelectedCountry(null);
-    setIsCountrySheetOpen(false);
+    setPhoneBlurred(false);
+    setCountryText('');
+    setCountryBlurred(false);
     setExpirationText('');
+    setExpirationBlurred(false);
     setNoExpiration(false);
     setNote('');
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isFormReady || !selectedCountry) return;
+    if (
+      !isFormReady ||
+      !matchedCountry ||
+      !countryValidation.resolvedTimezone
+    ) {
+      return;
+    }
 
     const nowIso = new Date().toISOString();
     const record: AgencyClientRecord = {
@@ -205,12 +246,12 @@ export function AgencyMobileClients({
       fullName: fullName.trim(),
       email: email.trim(),
       phone: phone.trim(),
-      countryCode: selectedCountry.code,
-      countryName: selectedCountry.name,
-      timezone: selectedCountry.timezone,
+      countryCode: matchedCountry.code,
+      countryName: matchedCountry.name,
+      timezone: countryValidation.resolvedTimezone,
       status: 'active',
       startDate: nowIso,
-      endDate: noExpiration ? null : parsedExpiration,
+      endDate: noExpiration ? null : expirationValidation.iso,
       notes: note.trim(),
     };
 
@@ -218,6 +259,10 @@ export function AgencyMobileClients({
     resetForm();
     setIsRegisterOpen(false);
   };
+
+  const phonePlaceholder = matchedCountry
+    ? `+${matchedCountry.dialCode} ${matchedCountry.exampleNational}`
+    : copy.phoneDefaultPlaceholder;
 
   return (
     <div className="relative min-h-full bg-white text-slate-950 px-4 pt-4 pb-24 flex flex-col">
@@ -228,7 +273,7 @@ export function AgencyMobileClients({
       {/* Clean pure-white rounded search bar directly below Clientes title */}
       <div className="mt-3.5">
         <div
-          className={`group flex items-center gap-2.5 h-11 px-4 rounded-full ${FIELD_SURFACE_CLASS}`}
+          className={`group flex items-center gap-2.5 h-11 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass('neutral')}`}
         >
           <Search
             className="w-4 h-4 text-slate-400 group-focus-within:text-slate-700 transition-colors shrink-0"
@@ -343,81 +388,131 @@ export function AgencyMobileClients({
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder={copy.namePlaceholder}
-                className={`w-full h-10 px-4 rounded-full text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none ${FIELD_SURFACE_CLASS}`}
+                className={`w-full h-10 px-4 rounded-full border text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none ${BASE_SURFACE_CLASS} ${getToneBorderClass('neutral')}`}
               />
             </label>
 
-            {/* 2. Correo */}
+            {/* 2. Correo (@gmail.com con más de 6 caracteres antes de @) */}
             <label className="block">
               <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
                 {copy.emailLabel}
               </span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder={copy.emailPlaceholder}
-                className={`w-full h-10 px-4 rounded-full text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none ${FIELD_SURFACE_CLASS}`}
-              />
+              <div
+                className={`flex items-center h-10 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass(emailValidation.tone)}`}
+              >
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailBlurred) setEmailBlurred(false);
+                  }}
+                  onBlur={() => setEmailBlurred(true)}
+                  placeholder={copy.emailPlaceholder}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${getToneTextClass(emailValidation.tone)}`}
+                />
+              </div>
             </label>
 
-            {/* 3. Teléfono personal */}
+            {/* 3. Teléfono personal (+prefijo nacional lógico del país) */}
             <label className="block">
               <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
                 {copy.phoneLabel}
               </span>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder={copy.phonePlaceholder}
-                className={`w-full h-10 px-4 rounded-full text-[13.5px] text-slate-900 placeholder:text-slate-400 focus:outline-none ${FIELD_SURFACE_CLASS}`}
-              />
+              <div
+                className={`flex items-center h-10 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass(phoneValidation.tone)}`}
+              >
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    if (phoneBlurred) setPhoneBlurred(false);
+                  }}
+                  onBlur={() => setPhoneBlurred(true)}
+                  placeholder={phonePlaceholder}
+                  className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${getToneTextClass(phoneValidation.tone)}`}
+                />
+              </div>
             </label>
 
-            {/* 4. Zona horaria del país (botón compacto Seleccionar) */}
-            <div>
+            {/* 4. Escribe el país + UTC automático si tiene múltiples husos horarios */}
+            <label className="block">
               <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
                 {copy.countryLabel}
               </span>
-              <button
-                type="button"
-                onClick={() => setIsCountrySheetOpen(true)}
-                className={`inline-flex items-center gap-2 h-10 px-4 rounded-full text-[13.5px] cursor-pointer active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${FIELD_SURFACE_CLASS} ${
-                  selectedCountry ? 'text-slate-950 font-medium' : 'text-slate-600'
-                }`}
+              <div
+                className={`flex items-center gap-2 h-10 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass(countryValidation.tone)}`}
               >
-                {selectedCountry ? (
-                  <>
-                    <span aria-hidden="true">{selectedCountry.flag}</span>
-                    <span>{selectedCountry.name}</span>
-                  </>
-                ) : (
-                  <span>{copy.selectCountryBtn}</span>
+                <input
+                  type="text"
+                  value={countryText}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    if (countryBlurred) setCountryBlurred(false);
+                    setCountryText((prev) =>
+                      formatCountryWithUtcPrompt(nextVal, prev),
+                    );
+                  }}
+                  onBlur={() => setCountryBlurred(true)}
+                  placeholder={copy.countryPlaceholder}
+                  className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${getToneTextClass(countryValidation.tone)}`}
+                />
+                {matchedCountry && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {countryValidation.requiresUtc &&
+                      !countryValidation.isValid &&
+                      countryValidation.utcHint && (
+                        <span className="text-[11px] text-slate-400 tabular-nums">
+                          {countryValidation.utcHint}
+                        </span>
+                      )}
+                    <span
+                      aria-label={matchedCountry.name}
+                      title={matchedCountry.name}
+                      className="text-[15px] leading-none"
+                    >
+                      {matchedCountry.flag}
+                    </span>
+                  </div>
                 )}
-              </button>
-            </div>
+              </div>
+            </label>
 
-            {/* 5. Fecha de vencimiento + No agregar fecha de vencimiento (marca X al final) */}
+            {/* 5. Fecha de vencimiento autoformateada DD/MM/AAAA HH:mm */}
             <div>
               <label className="block">
                 <span className="block text-[12.5px] font-medium text-slate-700 mb-1.5 pl-1">
                   {copy.expirationLabel}
                 </span>
                 <div
-                  className={`flex items-center gap-2 h-10 px-4 rounded-full ${FIELD_SURFACE_CLASS}`}
+                  className={`flex items-center gap-2 h-10 px-4 rounded-full border ${BASE_SURFACE_CLASS} ${getToneBorderClass(expirationValidation.tone)}`}
                 >
                   <input
                     type="text"
+                    inputMode="numeric"
                     value={noExpiration ? '' : expirationText}
                     onChange={(e) => {
                       setNoExpiration(false);
-                      setExpirationText(e.target.value);
+                      setExpirationBlurred(false);
+                      setExpirationText((prev) =>
+                        formatExpirationInput(e.target.value, prev),
+                      );
+                    }}
+                    onBlur={() => {
+                      if (!noExpiration && expirationText.length > 0) {
+                        setExpirationBlurred(true);
+                      }
                     }}
                     readOnly={noExpiration}
                     placeholder={copy.expirationPlaceholder}
-                    className={`flex-1 min-w-0 bg-transparent text-[13.5px] placeholder:text-slate-400 focus:outline-none ${
-                      noExpiration ? 'text-slate-400 cursor-default' : 'text-slate-900'
+                    className={`flex-1 min-w-0 bg-transparent text-[13.5px] tabular-nums placeholder:text-slate-400 focus:outline-none ${
+                      noExpiration
+                        ? 'text-slate-400 cursor-default'
+                        : getToneTextClass(expirationValidation.tone)
                     }`}
                   />
                   {noExpiration && (
@@ -438,7 +533,10 @@ export function AgencyMobileClients({
                 onClick={() => {
                   setNoExpiration((prev) => {
                     const next = !prev;
-                    if (next) setExpirationText('');
+                    if (next) {
+                      setExpirationText('');
+                      setExpirationBlurred(false);
+                    }
                     return next;
                   });
                 }}
@@ -471,7 +569,7 @@ export function AgencyMobileClients({
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder={copy.notePlaceholder}
-                className={`w-full rounded-2xl px-4 py-2.5 text-[13.5px] text-slate-900 placeholder:text-slate-400 resize-none focus:outline-none ${FIELD_SURFACE_CLASS}`}
+                className={`w-full rounded-2xl border px-4 py-2.5 text-[13.5px] text-slate-900 placeholder:text-slate-400 resize-none focus:outline-none ${BASE_SURFACE_CLASS} ${getToneBorderClass('neutral')}`}
               />
             </label>
 
@@ -487,63 +585,6 @@ export function AgencyMobileClients({
               </div>
             )}
           </form>
-
-          {/* ~35% bottom sheet showing top 50 commercial countries side by side with flags */}
-          <AnimatePresence>
-            {isCountrySheetOpen && (
-              <div
-                className="fixed inset-0 z-40 flex flex-col justify-end"
-                role="dialog"
-                aria-modal="true"
-                aria-label={copy.countrySheetAria}
-              >
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: shouldReduceMotion ? 0 : 0.18 }}
-                  onClick={() => setIsCountrySheetOpen(false)}
-                  className="absolute inset-0 bg-slate-950/25"
-                />
-
-                <motion.div
-                  initial={shouldReduceMotion ? { opacity: 1 } : { y: '100%' }}
-                  animate={{ y: 0 }}
-                  exit={shouldReduceMotion ? { opacity: 0 } : { y: '100%' }}
-                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                  className="relative z-10 h-[35dvh] min-h-[240px] max-h-[42dvh] bg-white rounded-t-3xl shadow-[0_-12px_36px_rgba(15,23,42,0.16)] px-4 pt-3 pb-5 flex flex-col"
-                >
-                  <div
-                    aria-hidden="true"
-                    className="w-10 h-1 rounded-full bg-slate-200 mx-auto mb-3 shrink-0"
-                  />
-                  <div className="flex-1 min-h-0 overflow-y-auto flex flex-wrap content-start gap-2 pb-2">
-                    {TOP_50_COMMERCIAL_COUNTRIES.map((country) => {
-                      const isPicked = selectedCountry?.code === country.code;
-                      return (
-                        <button
-                          key={country.code}
-                          type="button"
-                          onClick={() => {
-                            setSelectedCountry(country);
-                            setIsCountrySheetOpen(false);
-                          }}
-                          className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-[12.5px] cursor-pointer transition-colors ${
-                            isPicked
-                              ? 'bg-slate-950 text-white border-slate-950 font-medium'
-                              : 'bg-white text-slate-800 border-slate-200/90 active:bg-slate-100'
-                          }`}
-                        >
-                          <span aria-hidden="true">{country.flag}</span>
-                          <span>{country.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
         </div>
       )}
     </div>
