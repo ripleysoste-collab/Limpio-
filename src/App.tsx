@@ -47,6 +47,7 @@ import {
   createCoreServiceInSupabase,
   fetchUserCoreServicesSafe,
   fetchUserOrganizationSafe,
+  getSupabaseAccessToken,
   renameCoreServiceInSupabase,
   rotateCoreServiceApiKeyInSupabase,
   supabase,
@@ -54,7 +55,8 @@ import {
   upsertUserOrganization,
 } from './lib/supabaseClient';
 
-const MAX_FREE_UPLOAD_IMAGES = 10;
+const MAX_FREE_UPLOAD_IMAGES = 20;
+const MAX_GUEST_EXTRACT_IMAGES = 10;
 const MAX_ADMIN_EXTRACT_IMAGES = 50;
 const ADMIN_EXTRACT_ONLY_EMAIL = 'cristiancuerodiaz@gmail.com';
 const COMPRESSION_START_DELAY_MS = 2000;
@@ -117,6 +119,11 @@ export default function App() {
   const [compressionResults, setCompressionResults] = useState<
     Record<string, CompressedImageMeta>
   >({});
+  const [pendingDomainBatch, setPendingDomainBatch] = useState<{
+    items: CatalogImageItem[];
+    originUrl: string;
+    overflowNotice: string | null;
+  } | null>(null);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [orgProfile, setOrgProfile] = useState<OrganizationProfile>({
     name: 'Sin nombre',
@@ -130,6 +137,7 @@ export default function App() {
   );
   const [activeServiceCredentials, setActiveServiceCredentials] =
     useState<ServiceCredentialsDisplay | null>(null);
+  const [guestIpBlocked, setGuestIpBlocked] = useState(false);
   const authUserRef = useRef<User | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -139,6 +147,18 @@ export default function App() {
   const objectUrlsRef = useRef<string[]>([]);
   const shouldReduceMotion = useReducedMotion();
   const { t } = useI18n();
+
+  const usedFreeImages = orgServices.reduce(
+    (sum, srv) => sum + (srv.itemCount || srv.products?.length || 0),
+    0,
+  );
+  const getRemainingFreeImages = (user: User | null): number => {
+    if (!user) return MAX_GUEST_EXTRACT_IMAGES;
+    if (user.email?.trim().toLowerCase() === ADMIN_EXTRACT_ONLY_EMAIL) {
+      return MAX_ADMIN_EXTRACT_IMAGES;
+    }
+    return Math.max(0, MAX_FREE_UPLOAD_IMAGES - usedFreeImages);
+  };
 
   const cancelOngoingCompression = () => {
     if (compressionTimerRef.current !== null) {
@@ -151,6 +171,44 @@ export default function App() {
 
   useEffect(() => {
     authUserRef.current = authUser;
+  }, [authUser]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      if (authUser) {
+        setGuestIpBlocked(false);
+        setExtractError(null);
+        const token = await getSupabaseAccessToken();
+        if (token && active) {
+          await fetch('/api/extract', {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/extract', {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ipBlocked?: boolean;
+        };
+        if (active && data.ipBlocked) {
+          setGuestIpBlocked(true);
+        }
+      } catch {
+        // Ignore initial status check errors
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
   }, [authUser]);
 
   useEffect(() => {
@@ -404,6 +462,7 @@ export default function App() {
     setIsMobileLanguageModalOpen(false);
     setIsMobilePanelOpen(false);
     setIsExtracting(false);
+    setPendingDomainBatch(null);
     setExtractError(null);
     setBatchNotice(null);
     setUrl('');
@@ -492,6 +551,7 @@ export default function App() {
     setIsMobileLanguageModalOpen(false);
     setIsMobilePanelOpen(false);
     setIsExtracting(false);
+    setPendingDomainBatch(null);
     setExtractError(null);
     setBatchNotice(null);
     setIsReadOnlyReplay(true);
@@ -677,7 +737,23 @@ export default function App() {
     const trimmed = url.trim();
     if (!trimmed || isExtracting) return;
 
+    const currentUser = authUserRef.current;
+    if (!currentUser && guestIpBlocked) {
+      setExtractError(t.app.guestIpBlockedError);
+      return;
+    }
+
+    const isAdminExtractAccount =
+      currentUser?.email?.trim().toLowerCase() === ADMIN_EXTRACT_ONLY_EMAIL;
+    const remainingQuota = getRemainingFreeImages(currentUser);
+
+    if (currentUser && !isAdminExtractAccount && remainingQuota <= 0) {
+      setExtractError(t.app.freeImageQuotaExceededError);
+      return;
+    }
+
     const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    setPendingDomainBatch(null);
     cancelOngoingCompression();
     setBatchNotice(null);
     setIsFileUploadFlow(false);
@@ -702,27 +778,38 @@ export default function App() {
     const controller = new AbortController();
     extractAbortRef.current = controller;
 
-    const isAdminExtractAccount =
-      authUserRef.current?.email?.trim().toLowerCase() === ADMIN_EXTRACT_ONLY_EMAIL;
-    const activeLimit = isAdminExtractAccount
-      ? MAX_ADMIN_EXTRACT_IMAGES
-      : MAX_FREE_UPLOAD_IMAGES;
+    const activeLimit = !currentUser
+      ? MAX_GUEST_EXTRACT_IMAGES
+      : isAdminExtractAccount
+        ? MAX_ADMIN_EXTRACT_IMAGES
+        : Math.min(MAX_FREE_UPLOAD_IMAGES, remainingQuota);
 
     try {
+      const accessToken = currentUser ? await getSupabaseAccessToken() : null;
       const response = await fetch('/api/extract', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           url: normalized,
-          ...(isAdminExtractAccount ? { maxResults: MAX_ADMIN_EXTRACT_IMAGES } : {}),
+          maxResults: activeLimit,
         }),
         signal: controller.signal,
       });
 
       const data = (await response.json().catch(() => ({}))) as {
         images?: CatalogImageItem[];
+        ipBlocked?: boolean;
         error?: string;
       };
+
+      if (response.status === 429 && (data.ipBlocked || !currentUser)) {
+        setGuestIpBlocked(true);
+        setExtractError(t.app.guestIpBlockedError);
+        return;
+      }
 
       if (!response.ok || !Array.isArray(data.images) || data.images.length === 0) {
         setExtractError(data.error || t.app.extractEmptyError);
@@ -731,6 +818,21 @@ export default function App() {
 
       const extractedImages = data.images.slice(0, activeLimit);
       inputRef.current?.blur();
+
+      // Guest (not signed in): extract max 10 images only, stop immediately without compression/upload/AI mapping
+      if (!currentUser) {
+        setIsFileUploadFlow(false);
+        setIsReadOnlyReplay(false);
+        setShowCompressionBox(false);
+        setShowUploadBox(false);
+        setShowReceiveBox(false);
+        setShowMapBox(false);
+        setBatchNotice(t.app.guestExtractOnlyNotice);
+        setHasSearched(true);
+        setCatalogImages(extractedImages);
+        setCatalogVersion((prev) => prev + 1);
+        return;
+      }
 
       // Admin test account: stop right after domain extraction (skip compression, R2 upload, and Gemini mapping)
       if (isAdminExtractAccount) {
@@ -749,15 +851,27 @@ export default function App() {
 
       const overflowNotice =
         data.images.length > activeLimit
-          ? t.app.freePlanLimitNotice(activeLimit)
+          ? usedFreeImages > 0
+            ? t.app.freeRemainingNotice(activeLimit, MAX_FREE_UPLOAD_IMAGES)
+            : t.app.freePlanLimitNotice(activeLimit)
           : null;
 
-      startAutomatedBatchPipeline(
-        extractedImages,
-        extractedImages.map((img) => ({ kind: 'url', url: img.url })),
+      // Pause after domain extraction: show extracted images and wait for Continuar / Cancelar
+      setIsFileUploadFlow(false);
+      setIsReadOnlyReplay(false);
+      setShowCompressionBox(false);
+      setShowUploadBox(false);
+      setShowReceiveBox(false);
+      setShowMapBox(false);
+      setBatchNotice(overflowNotice);
+      setHasSearched(true);
+      setCatalogImages(extractedImages);
+      setCatalogVersion((prev) => prev + 1);
+      setPendingDomainBatch({
+        items: extractedImages,
+        originUrl: normalized,
         overflowNotice,
-        normalized,
-      );
+      });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       setExtractError(t.app.extractNetworkError);
@@ -766,6 +880,44 @@ export default function App() {
         setIsExtracting(false);
       }
     }
+  };
+
+  const handleConfirmDomainContinue = () => {
+    if (!pendingDomainBatch) return;
+    const currentUser = authUserRef.current;
+    if (!currentUser) {
+      setPendingDomainBatch(null);
+      setBatchNotice(t.app.guestExtractOnlyNotice);
+      return;
+    }
+    const isAdmin =
+      currentUser.email?.trim().toLowerCase() === ADMIN_EXTRACT_ONLY_EMAIL;
+    if (!isAdmin && getRemainingFreeImages(currentUser) <= 0) {
+      setPendingDomainBatch(null);
+      setExtractError(t.app.freeImageQuotaExceededError);
+      return;
+    }
+    const batch = pendingDomainBatch;
+    setPendingDomainBatch(null);
+    startAutomatedBatchPipeline(
+      batch.items,
+      batch.items.map((img) => ({ kind: 'url', url: img.url })),
+      batch.overflowNotice,
+      batch.originUrl,
+    );
+  };
+
+  const handleCancelDomainBatch = () => {
+    setPendingDomainBatch(null);
+    cancelOngoingCompression();
+    setBatchNotice(null);
+    setExtractError(null);
+    setIsFileUploadFlow(false);
+    setIsReadOnlyReplay(false);
+    setHasSearched(false);
+    setCatalogImages(CATALOG_SAMPLE_IMAGES);
+    setCatalogVersion(0);
+    setUrl('');
   };
 
   const startAutomatedBatchPipeline = (
@@ -1342,6 +1494,10 @@ export default function App() {
 
   const handleFilesSelected = (event: ChangeEvent<HTMLInputElement>) => {
     const fileList = event.target.files;
+    if (!authUserRef.current) {
+      event.target.value = '';
+      return;
+    }
     if (!fileList || fileList.length === 0) return;
 
     const allValidFiles = Array.from(fileList).filter(
@@ -1357,18 +1513,29 @@ export default function App() {
       return;
     }
 
+    const currentUser = authUserRef.current;
     const isAdminExtractAccount =
-      authUserRef.current?.email?.trim().toLowerCase() === ADMIN_EXTRACT_ONLY_EMAIL;
+      currentUser?.email?.trim().toLowerCase() === ADMIN_EXTRACT_ONLY_EMAIL;
+    const remainingQuota = getRemainingFreeImages(currentUser);
+
+    if (!isAdminExtractAccount && remainingQuota <= 0) {
+      setExtractError(t.app.freeImageQuotaExceededError);
+      return;
+    }
+
     const activeLimit = isAdminExtractAccount
       ? MAX_ADMIN_EXTRACT_IMAGES
-      : MAX_FREE_UPLOAD_IMAGES;
+      : remainingQuota;
 
     const validFiles = allValidFiles.slice(0, activeLimit);
     const overflowNotice =
       allValidFiles.length > activeLimit
-        ? t.app.freePlanLimitNotice(activeLimit)
+        ? usedFreeImages > 0
+          ? t.app.freeRemainingNotice(activeLimit, MAX_FREE_UPLOAD_IMAGES)
+          : t.app.freePlanLimitNotice(activeLimit)
         : null;
 
+    setPendingDomainBatch(null);
     extractAbortRef.current?.abort();
     cancelOngoingCompression();
     setIsExtracting(false);
@@ -1645,13 +1812,21 @@ export default function App() {
           <div className="flex items-center gap-2.5 sm:gap-3 w-full">
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                if (!authUser) return;
+                fileInputRef.current?.click();
+              }}
               disabled={isExtracting}
+              aria-disabled={!authUser}
               aria-label={t.app.uploadImagesAria}
-              title={t.app.uploadImagesTitle}
+              title={authUser ? t.app.uploadImagesTitle : undefined}
               className={`${
                 isDesktopSplitActive ? 'h-12 w-12 lg:h-11 lg:w-11' : 'h-12 w-12'
-              } shrink-0 rounded-full flex items-center justify-center bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 text-blue-600/85 lg:text-slate-600 hover:bg-white/75 lg:hover:bg-white hover:text-blue-700 lg:hover:text-slate-900 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 lg:focus-visible:ring-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer`}
+              } shrink-0 rounded-full flex items-center justify-center bg-white/40 lg:bg-white/95 backdrop-blur-xl lg:backdrop-blur-md border border-slate-900/12 lg:border-white/85 ring-1 ring-inset ring-white/85 lg:ring-0 text-blue-600/85 lg:text-slate-600 shadow-[0_8px_28px_-6px_rgba(37,99,235,0.12),0_2px_8px_-2px_rgba(15,23,42,0.06)] lg:shadow-[0_12px_36px_-6px_rgba(0,0,0,0.4)] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 lg:focus-visible:ring-white disabled:opacity-60 disabled:cursor-not-allowed ${
+                authUser
+                  ? 'hover:bg-white/75 lg:hover:bg-white hover:text-blue-700 lg:hover:text-slate-900 active:scale-95 cursor-pointer'
+                  : 'opacity-45 lg:opacity-55 cursor-default'
+              }`}
             >
               <Upload className="w-4.5 h-4.5" aria-hidden="true" />
             </button>
@@ -1661,6 +1836,7 @@ export default function App() {
               type="file"
               accept="image/*"
               multiple
+              disabled={!authUser}
               onChange={handleFilesSelected}
               className="sr-only"
               tabIndex={-1}
@@ -1726,18 +1902,48 @@ export default function App() {
             </form>
           </div>
 
-          {extractError ? (
+          {!authUser && guestIpBlocked ? (
+            <p
+              role="alert"
+              className="mt-2 px-3 text-[11px] sm:text-xs font-medium leading-snug text-rose-600 lg:text-rose-200 lg:drop-shadow-[0_1px_5px_rgba(0,0,0,0.9)] text-center"
+            >
+              {t.app.guestIpBlockedError}
+            </p>
+          ) : extractError ? (
             <p
               role="alert"
               className="mt-2 px-4 text-xs font-medium text-rose-600 lg:text-rose-200 lg:drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] text-center"
             >
               {extractError}
             </p>
+          ) : pendingDomainBatch ? (
+            <p
+              role="status"
+              className="mt-2 px-3 text-[11px] sm:text-xs font-normal leading-snug text-black lg:text-white lg:drop-shadow-[0_1px_5px_rgba(0,0,0,0.9)] text-center"
+            >
+              <span>{t.app.domainPromptQuestion}</span>{' '}
+              <span className="inline-flex items-center gap-3.5 ml-1.5">
+                <button
+                  type="button"
+                  onClick={handleCancelDomainBatch}
+                  className="bg-transparent border-0 p-0 text-[11px] sm:text-xs font-semibold text-red-600 lg:text-red-400 hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
+                >
+                  {t.app.domainPromptCancel}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDomainContinue}
+                  className="bg-transparent border-0 p-0 text-[11px] sm:text-xs font-semibold text-blue-600 lg:text-sky-400 hover:underline focus-visible:outline-none focus-visible:underline cursor-pointer"
+                >
+                  {t.app.domainPromptContinue}
+                </button>
+              </span>
+            </p>
           ) : (
             batchNotice && (
               <p
                 role="status"
-                className="mt-2 px-4 text-xs font-medium text-slate-600 lg:text-slate-200 lg:drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)] text-center"
+                className="mt-2 px-3 text-[11px] sm:text-xs font-normal leading-snug text-black lg:text-white lg:drop-shadow-[0_1px_5px_rgba(0,0,0,0.9)] text-center"
               >
                 {batchNotice}
               </p>

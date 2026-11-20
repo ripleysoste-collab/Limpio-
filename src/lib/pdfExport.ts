@@ -275,6 +275,9 @@ export async function generateAndDownloadCatalogPdf({
         nombre: mapped?.nombre || item.alt || copy.productFallback,
         categoria: mapped?.categoria || copy.categoryFallback,
         descripcion: mapped?.descripcion || '',
+        ...(mapped?.analisis_visual
+          ? { analisis_visual: mapped.analisis_visual }
+          : {}),
         url,
       };
     });

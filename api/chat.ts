@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { verifySupabaseBearerUser } from '../lib/planLimits.ts';
 import {
   checkDailyLimit,
   consumeDailyLimit,
@@ -48,6 +49,7 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
     return sendJson(res, 405, { error: 'Método no permitido. Usa POST.' });
   }
 
+  const authUser = await verifySupabaseBearerUser(req.headers);
   const body = await readJsonBody(req);
   const message = typeof body.message === 'string' ? body.message : '';
   const serviceSlug =
@@ -59,7 +61,8 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
     typeof body.organizationName === 'string'
       ? body.organizationName
       : undefined;
-  const userId = typeof body.userId === 'string' ? body.userId : undefined;
+  const bodyUserId = typeof body.userId === 'string' ? body.userId : undefined;
+  const userId = authUser?.userId || bodyUserId;
   const locale: SupportedLocale =
     body.locale === 'en' || body.locale === 'pt' || body.locale === 'es'
       ? body.locale
@@ -87,16 +90,20 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
     return sendJson(res, 429, {
       ok: false,
       dailyLimitReached: true,
+      used: limitStatus.used,
+      limit: limitStatus.limit,
+      day: limitStatus.day,
       error:
         locale === 'en'
-          ? 'Daily limit reached: you have 1 Search Link IA query per day to test your API. Try again tomorrow.'
+          ? 'Your limit has been reached, upgrade to the Plus plan.'
           : locale === 'pt'
-            ? 'Limite diário atingido: você tem 1 consulta por dia no Search Link IA para testar sua API. Tente amanhã.'
-            : 'Límite diario alcanzado: tienes 1 consulta al día en Search Link IA para probar tu API. Vuelve mañana.',
+            ? 'Seu limite foi atingido, mude para o plano Plus.'
+            : 'Su límite ha sido alcanzado, pase al plan Plus.',
     });
   }
 
   let headersSentAsStream = false;
+  let consumedDaily: ReturnType<typeof consumeDailyLimit> | null = null;
 
   for await (const evt of streamSearchLinkChat({
     message,
@@ -118,17 +125,31 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
 
     if (!headersSentAsStream) {
       headersSentAsStream = true;
+      consumedDaily = consumeDailyLimit(
+        req.headers,
+        userId,
+        req.socket?.remoteAddress,
+      );
+      res.setHeader('Set-Cookie', consumedDaily.cookieHeader);
       res.statusCode = 200;
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
     }
 
-    if (evt.type === 'done') {
-      consumeDailyLimit(req.headers, userId, req.socket?.remoteAddress);
-    }
+    const outgoingEvent =
+      evt.type === 'done' && consumedDaily
+        ? {
+            ...evt,
+            dailyLimit: {
+              used: consumedDaily.used,
+              limit: consumedDaily.limit,
+              day: consumedDaily.day,
+            },
+          }
+        : evt;
 
-    res.write(`event: ${evt.type}\ndata: ${JSON.stringify(evt)}\n\n`);
+    res.write(`event: ${evt.type}\ndata: ${JSON.stringify(outgoingEvent)}\n\n`);
   }
 
   if (headersSentAsStream) {

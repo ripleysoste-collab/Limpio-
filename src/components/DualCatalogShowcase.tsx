@@ -290,6 +290,9 @@ export function DualCatalogShowcase({
         nombre: mapped?.nombre || item.alt || t.common.productFallback,
         categoria: mapped?.categoria || t.common.generalCategory,
         descripcion: mapped?.descripcion || '',
+        ...(mapped?.analisis_visual
+          ? { analisis_visual: mapped.analisis_visual }
+          : {}),
         url: bestUrl,
       };
     });
@@ -1396,6 +1399,9 @@ export function DualCatalogShowcase({
                               nombre: mapped.nombre,
                               categoria: mapped.categoria,
                               descripcion: mapped.descripcion,
+                              ...(mapped.analisis_visual
+                                ? { analisis_visual: mapped.analisis_visual }
+                                : {}),
                               url: mapped.url,
                             },
                             null,

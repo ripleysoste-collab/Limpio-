@@ -28,6 +28,16 @@ export const supabase: SupabaseClient | null = isSupabaseClientConfigured
     })
   : null;
 
+export async function getSupabaseAccessToken(): Promise<string | null> {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export interface OrganizationRow {
   id: string;
   user_id: string;

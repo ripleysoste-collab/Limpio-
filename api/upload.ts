@@ -1,5 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
+  checkFreeAccountImageQuota,
+  FREE_PLAN_MAX_IMAGES,
+  markFreeAccountImageConsumed,
+  verifySupabaseBearerUser,
+} from '../lib/planLimits.ts';
+import {
   decodeBase64ImagePayload,
   getRequestOrigin,
   MAX_UPLOAD_BYTES,
@@ -116,12 +122,36 @@ export default async function handler(req: VercelLikeRequest, res: ServerRespons
   }
 
   try {
+    const authUser = await verifySupabaseBearerUser(req.headers);
+    if (!authUser) {
+      return sendJson(res, 401, {
+        error: 'Inicia sesión con Google para subir imágenes.',
+      });
+    }
+
     const { buffer, folder } = await readUploadPayload(req);
+    if (folder === 'catalog') {
+      const quota = await checkFreeAccountImageQuota(authUser);
+      if (!quota.allowed) {
+        return sendJson(res, 429, {
+          quotaExceeded: true,
+          used: quota.used,
+          limit: quota.limit,
+          error: `Has alcanzado el límite de ${FREE_PLAN_MAX_IMAGES} imágenes del plan gratuito.`,
+        });
+      }
+    }
+
     const result = await processAndStoreUploadedImage(
       buffer,
       getRequestOrigin(req.headers),
       folder,
     );
+
+    if (folder === 'catalog') {
+      markFreeAccountImageConsumed(authUser, result.key);
+    }
+
     return sendJson(res, 200, result);
   } catch (err) {
     const message =

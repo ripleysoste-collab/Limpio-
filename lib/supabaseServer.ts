@@ -1,6 +1,11 @@
 import crypto from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import {
+  FREE_PLAN_MAX_API_REQUESTS_MONTHLY,
+  isMonthlyApiQuotaExceeded,
+  recordAndCheckMonthlyApiQuota,
+} from './planLimits.ts';
 
 let cachedServerClient: SupabaseClient | null = null;
 
@@ -219,6 +224,14 @@ export async function resolveSearchLinkCoreEndpoint(
   }
 
   const keyHash = sha256HexServer(trimmedKey);
+  if (isMonthlyApiQuotaExceeded(keyHash)) {
+    return {
+      ok: false,
+      status: 429,
+      error: `Límite mensual alcanzado: el plan gratuito incluye hasta ${FREE_PLAN_MAX_API_REQUESTS_MONTHLY} peticiones API por mes.`,
+    };
+  }
+
   const safeLimit =
     typeof params.limit === 'number' && Number.isFinite(params.limit)
       ? Math.min(Math.max(Math.trunc(params.limit), 1), 100)
@@ -246,6 +259,15 @@ export async function resolveSearchLinkCoreEndpoint(
       // Optional backward compatibility with legacy get_catalog_by_api_key if present
       const legacy = await fetchCatalogByApiKey(trimmedKey);
       if (legacy.ok) {
+        const legacyScope = `legacy:${keyHash.slice(0, 16)}`;
+        const quota = recordAndCheckMonthlyApiQuota(legacyScope, keyHash);
+        if (!quota.allowed) {
+          return {
+            ok: false,
+            status: 429,
+            error: `Límite mensual alcanzado: el plan gratuito incluye hasta ${FREE_PLAN_MAX_API_REQUESTS_MONTHLY} peticiones API por mes.`,
+          };
+        }
         return legacy;
       }
     }
@@ -276,6 +298,21 @@ export async function resolveSearchLinkCoreEndpoint(
       ok: false,
       status: typeof record.status === 'number' ? record.status : 401,
       error: record.error,
+    };
+  }
+
+  const catalogosList = (record as unknown as Partial<PublicCatalogResult>)
+    .catalogos;
+  const scopeId =
+    record.servicio?.id ||
+    (Array.isArray(catalogosList) && catalogosList[0]?.id) ||
+    `key:${keyHash.slice(0, 16)}`;
+  const quota = recordAndCheckMonthlyApiQuota(scopeId, keyHash);
+  if (!quota.allowed) {
+    return {
+      ok: false,
+      status: 429,
+      error: `Límite mensual alcanzado: el plan gratuito incluye hasta ${FREE_PLAN_MAX_API_REQUESTS_MONTHLY} peticiones API por mes.`,
     };
   }
 

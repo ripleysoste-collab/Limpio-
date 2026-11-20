@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { SupportedLocale } from './localeDetection.ts';
 import {
@@ -10,11 +11,11 @@ export const SEARCH_LINK_CHAT_GROQ_MODELS = [
   'openai/gpt-oss-120b',
   'openai/gpt-oss-20b',
 ];
-export const SEARCH_LINK_IA_DAILY_LIMIT = 1;
+export const SEARCH_LINK_IA_DAILY_LIMIT = 5;
 export const SEARCH_LINK_IA_COOKIE_NAME = 'sl_ia_daily';
 
 export function isDailyLimitEnforced(): boolean {
-  return cleanEnv(process.env.SEARCH_LINK_IA_ENFORCE_LIMIT) === 'true';
+  return cleanEnv(process.env.SEARCH_LINK_IA_ENFORCE_LIMIT) !== 'false';
 }
 
 const dailyUsageMemory = new Map<string, number>();
@@ -99,9 +100,55 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
     if (idx === -1) continue;
     const key = part.slice(0, idx).trim();
     const val = part.slice(idx + 1).trim();
-    if (key) out[key] = decodeURIComponent(val);
+    if (!key) continue;
+    try {
+      out[key] = decodeURIComponent(val);
+    } catch {
+      out[key] = val;
+    }
   }
   return out;
+}
+
+function getChatQuotaSecret(): string {
+  return (
+    cleanEnv(process.env.QUOTA_SIGNING_SECRET) ||
+    cleanEnv(process.env.SUPABASE_PUBLISHABLE_KEY) ||
+    cleanEnv(process.env.GROQ_API_KEY) ||
+    'searchlink_ia_daily_secret_v1'
+  );
+}
+
+function signChatQuotaCookie(day: string, count: number): string {
+  const payload = `${day}:${count}`;
+  const sig = crypto
+    .createHmac('sha256', getChatQuotaSecret())
+    .update(payload)
+    .digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function parseChatQuotaCookie(rawValue: string | undefined, day: string): number {
+  if (!rawValue) return 0;
+  // Backward compatibility if an older plain `YYYY-MM-DD` cookie exists
+  if (rawValue === day) return 1;
+  const dotIdx = rawValue.lastIndexOf('.');
+  if (dotIdx <= 0) return 0;
+  const payload = rawValue.slice(0, dotIdx);
+  const sig = rawValue.slice(dotIdx + 1);
+  const expectedSig = crypto
+    .createHmac('sha256', getChatQuotaSecret())
+    .update(payload)
+    .digest('base64url');
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expectedSig);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return 0;
+  }
+  const [cookieDay, rawCount] = payload.split(':');
+  if (cookieDay !== day) return 0;
+  const parsed = Number(rawCount);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
 }
 
 function getClientIp(headers: IncomingHttpHeaders, remoteAddress?: string): string {
@@ -127,25 +174,34 @@ export function checkDailyLimit(
   headers: IncomingHttpHeaders,
   userId?: string,
   remoteAddress?: string,
-): { allowed: boolean; day: string; used: number } {
+): { allowed: boolean; day: string; used: number; limit: number } {
   const day = getTodayUtcDateString();
   if (!isDailyLimitEnforced()) {
-    return { allowed: true, day, used: 0 };
+    return {
+      allowed: true,
+      day,
+      used: 0,
+      limit: SEARCH_LINK_IA_DAILY_LIMIT,
+    };
   }
 
   const cookies = parseCookies(
     typeof headers.cookie === 'string' ? headers.cookie : undefined,
   );
-  if (cookies[SEARCH_LINK_IA_COOKIE_NAME] === day) {
-    return { allowed: false, day, used: SEARCH_LINK_IA_DAILY_LIMIT };
-  }
+  const cookieCount = parseChatQuotaCookie(
+    cookies[SEARCH_LINK_IA_COOKIE_NAME],
+    day,
+  );
 
   const key = getQuotaKey(headers, userId, remoteAddress);
-  const count = dailyUsageMemory.get(key) ?? 0;
+  const memCount = dailyUsageMemory.get(key) ?? 0;
+  const used = Math.max(memCount, cookieCount);
+
   return {
-    allowed: count < SEARCH_LINK_IA_DAILY_LIMIT,
+    allowed: used < SEARCH_LINK_IA_DAILY_LIMIT,
     day,
-    used: count,
+    used,
+    limit: SEARCH_LINK_IA_DAILY_LIMIT,
   };
 }
 
@@ -153,11 +209,19 @@ export function consumeDailyLimit(
   headers: IncomingHttpHeaders,
   userId?: string,
   remoteAddress?: string,
-): { day: string; cookieHeader: string } {
+): { day: string; used: number; limit: number; cookieHeader: string } {
   const day = getTodayUtcDateString();
+  const cookies = parseCookies(
+    typeof headers.cookie === 'string' ? headers.cookie : undefined,
+  );
+  const cookieCount = parseChatQuotaCookie(
+    cookies[SEARCH_LINK_IA_COOKIE_NAME],
+    day,
+  );
   const key = getQuotaKey(headers, userId, remoteAddress);
-  const prev = dailyUsageMemory.get(key) ?? 0;
-  dailyUsageMemory.set(key, prev + 1);
+  const prev = Math.max(dailyUsageMemory.get(key) ?? 0, cookieCount);
+  const nextUsed = prev + 1;
+  dailyUsageMemory.set(key, nextUsed);
 
   if (dailyUsageMemory.size > 5000) {
     for (const mapKey of dailyUsageMemory.keys()) {
@@ -167,8 +231,14 @@ export function consumeDailyLimit(
     }
   }
 
-  const cookieHeader = `${SEARCH_LINK_IA_COOKIE_NAME}=${encodeURIComponent(day)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
-  return { day, cookieHeader };
+  const signedValue = signChatQuotaCookie(day, nextUsed);
+  const cookieHeader = `${SEARCH_LINK_IA_COOKIE_NAME}=${encodeURIComponent(signedValue)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
+  return {
+    day,
+    used: nextUsed,
+    limit: SEARCH_LINK_IA_DAILY_LIMIT,
+    cookieHeader,
+  };
 }
 
 async function resolveCatalogForChat(input: SearchLinkChatInput): Promise<

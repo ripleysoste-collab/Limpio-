@@ -1,3 +1,5 @@
+import { getSupabaseAccessToken } from './supabaseClient';
+
 export interface CompressedImageResult {
   blob: Blob;
   mimeType: string;
@@ -229,11 +231,16 @@ export async function uploadCompressedImage(
   signal?: AbortSignal,
   folder: UploadFolderPrefix = 'catalog',
 ): Promise<UploadedCompressedImage> {
+  const accessToken = await getSupabaseAccessToken();
+  const authHeaders: Record<string, string> = accessToken
+    ? { Authorization: `Bearer ${accessToken}` }
+    : {};
   const useJsonPayload = compressed.blob.size <= MAX_JSON_RAW_BYTES;
   const response = useJsonPayload
     ? await fetch('/api/upload', {
         method: 'POST',
         headers: {
+          ...authHeaders,
           'Content-Type': 'application/json',
           'X-Upload-Folder': folder,
         },
@@ -247,6 +254,7 @@ export async function uploadCompressedImage(
     : await fetch('/api/upload', {
         method: 'POST',
         headers: {
+          ...authHeaders,
           'Content-Type': compressed.mimeType,
           'X-Upload-Folder': folder,
         },
@@ -295,10 +303,21 @@ export async function compressAndUploadOrgLogo(
   return uploadCompressedImage(compressed, signal, 'org-logos');
 }
 
+export interface VisualInspectionDetails {
+  cantidad_productos_visibles: number;
+  conteo_detallado: string;
+  colores: string[];
+  forma_y_estructura: string;
+  materiales_y_texturas: string[];
+  tamano_minimo_estimado: string;
+  micro_detalles: string;
+}
+
 export interface MappedImageMetadata {
   nombre: string;
   categoria: string;
   descripcion: string;
+  analisis_visual?: VisualInspectionDetails;
   url: string;
 }
 
@@ -306,9 +325,11 @@ export async function mapUploadedImageWithAi(
   input: { key?: string; imageUrl: string },
   signal?: AbortSignal,
 ): Promise<MappedImageMetadata> {
+  const accessToken = await getSupabaseAccessToken();
   const response = await fetch('/api/map-image', {
     method: 'POST',
     headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -343,6 +364,9 @@ export async function mapUploadedImageWithAi(
     nombre: payload.nombre,
     categoria: payload.categoria,
     descripcion: payload.descripcion,
+    ...(payload.analisis_visual
+      ? { analisis_visual: payload.analisis_visual }
+      : {}),
     url: payload.url || input.imageUrl,
   };
 }

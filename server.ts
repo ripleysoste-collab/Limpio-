@@ -5,6 +5,16 @@ import { fileURLToPath } from 'node:url';
 import { extractImagesFromUrl } from './lib/extractor.ts';
 import { mapStoredImageWithGemini } from './lib/geminiMapper.ts';
 import {
+  checkAndConsumeGuestExtractQuota,
+  checkFreeAccountImageQuota,
+  FREE_PLAN_MAX_IMAGES,
+  GUEST_EXTRACT_MAX_IMAGES,
+  inspectGuestExtractStatus,
+  isAdminTestEmail,
+  markFreeAccountImageConsumed,
+  verifySupabaseBearerUser,
+} from './lib/planLimits.ts';
+import {
   checkDailyLimit,
   consumeDailyLimit,
   streamSearchLinkChat,
@@ -38,13 +48,53 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '64kb' }));
 
+  app.get('/api/extract', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const authUser = await verifySupabaseBearerUser(req.headers);
+    const status = inspectGuestExtractStatus(
+      req.headers,
+      req.socket?.remoteAddress,
+      authUser,
+    );
+    if (status.clearCookieHeader) {
+      res.setHeader('Set-Cookie', status.clearCookieHeader);
+    }
+    return res.json({
+      ipBlocked: status.ipBlocked,
+      attemptsUsed: status.attemptsUsed,
+    });
+  });
+
   app.post('/api/extract', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     try {
+      const authUser = await verifySupabaseBearerUser(req.headers);
+      const guestQuota = checkAndConsumeGuestExtractQuota(
+        req.headers,
+        req.socket?.remoteAddress,
+        authUser,
+      );
+      res.setHeader('Set-Cookie', guestQuota.setCookieHeader);
+
+      if (!guestQuota.allowed) {
+        return res.status(429).json({
+          ipBlocked: true,
+          error: 'Su IP ha sido bloqueado. Inicia sesión.',
+        });
+      }
+
       const rawUrl = typeof req.body?.url === 'string' ? req.body.url : '';
-      const maxResults =
+      const requestedMax =
         typeof req.body?.maxResults === 'number' && Number.isFinite(req.body.maxResults)
-          ? req.body.maxResults
+          ? Math.max(1, Math.trunc(req.body.maxResults))
           : undefined;
+
+      const maxResults = !authUser
+        ? GUEST_EXTRACT_MAX_IMAGES
+        : isAdminTestEmail(authUser.email)
+          ? Math.min(requestedMax ?? 50, 50)
+          : Math.min(requestedMax ?? FREE_PLAN_MAX_IMAGES, FREE_PLAN_MAX_IMAGES);
+
       const result = await extractImagesFromUrl(rawUrl, { maxResults });
 
       if (result.images.length === 0) {
@@ -108,6 +158,13 @@ async function startServer() {
     express.raw({ type: 'image/*', limit: MAX_UPLOAD_BYTES }),
     async (req, res) => {
       try {
+        const authUser = await verifySupabaseBearerUser(req.headers);
+        if (!authUser) {
+          return res.status(401).json({
+            error: 'Inicia sesión con Google para subir imágenes.',
+          });
+        }
+
         const buffer = Buffer.isBuffer(req.body)
           ? req.body
           : decodeBase64ImagePayload(req.body);
@@ -129,11 +186,29 @@ async function startServer() {
                 ? (req.body as Record<string, unknown>).folder
                 : undefined;
 
+        const folder = sanitizeUploadFolderPrefix(rawFolder);
+        if (folder === 'catalog') {
+          const quota = await checkFreeAccountImageQuota(authUser);
+          if (!quota.allowed) {
+            return res.status(429).json({
+              quotaExceeded: true,
+              used: quota.used,
+              limit: quota.limit,
+              error: `Has alcanzado el límite de ${FREE_PLAN_MAX_IMAGES} imágenes del plan gratuito.`,
+            });
+          }
+        }
+
         const result = await processAndStoreUploadedImage(
           buffer,
           getRequestOrigin(req.headers),
-          sanitizeUploadFolderPrefix(rawFolder),
+          folder,
         );
+
+        if (folder === 'catalog') {
+          markFreeAccountImageConsumed(authUser, result.key);
+        }
+
         return res.json(result);
       } catch (err) {
         const message =
@@ -150,6 +225,13 @@ async function startServer() {
     express.json({ type: 'application/json', limit: '5mb' }),
     async (req, res) => {
       try {
+        const authUser = await verifySupabaseBearerUser(req.headers);
+        if (!authUser) {
+          return res.status(401).json({
+            error: 'Inicia sesión con Google para mapear imágenes con IA.',
+          });
+        }
+
         const body = (req.body ?? {}) as Record<string, unknown>;
         const key = typeof body.key === 'string' ? body.key : undefined;
         const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl : '';
@@ -164,12 +246,26 @@ async function startServer() {
           });
         }
 
+        const trackingKey = key || imageUrl;
+        const quota = await checkFreeAccountImageQuota(authUser, trackingKey);
+        if (!quota.allowed) {
+          return res.status(429).json({
+            quotaExceeded: true,
+            used: quota.used,
+            limit: quota.limit,
+            error: `Has alcanzado el límite de ${FREE_PLAN_MAX_IMAGES} imágenes del plan gratuito.`,
+          });
+        }
+
         const mapped = await mapStoredImageWithGemini({
           key,
           imageUrl,
           dataBase64,
           mimeType,
         });
+
+        markFreeAccountImageConsumed(authUser, trackingKey);
+
         return res.json(mapped);
       } catch (err) {
         const message =
@@ -185,6 +281,7 @@ async function startServer() {
     '/api/chat',
     express.json({ type: 'application/json', limit: '512kb' }),
     async (req, res) => {
+      const authUser = await verifySupabaseBearerUser(req.headers);
       const body = (req.body ?? {}) as Record<string, unknown>;
       const message = typeof body.message === 'string' ? body.message : '';
       const serviceSlug =
@@ -196,7 +293,8 @@ async function startServer() {
         typeof body.organizationName === 'string'
           ? body.organizationName
           : undefined;
-      const userId = typeof body.userId === 'string' ? body.userId : undefined;
+      const bodyUserId = typeof body.userId === 'string' ? body.userId : undefined;
+      const userId = authUser?.userId || bodyUserId;
       const locale: SupportedLocale =
         body.locale === 'en' || body.locale === 'pt' || body.locale === 'es'
           ? body.locale
@@ -224,16 +322,20 @@ async function startServer() {
         return res.status(429).json({
           ok: false,
           dailyLimitReached: true,
+          used: limitStatus.used,
+          limit: limitStatus.limit,
+          day: limitStatus.day,
           error:
             locale === 'en'
-              ? 'Daily limit reached: you have 1 Search Link IA query per day to test your API. Try again tomorrow.'
+              ? 'Your limit has been reached, upgrade to the Plus plan.'
               : locale === 'pt'
-                ? 'Limite diário atingido: você tem 1 consulta por dia no Search Link IA para testar sua API. Tente amanhã.'
-                : 'Límite diario alcanzado: tienes 1 consulta al día en Search Link IA para probar tu API. Vuelve mañana.',
+                ? 'Seu limite foi atingido, mude para o plano Plus.'
+                : 'Su límite ha sido alcanzado, pase al plan Plus.',
         });
       }
 
       let headersSentAsStream = false;
+      let consumedDaily: ReturnType<typeof consumeDailyLimit> | null = null;
 
       for await (const evt of streamSearchLinkChat({
         message,
@@ -255,6 +357,12 @@ async function startServer() {
 
         if (!headersSentAsStream) {
           headersSentAsStream = true;
+          consumedDaily = consumeDailyLimit(
+            req.headers,
+            userId,
+            req.socket?.remoteAddress,
+          );
+          res.setHeader('Set-Cookie', consumedDaily.cookieHeader);
           res.status(200);
           res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
           res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -262,11 +370,19 @@ async function startServer() {
           res.flushHeaders?.();
         }
 
-        if (evt.type === 'done') {
-          consumeDailyLimit(req.headers, userId, req.socket?.remoteAddress);
-        }
+        const outgoingEvent =
+          evt.type === 'done' && consumedDaily
+            ? {
+                ...evt,
+                dailyLimit: {
+                  used: consumedDaily.used,
+                  limit: consumedDaily.limit,
+                  day: consumedDaily.day,
+                },
+              }
+            : evt;
 
-        res.write(`event: ${evt.type}\ndata: ${JSON.stringify(evt)}\n\n`);
+        res.write(`event: ${evt.type}\ndata: ${JSON.stringify(outgoingEvent)}\n\n`);
       }
 
       if (headersSentAsStream) {

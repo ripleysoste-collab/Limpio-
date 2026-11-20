@@ -71,7 +71,14 @@ export interface TranslationDictionary {
     extractEmptyError: string;
     extractNetworkError: string;
     freePlanLimitNotice: (maxImages: number) => string;
+    freeRemainingNotice: (remaining: number, total: number) => string;
+    freeImageQuotaExceededError: string;
+    guestExtractOnlyNotice: string;
+    guestIpBlockedError: string;
     adminExtractOnlyNotice: (count: number) => string;
+    domainPromptQuestion: string;
+    domainPromptCancel: string;
+    domainPromptContinue: string;
     invalidImageFilesError: string;
     uploadImageError: string;
     mapImageError: string;
@@ -361,9 +368,20 @@ const ES_DICTIONARY: TranslationDictionary = {
     extractNetworkError:
       'No se pudo conectar con la página. Verifica la URL e intenta de nuevo.',
     freePlanLimitNotice: (max) =>
-      `Plan gratuito: se procesarán las primeras ${max} imágenes.`,
+      `Plan gratuito: se procesarán ${max === 1 ? 'la imagen disponible' : `las primeras ${max} imágenes`}.`,
+    freeRemainingNotice: (remaining, total) =>
+      `Plan gratuito: te quedan ${remaining} de ${total} imágenes disponibles.`,
+    freeImageQuotaExceededError:
+      'Has alcanzado el límite de 20 imágenes del plan gratuito.',
+    guestExtractOnlyNotice:
+      'No has iniciado sesión, solo puedes probar este método.',
+    guestIpBlockedError: 'Su IP ha sido bloqueado. Inicia sesión.',
     adminExtractOnlyNotice: (count) =>
       `Modo prueba admin: ${count} imagen${count === 1 ? '' : 'es'} extraída${count === 1 ? '' : 's'} del dominio (detenido tras la extracción, sin compresión ni mapeo IA).`,
+    domainPromptQuestion:
+      'Si lo deseas, puedes detenerlo y subir desde almacenamiento.',
+    domainPromptCancel: 'Cancelar',
+    domainPromptContinue: 'Continuar',
     invalidImageFilesError: 'Por favor selecciona archivos de imagen válidos.',
     uploadImageError: 'Error al subir la imagen.',
     mapImageError: 'Error al renderizar y mapear la imagen con IA.',
@@ -578,7 +596,7 @@ const ES_DICTIONARY: TranslationDictionary = {
     clearShort: 'Nueva conversación',
     closeAria: 'Cerrar chat de prueba',
     dailyLimitNotice:
-      'Alcanzaste tu prueba gratuita de hoy en Search Link IA. Vuelve mañana o integra tu endpoint.',
+      'Su límite ha sido alcanzado, pase al plan Plus.',
     dailyLimitPlaceholder: 'Límite diario alcanzado...',
     defaultRequestError: 'No se pudo obtener respuesta de Search Link IA.',
     defaultStreamError: 'Error durante la respuesta en vivo.',
@@ -804,9 +822,20 @@ const EN_DICTIONARY: TranslationDictionary = {
     extractNetworkError:
       'Could not connect to that webpage. Check the URL and try again.',
     freePlanLimitNotice: (max) =>
-      `Free plan: the first ${max} images will be processed.`,
+      `Free plan: the first ${max} ${max === 1 ? 'image' : 'images'} will be processed.`,
+    freeRemainingNotice: (remaining, total) =>
+      `Free plan: ${remaining} of ${total} images remaining.`,
+    freeImageQuotaExceededError:
+      'You have reached the 20-image limit for the free plan.',
+    guestExtractOnlyNotice:
+      'You are not signed in, you can only test this method.',
+    guestIpBlockedError: 'Your IP has been blocked. Sign in.',
     adminExtractOnlyNotice: (count) =>
       `Admin test mode: ${count} image${count === 1 ? '' : 's'} extracted from domain (stopped after extraction, no compression or AI mapping).`,
+    domainPromptQuestion:
+      "If you'd like, you can stop here and upload from storage.",
+    domainPromptCancel: 'Cancel',
+    domainPromptContinue: 'Continue',
     invalidImageFilesError: 'Please select valid image files.',
     uploadImageError: 'Failed to upload image.',
     mapImageError: 'Failed to render and map image with AI.',
@@ -1022,7 +1051,7 @@ const EN_DICTIONARY: TranslationDictionary = {
     clearShort: 'New chat',
     closeAria: 'Close test chat',
     dailyLimitNotice:
-      'You reached your daily free test query on Search Link AI. Come back tomorrow or integrate your endpoint.',
+      'Your limit has been reached, upgrade to the Plus plan.',
     dailyLimitPlaceholder: 'Daily limit reached...',
     defaultRequestError: 'Could not get a response from Search Link AI.',
     defaultStreamError: 'Error during live response stream.',
@@ -1248,9 +1277,20 @@ const PT_DICTIONARY: TranslationDictionary = {
     extractNetworkError:
       'Não foi possível conectar ao site. Verifique a URL e tente novamente.',
     freePlanLimitNotice: (max) =>
-      `Plano gratuito: as primeiras ${max} imagens serão processadas.`,
+      `Plano gratuito: ${max === 1 ? 'a imagem disponível será processada' : `as primeiras ${max} imagens serão processadas`}.`,
+    freeRemainingNotice: (remaining, total) =>
+      `Plano gratuito: restam ${remaining} de ${total} imagens disponíveis.`,
+    freeImageQuotaExceededError:
+      'Você atingiu o limite de 20 imagens do plano gratuito.',
+    guestExtractOnlyNotice:
+      'Você não iniciou sessão, só pode testar este método.',
+    guestIpBlockedError: 'Seu IP foi bloqueado. Inicie sessão.',
     adminExtractOnlyNotice: (count) =>
       `Modo teste admin: ${count} image${count === 1 ? 'm extraída' : 'ns extraídas'} do domínio (parado após a extração, sem compressão nem mapeamento IA).`,
+    domainPromptQuestion:
+      'Se quiser, você pode parar aqui e enviar do armazenamento.',
+    domainPromptCancel: 'Cancelar',
+    domainPromptContinue: 'Continuar',
     invalidImageFilesError: 'Por favor, selecione arquivos de imagem válidos.',
     uploadImageError: 'Erro ao enviar a imagem.',
     mapImageError: 'Erro ao renderizar e mapear a imagem com IA.',
@@ -1467,7 +1507,7 @@ const PT_DICTIONARY: TranslationDictionary = {
     clearShort: 'Nova conversa',
     closeAria: 'Fechar chat de teste',
     dailyLimitNotice:
-      'Você atingiu seu limite diário gratuito no Search Link IA. Volte amanhã ou integre seu endpoint.',
+      'Seu limite foi atingido, mude para o plano Plus.',
     dailyLimitPlaceholder: 'Limite diário atingido...',
     defaultRequestError: 'Não foi possível obter resposta do Search Link IA.',
     defaultStreamError: 'Erro durante a resposta ao vivo.',

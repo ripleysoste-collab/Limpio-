@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowUp, Loader2, Package, RotateCcw, X } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
+import { getSupabaseAccessToken } from '../lib/supabaseClient';
 import type { OrganizationServiceItem } from './DesktopOrganizationView';
 
 interface ChatProductCard {
@@ -49,8 +50,21 @@ export function SearchLinkChatDrawer({
   const activeMessages = service ? messagesByService[service.id] ?? [] : [];
 
   useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const storageKey = `searchlink_ia_daily_${userId || 'anon'}`;
     try {
-      window.localStorage.removeItem(`searchlink_ia_daily_${userId || 'anon'}`);
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { day?: string; used?: number };
+        if (
+          parsed.day === today &&
+          typeof parsed.used === 'number' &&
+          parsed.used >= 5
+        ) {
+          setDailyLimitUsed(true);
+          return;
+        }
+      }
     } catch {
       // Ignore storage errors
     }
@@ -133,9 +147,13 @@ export function SearchLinkChatDrawer({
     setIsSending(true);
 
     try {
+      const accessToken = await getSupabaseAccessToken();
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           message: trimmed,
           history: currentHistory,
@@ -164,11 +182,25 @@ export function SearchLinkChatDrawer({
           reply?: string;
           products?: ChatProductCard[];
           dailyLimitReached?: boolean;
+          used?: number;
+          limit?: number;
+          day?: string;
           error?: string;
         };
 
         if (res.status === 429 || data.dailyLimitReached) {
           setDailyLimitUsed(true);
+          try {
+            window.localStorage.setItem(
+              `searchlink_ia_daily_${userId || 'anon'}`,
+              JSON.stringify({
+                day: data.day || new Date().toISOString().slice(0, 10),
+                used: data.used ?? data.limit ?? 5,
+              }),
+            );
+          } catch {
+            // Ignore storage errors
+          }
         }
 
         if (!res.ok || !data.ok) {
@@ -213,7 +245,10 @@ export function SearchLinkChatDrawer({
               const evt = JSON.parse(dataLine.slice(5).trim()) as
                 | { type: 'products'; products: ChatProductCard[] }
                 | { type: 'delta'; text: string }
-                | { type: 'done' }
+                | {
+                    type: 'done';
+                    dailyLimit?: { used: number; limit: number; day: string };
+                  }
                 | { type: 'error'; error: string };
 
               if (evt.type === 'products') {
@@ -227,6 +262,22 @@ export function SearchLinkChatDrawer({
                   text: m.text + evt.text,
                 }));
               } else if (evt.type === 'done') {
+                if (evt.dailyLimit) {
+                  try {
+                    window.localStorage.setItem(
+                      `searchlink_ia_daily_${userId || 'anon'}`,
+                      JSON.stringify({
+                        day: evt.dailyLimit.day,
+                        used: evt.dailyLimit.used,
+                      }),
+                    );
+                  } catch {
+                    // Ignore storage errors
+                  }
+                  if (evt.dailyLimit.used >= evt.dailyLimit.limit) {
+                    setDailyLimitUsed(true);
+                  }
+                }
                 updateAssistantMessage(currentServiceId, botMsgId, (m) => ({
                   ...m,
                   streaming: false,
@@ -437,10 +488,10 @@ export function SearchLinkChatDrawer({
             )}
           </div>
 
-          {/* Minimal Bottom Chat Input + 1/day test limit notice */}
+          {/* Minimal Bottom Chat Input + 5/day limit notice */}
           <div className="px-4 sm:px-6 pb-5 pt-3 border-t border-slate-100 bg-white shrink-0 space-y-2">
             {dailyLimitUsed && (
-              <p className="text-center text-[11.5px] text-slate-500">
+              <p className="text-center text-[11.5px] font-medium text-rose-600">
                 {t.chat.dailyLimitNotice}
               </p>
             )}
