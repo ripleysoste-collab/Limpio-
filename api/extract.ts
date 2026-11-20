@@ -56,7 +56,7 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
     if (result.images.length === 0) {
       return sendJson(res, 422, {
         error:
-          'No se encontraron imágenes válidas de al menos 250×250 píxeles en esa página.',
+          'No se encontraron imágenes válidas de al menos 200×200 píxeles en esa página.',
         sourceUrl: result.sourceUrl,
       });
     }

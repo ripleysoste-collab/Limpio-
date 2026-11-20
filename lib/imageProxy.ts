@@ -32,10 +32,20 @@ export async function fetchProxiedImage(
     headers.Referer = safeReferer;
   }
 
-  const { response } = await safeFetch(rawImageUrl, {
+  let { response } = await safeFetch(rawImageUrl, {
     headers,
     timeoutMs: 9000,
   });
+
+  if ((response.status === 403 || response.status === 401) && headers.Referer) {
+    await response.body?.cancel().catch(() => {});
+    const retryHeaders = { ...headers };
+    delete retryHeaders.Referer;
+    ({ response } = await safeFetch(rawImageUrl, {
+      headers: retryHeaders,
+      timeoutMs: 9000,
+    }));
+  }
 
   if (!response.ok) {
     throw new Error(`No se pudo cargar la imagen (${response.status}).`);
