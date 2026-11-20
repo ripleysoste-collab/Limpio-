@@ -21,6 +21,10 @@ export interface ExtractImagesResult {
   usedJsFallback?: boolean;
 }
 
+export interface ExtractImagesOptions {
+  maxResults?: number;
+}
+
 interface RawCandidate {
   url: string;
   alt: string;
@@ -34,6 +38,7 @@ const MAX_HTML_BYTES = 4 * 1024 * 1024;
 const MAX_JS_BUNDLE_BYTES = 1_500_000;
 const MAX_PROBE_CANDIDATES = 80;
 const MAX_RESULTS = 24;
+const MAX_ALLOWED_RESULTS = 50;
 const PROBE_WAVE_SIZE = 16;
 const PROBE_CONCURRENCY = 8;
 const MAX_IMAGE_PROBE_BYTES = 192 * 1024;
@@ -675,10 +680,14 @@ async function tryPlatformJsonApis(
   origin: string,
   pageUrl: string,
   htmlHint: string,
+  targetMaxResults: number,
 ): Promise<RawCandidate[]> {
   const candidates: RawCandidate[] = [];
   const lowerHint = htmlHint.toLowerCase();
   const parsedPage = new URL(pageUrl);
+  const shopifyLimit = targetMaxResults > 24 ? 60 : 30;
+  const wpLimit = targetMaxResults > 24 ? 50 : 24;
+  const vtexEnd = targetMaxResults > 24 ? 49 : 23;
 
   const endpointsToTry: Array<{
     kind: 'shopify' | 'woo-store' | 'wp-media' | 'squarespace' | 'vtex';
@@ -689,13 +698,13 @@ async function tryPlatformJsonApis(
   const isLikelyShopify =
     lowerHint.includes('shopify') || lowerHint.includes('cdn.shopify.com') || parsedPage.pathname === '/';
   if (isLikelyShopify) {
-    endpointsToTry.push({ kind: 'shopify', url: `${origin}/products.json?limit=30` });
+    endpointsToTry.push({ kind: 'shopify', url: `${origin}/products.json?limit=${shopifyLimit}` });
     if (parsedPage.pathname.includes('/collections/')) {
       const colSlug = parsedPage.pathname.split('/collections/')[1]?.split('/')[0];
       if (colSlug) {
         endpointsToTry.push({
           kind: 'shopify',
-          url: `${origin}/collections/${colSlug}/products.json?limit=30`,
+          url: `${origin}/collections/${colSlug}/products.json?limit=${shopifyLimit}`,
         });
       }
     }
@@ -709,12 +718,12 @@ async function tryPlatformJsonApis(
   if (isLikelyWp) {
     endpointsToTry.push({
       kind: 'woo-store',
-      url: `${origin}/wp-json/wc/store/v1/products?per_page=24`,
+      url: `${origin}/wp-json/wc/store/v1/products?per_page=${wpLimit}`,
     });
     if (lowerHint.includes('wp-content')) {
       endpointsToTry.push({
         kind: 'wp-media',
-        url: `${origin}/wp-json/wp/v2/media?per_page=24`,
+        url: `${origin}/wp-json/wp/v2/media?per_page=${wpLimit}`,
       });
     }
   }
@@ -730,7 +739,7 @@ async function tryPlatformJsonApis(
   if (lowerHint.includes('vtex')) {
     endpointsToTry.push({
       kind: 'vtex',
-      url: `${origin}/api/catalog_system/pub/products/search?_from=0&_to=23`,
+      url: `${origin}/api/catalog_system/pub/products/search?_from=0&_to=${vtexEnd}`,
     });
   }
 
@@ -761,7 +770,7 @@ async function tryPlatformJsonApis(
         if (kind === 'shopify' && parsed && typeof parsed === 'object' && 'products' in parsed) {
           const products = (parsed as { products?: Array<Record<string, unknown>> }).products;
           if (Array.isArray(products)) {
-            for (const prod of products.slice(0, 30)) {
+            for (const prod of products.slice(0, shopifyLimit)) {
               const title = typeof prod.title === 'string' ? prod.title.trim().slice(0, 90) : '';
               const imgs = Array.isArray(prod.images) ? prod.images : [];
               if (imgs.length > 0) {
@@ -799,7 +808,7 @@ async function tryPlatformJsonApis(
         }
 
         if (kind === 'woo-store' && Array.isArray(parsed)) {
-          for (const prod of parsed.slice(0, 24)) {
+          for (const prod of parsed.slice(0, wpLimit)) {
             if (!prod || typeof prod !== 'object') continue;
             const rec = prod as Record<string, unknown>;
             const name = typeof rec.name === 'string' ? rec.name.trim().slice(0, 90) : '';
@@ -820,7 +829,7 @@ async function tryPlatformJsonApis(
         }
 
         if (kind === 'wp-media' && Array.isArray(parsed)) {
-          for (const media of parsed.slice(0, 24)) {
+          for (const media of parsed.slice(0, wpLimit)) {
             if (!media || typeof media !== 'object') continue;
             const rec = media as Record<string, unknown>;
             if (rec.media_type !== 'image') continue;
@@ -1107,7 +1116,18 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImagesResult> {
+export async function extractImagesFromUrl(
+  rawUrl: string,
+  options?: ExtractImagesOptions,
+): Promise<ExtractImagesResult> {
+  const requestedMax =
+    typeof options?.maxResults === 'number' && Number.isFinite(options.maxResults)
+      ? Math.trunc(options.maxResults)
+      : MAX_RESULTS;
+  const targetMaxResults = Math.min(Math.max(requestedMax, 1), MAX_ALLOWED_RESULTS);
+  const probeCap = targetMaxResults > MAX_RESULTS ? 135 : MAX_PROBE_CANDIDATES;
+  const subpageCap = targetMaxResults > MAX_RESULTS ? 6 : MAX_SUBPAGES_TO_CRAWL;
+
   const initialFetch = await fetchHtmlWithFallback(rawUrl);
   const finalUrl = initialFetch.finalUrl;
   const origin = new URL(finalUrl).origin;
@@ -1116,7 +1136,12 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
   let usedJsFallback = false;
 
   // Start Layer 1 (Platform Store JSON APIs) in parallel with HTML parsing
-  const platformPromise = tryPlatformJsonApis(origin, finalUrl, initialFetch.html);
+  const platformPromise = tryPlatformJsonApis(
+    origin,
+    finalUrl,
+    initialFetch.html,
+    targetMaxResults,
+  );
 
   let htmlInfo = {
     imgCount: 0,
@@ -1146,7 +1171,10 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
     );
   }
 
-  if ((isDomainRoot || rawCandidates.length < 24) && platformCandidates.length < 20) {
+  if (
+    (isDomainRoot || rawCandidates.length < targetMaxResults) &&
+    platformCandidates.length < targetMaxResults
+  ) {
     parallelExtraTasks.push(
       (async () => {
         let subpages = htmlInfo.catalogLinks;
@@ -1156,7 +1184,7 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
         if (subpages.length === 0) return;
 
         const subResults = await Promise.allSettled(
-          subpages.slice(0, MAX_SUBPAGES_TO_CRAWL).map((subUrl) =>
+          subpages.slice(0, subpageCap).map((subUrl) =>
             fetchHtmlWithFallback(subUrl, 4500),
           ),
         );
@@ -1203,9 +1231,9 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
 
   const orderedCandidates = Array.from(dedupedMap.values())
     .sort((a, b) => a.priority - b.priority)
-    .slice(0, MAX_PROBE_CANDIDATES);
+    .slice(0, probeCap);
 
-  // Wave-based dimension probing with early stop once MAX_RESULTS are verified
+  // Wave-based dimension probing with early stop once targetMaxResults are verified
   const validItems: ExtractedCatalogImage[] = [];
   const mediumFallbackItems: ExtractedCatalogImage[] = [];
 
@@ -1232,7 +1260,11 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
     };
   };
 
-  for (let i = 0; i < orderedCandidates.length && validItems.length < MAX_RESULTS; i += PROBE_WAVE_SIZE) {
+  for (
+    let i = 0;
+    i < orderedCandidates.length && validItems.length < targetMaxResults;
+    i += PROBE_WAVE_SIZE
+  ) {
     const wave = orderedCandidates.slice(i, i + PROBE_WAVE_SIZE);
     const probed = await mapWithConcurrency(wave, PROBE_CONCURRENCY, async (candidate) => {
       const dims = await probeImageDimensions(candidate.url, candidate.sourcePageUrl);
@@ -1245,11 +1277,11 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
       const { candidate, dims } = entry;
       if (dims.width >= MIN_DIMENSION_PX && dims.height >= MIN_DIMENSION_PX) {
         validItems.push(toExtractedItem(candidate, dims, validItems.length));
-        if (validItems.length >= MAX_RESULTS) break;
+        if (validItems.length >= targetMaxResults) break;
       } else if (
         dims.width >= FALLBACK_MIN_DIMENSION_PX &&
         dims.height >= FALLBACK_MIN_DIMENSION_PX &&
-        mediumFallbackItems.length < MAX_RESULTS
+        mediumFallbackItems.length < targetMaxResults
       ) {
         mediumFallbackItems.push(toExtractedItem(candidate, dims, mediumFallbackItems.length));
       }
@@ -1272,11 +1304,11 @@ export async function extractImagesFromUrl(rawUrl: string): Promise<ExtractImage
         const { candidate, dims } = entry;
         if (dims.width >= MIN_DIMENSION_PX && dims.height >= MIN_DIMENSION_PX) {
           validItems.push(toExtractedItem(candidate, dims, validItems.length));
-          if (validItems.length >= MAX_RESULTS) break;
+          if (validItems.length >= targetMaxResults) break;
         } else if (
           dims.width >= FALLBACK_MIN_DIMENSION_PX &&
           dims.height >= FALLBACK_MIN_DIMENSION_PX &&
-          mediumFallbackItems.length < MAX_RESULTS
+          mediumFallbackItems.length < targetMaxResults
         ) {
           mediumFallbackItems.push(toExtractedItem(candidate, dims, mediumFallbackItems.length));
         }

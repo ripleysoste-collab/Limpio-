@@ -55,6 +55,8 @@ import {
 } from './lib/supabaseClient';
 
 const MAX_FREE_UPLOAD_IMAGES = 10;
+const MAX_ADMIN_EXTRACT_IMAGES = 50;
+const ADMIN_EXTRACT_ONLY_EMAIL = 'cristiancuerodiaz@gmail.com';
 const COMPRESSION_START_DELAY_MS = 2000;
 const UPLOAD_START_DELAY_MS = 1000;
 const RECEIVE_START_DELAY_MS = 1000;
@@ -700,11 +702,20 @@ export default function App() {
     const controller = new AbortController();
     extractAbortRef.current = controller;
 
+    const isAdminExtractAccount =
+      authUserRef.current?.email?.trim().toLowerCase() === ADMIN_EXTRACT_ONLY_EMAIL;
+    const activeLimit = isAdminExtractAccount
+      ? MAX_ADMIN_EXTRACT_IMAGES
+      : MAX_FREE_UPLOAD_IMAGES;
+
     try {
       const response = await fetch('/api/extract', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: normalized }),
+        body: JSON.stringify({
+          url: normalized,
+          ...(isAdminExtractAccount ? { maxResults: MAX_ADMIN_EXTRACT_IMAGES } : {}),
+        }),
         signal: controller.signal,
       });
 
@@ -718,13 +729,29 @@ export default function App() {
         return;
       }
 
-      const extractedImages = data.images.slice(0, MAX_FREE_UPLOAD_IMAGES);
+      const extractedImages = data.images.slice(0, activeLimit);
+      inputRef.current?.blur();
+
+      // Admin test account: stop right after domain extraction (skip compression, R2 upload, and Gemini mapping)
+      if (isAdminExtractAccount) {
+        setIsFileUploadFlow(false);
+        setIsReadOnlyReplay(false);
+        setShowCompressionBox(false);
+        setShowUploadBox(false);
+        setShowReceiveBox(false);
+        setShowMapBox(false);
+        setBatchNotice(t.app.adminExtractOnlyNotice(extractedImages.length));
+        setHasSearched(true);
+        setCatalogImages(extractedImages);
+        setCatalogVersion((prev) => prev + 1);
+        return;
+      }
+
       const overflowNotice =
-        data.images.length > MAX_FREE_UPLOAD_IMAGES
-          ? t.app.freePlanLimitNotice(MAX_FREE_UPLOAD_IMAGES)
+        data.images.length > activeLimit
+          ? t.app.freePlanLimitNotice(activeLimit)
           : null;
 
-      inputRef.current?.blur();
       startAutomatedBatchPipeline(
         extractedImages,
         extractedImages.map((img) => ({ kind: 'url', url: img.url })),
@@ -1330,10 +1357,16 @@ export default function App() {
       return;
     }
 
-    const validFiles = allValidFiles.slice(0, MAX_FREE_UPLOAD_IMAGES);
+    const isAdminExtractAccount =
+      authUserRef.current?.email?.trim().toLowerCase() === ADMIN_EXTRACT_ONLY_EMAIL;
+    const activeLimit = isAdminExtractAccount
+      ? MAX_ADMIN_EXTRACT_IMAGES
+      : MAX_FREE_UPLOAD_IMAGES;
+
+    const validFiles = allValidFiles.slice(0, activeLimit);
     const overflowNotice =
-      allValidFiles.length > MAX_FREE_UPLOAD_IMAGES
-        ? t.app.freePlanLimitNotice(MAX_FREE_UPLOAD_IMAGES)
+      allValidFiles.length > activeLimit
+        ? t.app.freePlanLimitNotice(activeLimit)
         : null;
 
     extractAbortRef.current?.abort();

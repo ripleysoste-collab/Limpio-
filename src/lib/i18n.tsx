@@ -71,6 +71,7 @@ export interface TranslationDictionary {
     extractEmptyError: string;
     extractNetworkError: string;
     freePlanLimitNotice: (maxImages: number) => string;
+    adminExtractOnlyNotice: (count: number) => string;
     invalidImageFilesError: string;
     uploadImageError: string;
     mapImageError: string;
@@ -361,6 +362,8 @@ const ES_DICTIONARY: TranslationDictionary = {
       'No se pudo conectar con la página. Verifica la URL e intenta de nuevo.',
     freePlanLimitNotice: (max) =>
       `Plan gratuito: se procesarán las primeras ${max} imágenes.`,
+    adminExtractOnlyNotice: (count) =>
+      `Modo prueba admin: ${count} imagen${count === 1 ? '' : 'es'} extraída${count === 1 ? '' : 's'} del dominio (detenido tras la extracción, sin compresión ni mapeo IA).`,
     invalidImageFilesError: 'Por favor selecciona archivos de imagen válidos.',
     uploadImageError: 'Error al subir la imagen.',
     mapImageError: 'Error al renderizar y mapear la imagen con IA.',
@@ -802,6 +805,8 @@ const EN_DICTIONARY: TranslationDictionary = {
       'Could not connect to that webpage. Check the URL and try again.',
     freePlanLimitNotice: (max) =>
       `Free plan: the first ${max} images will be processed.`,
+    adminExtractOnlyNotice: (count) =>
+      `Admin test mode: ${count} image${count === 1 ? '' : 's'} extracted from domain (stopped after extraction, no compression or AI mapping).`,
     invalidImageFilesError: 'Please select valid image files.',
     uploadImageError: 'Failed to upload image.',
     mapImageError: 'Failed to render and map image with AI.',
@@ -1244,6 +1249,8 @@ const PT_DICTIONARY: TranslationDictionary = {
       'Não foi possível conectar ao site. Verifique a URL e tente novamente.',
     freePlanLimitNotice: (max) =>
       `Plano gratuito: as primeiras ${max} imagens serão processadas.`,
+    adminExtractOnlyNotice: (count) =>
+      `Modo teste admin: ${count} image${count === 1 ? 'm extraída' : 'ns extraídas'} do domínio (parado após a extração, sem compressão nem mapeamento IA).`,
     invalidImageFilesError: 'Por favor, selecione arquivos de imagem válidos.',
     uploadImageError: 'Erro ao enviar a imagem.',
     mapImageError: 'Erro ao renderizar e mapear a imagem com IA.',

@@ -51,7 +51,11 @@ export default async function handler(req: VercelLikeRequest, res: VercelLikeRes
   try {
     const body = await readRequestBody(req);
     const rawUrl = typeof body.url === 'string' ? body.url : '';
-    const result = await extractImagesFromUrl(rawUrl);
+    const maxResults =
+      typeof body.maxResults === 'number' && Number.isFinite(body.maxResults)
+        ? body.maxResults
+        : undefined;
+    const result = await extractImagesFromUrl(rawUrl, { maxResults });
 
     if (result.images.length === 0) {
       return sendJson(res, 422, {

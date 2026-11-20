@@ -41,7 +41,11 @@ async function startServer() {
   app.post('/api/extract', async (req, res) => {
     try {
       const rawUrl = typeof req.body?.url === 'string' ? req.body.url : '';
-      const result = await extractImagesFromUrl(rawUrl);
+      const maxResults =
+        typeof req.body?.maxResults === 'number' && Number.isFinite(req.body.maxResults)
+          ? req.body.maxResults
+          : undefined;
+      const result = await extractImagesFromUrl(rawUrl, { maxResults });
 
       if (result.images.length === 0) {
         return res.status(422).json({
