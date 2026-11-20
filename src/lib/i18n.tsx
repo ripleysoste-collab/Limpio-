@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { resolveApiUrl } from './apiConfig';
 
 export type SupportedLocale = 'es' | 'en' | 'pt';
 export type LocaleSource = 'geo' | 'header' | 'default' | 'manual';
@@ -1801,7 +1802,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
     void (async () => {
       try {
-        const res = await fetch('/api/locale', {
+        const res = await fetch(resolveApiUrl('/api/locale'), {
           method: 'GET',
           signal: controller.signal,
           cache: 'no-store',

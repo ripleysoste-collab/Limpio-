@@ -27,6 +27,7 @@ import {
 import { SearchLinkChatDrawer } from './components/SearchLinkChatDrawer';
 import { SearchLinkLogo } from './components/SearchLinkLogo';
 import { CATALOG_SAMPLE_IMAGES, type CatalogImageItem } from './data/catalogSamples';
+import { resolveApiUrl } from './lib/apiConfig';
 import { useI18n } from './lib/i18n';
 import {
   compressImageToWebp,
@@ -181,8 +182,9 @@ export default function App() {
         setExtractError(null);
         const token = await getSupabaseAccessToken();
         if (token && active) {
-          await fetch('/api/extract', {
+          await fetch(resolveApiUrl('/api/extract'), {
             method: 'GET',
+            credentials: 'include',
             headers: { Authorization: `Bearer ${token}` },
             cache: 'no-store',
           }).catch(() => {});
@@ -191,8 +193,9 @@ export default function App() {
       }
 
       try {
-        const res = await fetch('/api/extract', {
+        const res = await fetch(resolveApiUrl('/api/extract'), {
           method: 'GET',
+          credentials: 'include',
           cache: 'no-store',
         });
         const data = (await res.json().catch(() => ({}))) as {
@@ -786,8 +789,9 @@ export default function App() {
 
     try {
       const accessToken = currentUser ? await getSupabaseAccessToken() : null;
-      const response = await fetch('/api/extract', {
+      const response = await fetch(resolveApiUrl('/api/extract'), {
         method: 'POST',
+        credentials: 'include',
         headers: {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           'Content-Type': 'application/json',
@@ -816,7 +820,11 @@ export default function App() {
         return;
       }
 
-      const extractedImages = data.images.slice(0, activeLimit);
+      const extractedImages = data.images.slice(0, activeLimit).map((item) => ({
+        ...item,
+        url: resolveApiUrl(item.url),
+        ...(item.cleanUrl ? { cleanUrl: resolveApiUrl(item.cleanUrl) } : {}),
+      }));
       inputRef.current?.blur();
 
       // Guest (not signed in): extract max 10 images only, stop immediately without compression/upload/AI mapping

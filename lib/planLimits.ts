@@ -198,6 +198,19 @@ function pruneGuestMemory(now: number) {
   }
 }
 
+function getCookieSecurityAttrs(headers: IncomingHttpHeaders): string {
+  const proto =
+    typeof headers['x-forwarded-proto'] === 'string'
+      ? headers['x-forwarded-proto']
+      : '';
+  const origin =
+    typeof headers.origin === 'string' ? headers.origin : '';
+  const isHttps =
+    proto.toLowerCase().includes('https') ||
+    origin.toLowerCase().startsWith('https://');
+  return isHttps ? 'SameSite=None; Secure' : 'SameSite=Lax';
+}
+
 export function inspectGuestExtractStatus(
   headers: IncomingHttpHeaders,
   remoteAddress: string | undefined,
@@ -208,12 +221,13 @@ export function inspectGuestExtractStatus(
   clearCookieHeader?: string;
 } {
   const ip = getClientIp(headers, remoteAddress);
+  const cookieAttrs = getCookieSecurityAttrs(headers);
   if (authenticatedUser) {
     guestExtractMemory.delete(ip);
     return {
       ipBlocked: false,
       attemptsUsed: 0,
-      clearCookieHeader: `${GUEST_EXTRACT_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+      clearCookieHeader: `${GUEST_EXTRACT_COOKIE_NAME}=; Path=/; HttpOnly; ${cookieAttrs}; Max-Age=0`,
     };
   }
 
@@ -243,6 +257,7 @@ export function checkAndConsumeGuestExtractQuota(
   setCookieHeader: string;
 } {
   const ip = getClientIp(headers, remoteAddress);
+  const cookieAttrs = getCookieSecurityAttrs(headers);
 
   if (authenticatedUser) {
     guestExtractMemory.delete(ip);
@@ -250,7 +265,7 @@ export function checkAndConsumeGuestExtractQuota(
       allowed: true,
       ipBlocked: false,
       attemptsUsed: 0,
-      setCookieHeader: `${GUEST_EXTRACT_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+      setCookieHeader: `${GUEST_EXTRACT_COOKIE_NAME}=; Path=/; HttpOnly; ${cookieAttrs}; Max-Age=0`,
     };
   }
 
@@ -278,7 +293,7 @@ export function checkAndConsumeGuestExtractQuota(
       b: blockedRecord.blockedUntil,
       w: blockedRecord.windowStart,
     });
-    const setCookieHeader = `${GUEST_EXTRACT_COOKIE_NAME}=${encodeURIComponent(signed)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
+    const setCookieHeader = `${GUEST_EXTRACT_COOKIE_NAME}=${encodeURIComponent(signed)}; Path=/; HttpOnly; ${cookieAttrs}; Max-Age=86400`;
 
     return {
       allowed: false,
@@ -300,7 +315,7 @@ export function checkAndConsumeGuestExtractQuota(
     b: nextRecord.blockedUntil,
     w: nextRecord.windowStart,
   });
-  const setCookieHeader = `${GUEST_EXTRACT_COOKIE_NAME}=${encodeURIComponent(signed)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
+  const setCookieHeader = `${GUEST_EXTRACT_COOKIE_NAME}=${encodeURIComponent(signed)}; Path=/; HttpOnly; ${cookieAttrs}; Max-Age=86400`;
 
   return {
     allowed: true,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { ArrowUp, Loader2, Package, RotateCcw, X } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
+import { resolveApiUrl } from '../lib/apiConfig';
 import { getSupabaseAccessToken } from '../lib/supabaseClient';
 import type { OrganizationServiceItem } from './DesktopOrganizationView';
 
@@ -148,8 +149,9 @@ export function SearchLinkChatDrawer({
 
     try {
       const accessToken = await getSupabaseAccessToken();
-      const res = await fetch('/api/chat', {
+      const res = await fetch(resolveApiUrl('/api/chat'), {
         method: 'POST',
+        credentials: 'include',
         headers: {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           'Content-Type': 'application/json',

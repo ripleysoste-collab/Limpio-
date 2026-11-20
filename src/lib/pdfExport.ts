@@ -3,6 +3,7 @@ import type { CatalogImageItem } from '../data/catalogSamples';
 import type { MappedImageMetadata } from './imageCompression';
 import type { CompressedImageMeta } from '../components/MobileCatalogCarousel';
 import type { SupportedLocale } from './i18n';
+import { resolveApiUrl } from './apiConfig';
 
 export type CatalogPdfExportKind =
   | 'json'
@@ -58,12 +59,12 @@ async function fetchImageForPdf(url: string): Promise<LoadedCanvasImage | null> 
 
   const candidates: Array<{ src: string; cors: boolean }> = [];
   if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('/')) {
-    candidates.push({ src: url, cors: false });
+    candidates.push({ src: resolveApiUrl(url), cors: url.startsWith('/api/') });
   } else {
     candidates.push({ src: url, cors: true });
     candidates.push({
-      src: `/api/image-proxy?url=${encodeURIComponent(url)}`,
-      cors: false,
+      src: resolveApiUrl(`/api/image-proxy?url=${encodeURIComponent(url)}`),
+      cors: true,
     });
   }
 

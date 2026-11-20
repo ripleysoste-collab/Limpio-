@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractImagesFromUrl } from './lib/extractor.ts';
@@ -44,9 +45,74 @@ import {
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
 
+function parseAllowedOrigins(): string[] {
+  const combined = [process.env.ALLOWED_ORIGINS, process.env.APP_URL]
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+    .join(',');
+  return combined
+    .split(',')
+    .map((entry) => entry.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, ''))
+    .filter(Boolean);
+}
+
+function isOriginAllowed(origin: string, allowList: string[]): boolean {
+  if (!origin) return false;
+  if (allowList.length === 0) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    return true;
+  }
+  const normalized = origin.replace(/\/+$/, '').toLowerCase();
+  return allowList.some((pattern) => {
+    const cleanPattern = pattern.toLowerCase();
+    if (cleanPattern === '*') return true;
+    if (cleanPattern.startsWith('*.')) {
+      const suffix = cleanPattern.slice(1);
+      try {
+        return new URL(normalized).hostname.endsWith(suffix);
+      } catch {
+        return false;
+      }
+    }
+    return normalized === cleanPattern;
+  });
+}
+
 async function startServer() {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '64kb' }));
+
+  const allowedOrigins = parseAllowedOrigins();
+  app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/v1/')) {
+      return next();
+    }
+    const origin =
+      typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
+    if (origin && isOriginAllowed(origin, allowedOrigins)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Authorization, Content-Type, X-Upload-Folder, x-api-key',
+      );
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    }
+    if (req.method === 'OPTIONS') {
+      return res.status(204).end();
+    }
+    return next();
+  });
+
+  app.get('/api/health', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({
+      ok: true,
+      service: 'search-link-api',
+      status: 'up',
+    });
+  });
 
   app.get('/api/extract', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
@@ -540,10 +606,21 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distDir = path.join(rootDir, 'dist');
-    app.use(express.static(distDir));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distDir, 'index.html'));
-    });
+    const distIndex = path.join(distDir, 'index.html');
+    if (fs.existsSync(distIndex)) {
+      app.use(express.static(distDir));
+      app.get('*', (_req, res) => {
+        res.sendFile(distIndex);
+      });
+    } else {
+      app.get('/', (_req, res) => {
+        res.json({
+          ok: true,
+          service: 'search-link-api',
+          health: '/api/health',
+        });
+      });
+    }
   }
 
   app.listen(PORT, '0.0.0.0', () => {

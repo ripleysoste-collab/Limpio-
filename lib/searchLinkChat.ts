@@ -232,7 +232,16 @@ export function consumeDailyLimit(
   }
 
   const signedValue = signChatQuotaCookie(day, nextUsed);
-  const cookieHeader = `${SEARCH_LINK_IA_COOKIE_NAME}=${encodeURIComponent(signedValue)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`;
+  const proto =
+    typeof headers['x-forwarded-proto'] === 'string'
+      ? headers['x-forwarded-proto']
+      : '';
+  const origin = typeof headers.origin === 'string' ? headers.origin : '';
+  const isHttps =
+    proto.toLowerCase().includes('https') ||
+    origin.toLowerCase().startsWith('https://');
+  const cookieAttrs = isHttps ? 'SameSite=None; Secure' : 'SameSite=Lax';
+  const cookieHeader = `${SEARCH_LINK_IA_COOKIE_NAME}=${encodeURIComponent(signedValue)}; Path=/; HttpOnly; ${cookieAttrs}; Max-Age=86400`;
   return {
     day,
     used: nextUsed,

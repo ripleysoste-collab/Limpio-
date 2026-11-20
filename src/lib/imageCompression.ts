@@ -1,3 +1,4 @@
+import { getApiBaseUrl, resolveApiUrl } from './apiConfig';
 import { getSupabaseAccessToken } from './supabaseClient';
 
 export interface CompressedImageResult {
@@ -97,14 +98,14 @@ export async function renderImageBlobFromUrl(
   const isRemoteHttp = /^https?:\/\//i.test(imageUrl);
 
   if (isAlreadyProxied || !isRemoteHttp) {
-    blob = await tryFetchBlob(imageUrl);
+    blob = await tryFetchBlob(resolveApiUrl(imageUrl));
   } else {
     try {
       blob = await tryFetchBlob(imageUrl);
     } catch (err) {
       if (signal?.aborted) throw err;
       blob = await tryFetchBlob(
-        `/api/image-proxy?url=${encodeURIComponent(imageUrl)}`,
+        resolveApiUrl(`/api/image-proxy?url=${encodeURIComponent(imageUrl)}`),
       );
     }
   }
@@ -236,8 +237,9 @@ export async function uploadCompressedImage(
     ? { Authorization: `Bearer ${accessToken}` }
     : {};
   const useJsonPayload = compressed.blob.size <= MAX_JSON_RAW_BYTES;
+  const uploadEndpoint = resolveApiUrl('/api/upload');
   const response = useJsonPayload
-    ? await fetch('/api/upload', {
+    ? await fetch(uploadEndpoint, {
         method: 'POST',
         headers: {
           ...authHeaders,
@@ -251,7 +253,7 @@ export async function uploadCompressedImage(
         }),
         signal,
       })
-    : await fetch('/api/upload', {
+    : await fetch(uploadEndpoint, {
         method: 'POST',
         headers: {
           ...authHeaders,
@@ -283,8 +285,9 @@ export async function uploadCompressedImage(
     );
   }
 
+  const mediaOrigin = getApiBaseUrl() || window.location.origin;
   const absoluteUrl = payload.url.startsWith('/')
-    ? `${window.location.origin}${payload.url}`
+    ? `${mediaOrigin}${payload.url}`
     : payload.url;
 
   return {
@@ -326,7 +329,7 @@ export async function mapUploadedImageWithAi(
   signal?: AbortSignal,
 ): Promise<MappedImageMetadata> {
   const accessToken = await getSupabaseAccessToken();
-  const response = await fetch('/api/map-image', {
+  const response = await fetch(resolveApiUrl('/api/map-image'), {
     method: 'POST',
     headers: {
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),

@@ -1,3 +1,5 @@
+import { getApiBaseUrl } from './apiConfig';
+
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -44,6 +46,10 @@ export function isRawCoreApiKey(value: string | null | undefined): boolean {
 
 export function buildCoreServiceEndpointUrl(slug: string): string {
   const cleanSlug = slug.trim();
+  const apiBase = getApiBaseUrl();
+  if (apiBase) {
+    return `${apiBase}/api/v1/services/${encodeURIComponent(cleanSlug)}`;
+  }
   if (typeof window !== 'undefined' && window.location?.origin) {
     return `${window.location.origin}/api/v1/services/${encodeURIComponent(cleanSlug)}`;
   }
